@@ -1,0 +1,88 @@
+---
+title: 'Compass Overview'
+description: 'Rooms, events, services, and space intelligence'
+---
+
+# Compass
+
+Compass is Meridian's core module for **room discovery, booking, and space intelligence**. It provides students and staff with a unified platform to find study spaces, manage room bookings, access campus services, and provide real-time feedback on space quality.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Room Discovery" icon="door-open">
+    Browse and search available study spaces, classrooms, and meeting rooms with real-time availability
+  </Card>
+  <Card title="Smart Booking" icon="calendar-check">
+    Instant room reservations with conflict detection and automated scheduling
+  </Card>
+  <Card title="Space Intelligence" icon="chart-line">
+    Real-time ratings, feedback, and analytics on space quality and utilization
+  </Card>
+  <Card title="Event Management" icon="calendar-days">
+    Create and manage events with integrated room booking and attendee management
+  </Card>
+</CardGroup>
+
+## Core Capabilities
+
+### Room & Space Management
+
+- **Real-time Availability**: Live updates on room availability and occupancy
+- **Advanced Search**: Filter by capacity, amenities, location, and availability
+- **Booking System**: Instant reservations with conflict resolution
+- **Recurring Bookings**: Support for regular study sessions and meetings
+
+### Space Intelligence
+
+- **Quality Ratings**: Student feedback on temperature, noise, lighting, and equipment
+- **Utilization Analytics**: Track space usage patterns and identify underutilized areas
+- **Maintenance Alerts**: Real-time reporting of equipment failures and facility issues
+- **Predictive Insights**: Data-driven recommendations for space optimization
+
+### Event Integration
+
+- **Event-Room Linking**: Automatically book spaces when creating events
+- **Capacity Planning**: Match event size with appropriate room capacity
+- **Resource Management**: Track equipment and amenities needed for events
+
+## Architecture
+
+Compass integrates with:
+
+- **Frontend**: React-based user interface (`Meridian/frontend`)
+- **Backend API**: RESTful endpoints for room and event management
+- **Real-time Updates**: WebSocket integration for live availability
+- **Calendar Integration**: Sync with external calendar systems
+- **SIS Integration**: Import classroom data and course schedules
+
+## Use Cases
+
+- **Students**: Find and book study spaces quickly
+- **Faculty**: Reserve classrooms and meeting spaces
+- **Administrators**: Monitor space utilization and optimize resource allocation
+- **Facilities**: Receive real-time maintenance requests and space quality feedback
+
+## Getting Started
+
+<CardGroup cols={2}>
+  <Card title="Frontend Development" icon="code" href="/compass/frontend">
+    Learn about Compass frontend architecture and components
+  </Card>
+  <Card title="API Reference" icon="book" href="/api-reference/introduction">
+    Explore Compass API endpoints for rooms and events
+  </Card>
+  <Card title="Space Intelligence" icon="chart-bar" href="/compass/analytics">
+    Understand space analytics and feedback systems
+  </Card>
+  <Card title="Integration Guide" icon="plug" href="/compass/integrations">
+    Set up calendar and SIS integrations
+  </Card>
+</CardGroup>
+
+## Performance Metrics
+
+- **Booking Time**: Reduced from 10-15 minutes to under 2 minutes
+- **Issue Detection**: Student-reported problems identified 48-72 hours faster
+- **Utilization**: Improved space utilization through data-driven insights
+

@@ -1,0 +1,134 @@
+---
+title: "Atlas Membership (Join, Applications, Members)"
+description: "Join flows, member applications, and the admin/member management APIs"
+---
+
+## Concepts
+
+Atlas membership is represented by two record types:
+
+- **`OrgMember`**: an active/known member row (`members` collection)
+- **`OrgMemberApplication`**: a pending join request (`orgMemberApplications` collection)
+
+Which record is created depends on org settings.
+
+## Join configuration knobs (Org)
+
+Stored on the org document:
+
+- `Org.requireApprovalForJoin: boolean`
+- `Org.memberForm?: ObjectId` (a `Form` used to collect application answers)
+
+## Join flow: immediate membership
+
+**Condition**: `requireApprovalForJoin === false`
+
+**Path**: `POST /:orgId/apply-to-org` (in `orgRoutes`)
+
+**Behavior**:
+- Creates `OrgMember({ org_id, user_id, role: 'member' })`
+- Responds immediately with success
+
+<Warning>
+This path currently does **not** update `User.clubAssociations`. Some other membership operations (like role assignment in `orgRoleRoutes`) do. If your UI relies on `clubAssociations`, verify it is kept in sync.
+</Warning>
+
+## Join flow: application required
+
+**Condition**: `requireApprovalForJoin === true`
+
+**Path**: `POST /:orgId/apply-to-org` (in `orgRoutes`)
+
+**Behavior**:
+
+<Steps>
+  <Step title="Check for existing application">
+    ```javascript
+    const existing = await OrgMemberApplication.findOne({
+      org_id,
+      user_id,
+      status: 'pending'
+    });
+    ```
+  </Step>
+  <Step title="Handle memberForm (if exists)">
+    ```javascript
+    if (org.memberForm) {
+      const form = await Form.findById(org.memberForm);
+      const answers = buildAnswersArray(formData, form.questions);
+      const formResponse = await FormResponse.create({ ... });
+      await OrgMemberApplication.create({
+        org_id,
+        user_id,
+        formResponse: formResponse._id
+      });
+    }
+    ```
+  </Step>
+  <Step title="Create application (no form)">
+    ```javascript
+    await OrgMemberApplication.create({
+      org_id,
+      user_id,
+      status: 'pending'
+    });
+    ```
+  </Step>
+  <Step title="Notify admins">
+    Notifies org admins (roles `owner`/`admin`) via `NotificationService` template `org_member_applied`
+  </Step>
+</Steps>
+
+## Reviewing applications
+
+The “authoritative” member/application read is:
+
+- `GET /org-roles/:orgId/members`
+
+This returns:
+
+- `members`: from `OrgMember.getActiveMembers(orgId)`
+- `applications`: `OrgMemberApplication.find({ org_id, status: 'pending' }).populate('user_id formResponse')`
+
+### Approving an application
+
+- `POST /org-roles/:orgId/applications/:applicationId/approve`
+  - gated by `requireMemberManagement()` (org permission: `manage_members`)
+  - creates a new `OrgMember` for the applicant
+  - marks the application `approved` and writes metadata
+
+### Rejecting an application
+
+There is a rejection concept in the schema (`status: 'rejected'`), but confirm the existence of a matching API endpoint before relying on it. If missing, implement alongside the approve endpoint and update the UI.
+
+## Removing members
+
+- `DELETE /org-roles/:orgId/members/:userId`
+  - gated by `requireMemberManagement()`
+  - prevents removing the org owner
+  - currently hard-deletes the `OrgMember` document (commented-out “inactive” soft delete exists)
+
+Be aware of downstream references (messages, events) that may assume member rows exist.
+
+## Role assignment is membership creation
+
+The role assignment endpoint:
+
+- `POST /org-roles/:orgId/members/:userId/role`
+
+…will **create** an `OrgMember` row if missing (and assign the role), or change role if it exists.
+
+It also pushes the orgId into `User.clubAssociations` if it’s missing.
+
+This means role assignment can effectively “force-join” a user into an org.
+
+## Troubleshooting membership issues
+
+- **User can’t access `/club-dashboard/:id`**:
+  - frontend checks `User.clubAssociations` for `org.org_name` match; ensure `clubAssociations` is populated and consistent
+- **User is “member” but permission middleware denies**:
+  - `OrgMember.status` must be `active`
+- **Role exists on member but permissions don’t apply**:
+  - `Org.positions[].name` must match `OrgMember.role`
+
+

@@ -1,0 +1,149 @@
+---
+title: 'Atlas Overview'
+description: 'Academic scheduling and organization management'
+---
+
+# Atlas
+
+Atlas is Meridian's module for **academic scheduling, optimization, and organization management**. It provides administrators and organization leaders with tools to manage course schedules, room assignments, club rosters, and organizational activities.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Academic Scheduling" icon="calendar-alt">
+    Automated course scheduling with conflict resolution and optimization algorithms
+  </Card>
+  <Card title="Organization Management" icon="users">
+    Comprehensive club and organization directory with membership management
+  </Card>
+  <Card title="Room Assignment" icon="door-open">
+    Intelligent room assignment based on capacity, equipment needs, and preferences
+  </Card>
+  <Card title="Engagement Analytics" icon="chart-bar">
+    Track organization activity, membership growth, and engagement metrics
+  </Card>
+</CardGroup>
+
+## Core Capabilities
+
+### Academic Scheduling
+
+- **Automated Scheduling**: AI-powered algorithms optimize course schedules
+- **Conflict Resolution**: Automatic detection and resolution of scheduling conflicts
+- **Resource Optimization**: Maximize room utilization while meeting course requirements
+- **Faculty Preferences**: Incorporate instructor preferences and constraints
+
+### Organization Management
+
+- **Organization Directory**: Centralized directory of all campus clubs and organizations
+- **Membership Management**: Track members, roles, and participation
+- **Leadership Transition**: Smooth handoff of organization leadership
+- **Budget Tracking**: Monitor organization budgets and resource allocation
+
+### Room Assignment
+
+- **Intelligent Matching**: Match courses to appropriate rooms based on:
+  - Capacity requirements
+  - Equipment needs (projectors, labs, etc.)
+  - Accessibility requirements
+  - Location preferences
+- **Optimization**: Maximize utilization while minimizing conflicts
+- **Reporting**: Analytics on room usage and assignment efficiency
+
+## Architecture
+
+Atlas integrates with:
+
+- **SIS Systems**: Import course data and student rosters
+- **Backend API**: RESTful endpoints for scheduling and organization management
+- **Admin Dashboard**: React-based admin interface (`/feature-admin/atlas`)
+- **Analytics Engine**: Data processing for scheduling optimization
+
+## Use Cases
+
+- **Registrars**: Optimize course schedules and room assignments
+- **Organization Leaders**: Manage club rosters, events, and activities
+- **Administrators**: Monitor organization engagement and activity
+- **Students**: Discover and join campus organizations
+
+## Key Components
+
+### Scheduling Engine
+
+The scheduling engine uses optimization algorithms to:
+
+- Minimize scheduling conflicts
+- Maximize room utilization
+- Respect faculty preferences
+- Handle special requirements (labs, studios, etc.)
+
+### Organization Portal
+
+Features include:
+
+- Organization profiles and descriptions
+- Member directories and roles
+- Event calendars and activities
+- Communication tools
+- Budget and resource management
+
+## Performance Metrics
+
+- **Scheduling Efficiency**: Reduced manual conflict resolution by 80%
+- **Utilization**: Improved room utilization through optimization
+- **Engagement**: Increased organization visibility and membership
+
+## Getting Started
+
+<CardGroup cols={2}>
+  <Card title="Admin Dashboard" icon="dashboard" href="/atlas/admin">
+    Learn about the Atlas admin interface
+  </Card>
+  <Card title="Scheduling API" icon="code" href="/api-reference/introduction">
+    Explore scheduling and organization APIs
+  </Card>
+  <Card title="SIS Integration" icon="plug" href="/atlas/integrations">
+    Set up SIS data imports and synchronization
+  </Card>
+  <Card title="Analytics" icon="chart-line" href="/atlas/analytics">
+    Understand engagement metrics and reporting
+  </Card>
+</CardGroup>
+
+## Deep Dives (Internal)
+
+These pages are the “developer truth” for Atlas as implemented in this repo:
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="diagram-project" href="/atlas/architecture">
+    How Atlas is wired end-to-end (route mounts, UIs, and model access)
+  </Card>
+  <Card title="Data Model" icon="database" href="/atlas/data-model">
+    Schemas, collections, and invariants (Org, members, verification, messaging)
+  </Card>
+  <Card title="Backend APIs" icon="server" href="/atlas/backend">
+    Endpoint map, auth/permission gates, and request/response shapes
+  </Card>
+  <Card title="Frontend" icon="code" href="/atlas/frontend">
+    React entrypoints and which components call which APIs
+  </Card>
+  <Card title="Permissions" icon="shield-halved" href="/atlas/permissions">
+    Role + permission evaluation and middleware enforcement
+  </Card>
+  <Card title="Membership" icon="user-group" href="/atlas/membership">
+    Join flows, applications, approvals, and member management
+  </Card>
+  <Card title="Verification" icon="badge-check" href="/atlas/verification">
+    Verification tiers, requests, and admin review mechanics
+  </Card>
+  <Card title="Messaging" icon="messages" href="/atlas/messaging">
+    Org messages, visibility rules, mentions parsing, and API endpoints
+  </Card>
+  <Card title="Event Analytics" icon="chart-column" href="/atlas/event-analytics">
+    Org-scoped event analytics + templates under /org-event-management
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/atlas/troubleshooting">
+    Common failure modes and where to look first
+  </Card>
+</CardGroup>
+

@@ -1,0 +1,151 @@
+---
+title: "Atlas System Configuration"
+description: "OrgManagementConfig schema, admin UI, and backend update semantics"
+---
+
+## Overview
+
+Atlas has a **global configuration document**:
+
+- **Model**: `OrgManagementConfig`
+- **Schema**: `Meridian/backend/schemas/orgManagementConfig.js`
+- **Collection**: `orgManagementConfigs`
+- **Access**: via `findOne()` (singleton pattern)
+
+<Warning>
+This is a singleton document - only one config document exists system-wide.
+</Warning>
+
+It is edited by the admin dashboard (`/feature-admin/atlas`) and drives behavior in:
+
+- Verification submission rules
+- Tier catalog
+- Analytics retention
+- Messaging constraints
+
+## Backend APIs
+
+### Read config
+
+- `GET /org-management/config`
+- Auth: admin/root only
+- Behavior:
+  - creates a default config document if none exists
+
+### Update config
+
+<RequestExample>
+```bash
+PUT /org-management/config
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "verificationEnabled": true,
+  "verificationTiers": {
+    "basic": { "requirements": [...], "benefits": [...] }
+  }
+}
+```
+</RequestExample>
+
+**Auth**: Admin/root only
+
+**Body**: The updated config object (frontend sends the entire `localConfig`)
+
+**Implementation details**:
+
+<Warning>
+**Important:** The backend does **not** do a naive document replace. It builds a `$set` object using **dot-notation** paths for nested objects.
+</Warning>
+
+```javascript
+// Backend implementation
+const $set = buildDotNotationPaths(configUpdates);
+await OrgManagementConfig.findOneAndUpdate(
+  {}, 
+  { $set }, 
+  { upsert: true, runValidators: true }
+);
+```
+
+**Implications**:
+- Fields not mentioned in `$set` are preserved
+- Arrays are assigned as whole values (no deep merge)
+- Deeply nested objects like `messaging.notificationSettings` are flattened and updated per-key
+
+## Frontend admin UI mapping
+
+Component:
+
+- `Meridian/frontend/src/pages/FeatureAdmin/OrgManagement/Configuration/Configuration.jsx`
+
+Key behaviors:
+
+- loads config via `useFetch('/org-management/config')`
+- deep clones into `localConfig`
+- tracks unsaved changes by comparing to a stored snapshot (`originalDataRef`)
+- saves via `apiRequest('/org-management/config', localConfig, { method: 'PUT' })`
+
+Sections are rendered via `section` prop:
+
+- `general`
+- `verification-types`
+- `review-workflow`
+- `policies`
+- `messaging`
+
+## Key config fields (developer summary)
+
+### Verification
+
+- `verificationEnabled`
+- `allowedRequestTypes[]`
+- `verificationTiers` object keyed by tier id:
+  - each tier contains `requirements` and `benefits`
+
+### Feature access
+
+- `featureAccess.eventCreation`
+- `featureAccess.memberManagement`
+- `featureAccess.fundingRequests`
+- `featureAccess.spaceReservation`
+
+### Review workflow
+
+- `reviewWorkflow.requireMultipleApprovers`
+- `reviewWorkflow.minApprovers`
+- `reviewWorkflow.autoEscalateAfterDays`
+
+### Messaging (global constraints)
+
+The org message routes consult these global values (if present):
+
+- max/min character limits
+- profanity filter enforcement flag
+- notification settings
+
+## Safe ways to extend config
+
+When adding new configuration under `OrgManagementConfig`:
+
+<Steps>
+  <Step title="Add schema fields">
+    Add fields (with defaults) in `orgManagementConfig.js`
+  </Step>
+  <Step title="Verify frontend access">
+    Confirm frontend deep clone & editing logic can reach the field
+  </Step>
+  <Step title="Backend inclusion">
+    Ensure backend `PUT /org-management/config` includes it (automatic if in request body)
+  </Step>
+  <Step title="Validate nesting">
+    If nested 2+ levels, validate the dot-flattening logic handles the nesting you expect
+  </Step>
+</Steps>
+
+<Note>
+If you need 3+ levels deep consistently, consider writing a generic "flatten to dot paths" helper with recursion.
+</Note>
+
+

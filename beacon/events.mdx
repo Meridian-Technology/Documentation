@@ -1,0 +1,210 @@
+---
+title: 'Beacon Event System'
+description: 'Comprehensive guide to event creation, management, and workflows'
+---
+
+# Beacon Event System
+
+The Beacon event system provides end-to-end event lifecycle management, from creation through approval to completion and analytics.
+
+## Event Lifecycle
+
+<Steps>
+  <Step title="Create Event">
+    Organizers create events with details, location, and room booking
+  </Step>
+  <Step title="Submit for Approval">
+    Events are automatically routed to appropriate stakeholders based on workflow configuration
+  </Step>
+  <Step title="Approval Process">
+    Stakeholders review and approve events through automated workflows
+  </Step>
+  <Step title="Event Goes Live">
+    Approved events appear in engagement feeds and become available for RSVP
+  </Step>
+  <Step title="Event Execution">
+    Check-in attendees and manage event logistics
+  </Step>
+  <Step title="Post-Event Analytics">
+    Review attendance, engagement metrics, and feedback
+  </Step>
+</Steps>
+
+## Creating Events
+
+### Event Form Fields
+
+- **Basic Information**:
+  - Event title and description
+  - Date, time, and duration
+  - Location and room booking (integrated with Compass)
+  - Capacity and RSVP settings
+
+- **Organization Details**:
+  - Hosting organization
+  - Event category/type
+  - Target audience
+  - Tags and keywords
+
+- **Additional Options**:
+  - Public/private visibility
+  - Requires approval flag
+  - Notification settings
+  - Recurring event options
+
+### Room Booking Integration
+
+Events can automatically book rooms through Compass:
+
+```javascript
+// Example event creation with room booking
+const eventData = {
+  title: "Study Session",
+  date: "2024-01-15",
+  time: "14:00",
+  duration: 120,
+  roomBooking: {
+    roomId: "room-123",
+    autoBook: true
+  }
+};
+```
+
+## Approval Workflows
+
+### Workflow Types
+
+1. **Single Approval**: One approver required
+2. **Sequential Approval**: Multiple approvers in sequence
+3. **Parallel Approval**: Multiple approvers simultaneously
+4. **Conditional Routing**: Route based on event attributes
+
+### Stakeholder Roles
+
+Common roles in approval workflows:
+
+- **Event Coordinator**: Initial review and routing
+- **Facilities Manager**: Approve room bookings and resources
+- **Safety Officer**: Review safety requirements
+- **Department Head**: Final approval for department events
+
+### Notification System
+
+Automated notifications sent at each stage:
+
+- **Event Created**: Notify stakeholders of new event submission
+- **Approval Required**: Alert approvers of pending approvals
+- **Approved**: Notify organizer of approval
+- **Rejected**: Notify organizer with rejection reason
+- **Event Reminder**: Notify attendees before event
+
+## RSVP Management
+
+### RSVP Features
+
+- **Capacity Management**: Automatic capacity limits
+- **Waitlist**: Automatic waitlist for full events
+- **RSVP Tracking**: Real-time attendee counts
+- **Reminder System**: Automated reminders to attendees
+
+### Check-in System
+
+- **QR Code Check-in**: Generate QR codes for event check-in
+- **Manual Check-in**: Staff can manually check in attendees
+- **Attendance Tracking**: Real-time attendance monitoring
+
+## Event Promotion
+
+### Promotion Channels
+
+- **Engagement Feed**: Events appear in Beacon feed
+- **Email Notifications**: Targeted email campaigns
+- **Push Notifications**: Mobile app notifications
+- **Organization Pages**: Display on organization profiles
+
+### Targeting
+
+Events can be targeted to:
+
+- Specific organizations
+- Student groups or cohorts
+- Geographic locations
+- Interest categories
+
+## Analytics & Reporting
+
+### Event Metrics
+
+- **RSVP Rate**: Percentage of invited users who RSVP
+- **Attendance Rate**: Percentage of RSVPs who attend
+- **Engagement Score**: Overall event engagement metric
+- **Feedback**: Post-event surveys and ratings
+
+### Dashboard Views
+
+- **Event Performance**: Individual event analytics
+- **Organization Analytics**: Aggregate metrics per organization
+- **Campus-wide Trends**: Overall event activity trends
+- **Approval Metrics**: Workflow performance and bottlenecks
+
+## API Integration
+
+### Create Event
+
+```javascript
+POST /api/events
+{
+  "title": "Event Title",
+  "description": "Event description",
+  "date": "2024-01-15",
+  "time": "14:00",
+  "organizationId": "org-123",
+  "requiresApproval": true
+}
+```
+
+### Manage RSVPs
+
+```javascript
+POST /api/events/:eventId/rsvp
+{
+  "userId": "user-123",
+  "status": "attending"
+}
+```
+
+## Best Practices
+
+1. **Early Submission**: Submit events well in advance for approval
+2. **Complete Information**: Provide all required details upfront
+3. **Room Booking**: Book rooms early to ensure availability
+4. **Promotion**: Use multiple channels to promote events
+5. **Follow-up**: Send post-event surveys to gather feedback
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Event Not Appearing in Feed">
+    Check that the event is approved and marked as public. Verify event date is in the future.
+  </Accordion>
+  
+  <Accordion title="Approval Stuck">
+    Check workflow configuration. Verify stakeholders are assigned correctly and notifications are being sent.
+  </Accordion>
+  
+  <Accordion title="Room Booking Failed">
+    Ensure room is available at requested time. Check room capacity matches event capacity.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Workflow Configuration" icon="sitemap" href="/beacon/workflows">
+    Learn how to configure approval workflows
+  </Card>
+  <Card title="Admin Dashboard" icon="dashboard" href="/beacon/admin">
+    Access Beacon admin tools and settings
+  </Card>
+</CardGroup>
+

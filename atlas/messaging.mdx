@@ -1,0 +1,165 @@
+---
+title: "Atlas Messaging (Org Messages)"
+description: "Org messages, visibility rules, mentions parsing, and API endpoints"
+---
+
+## Data model
+
+Org messaging is stored as `OrgMessage` documents:
+
+- schema: `Meridian/backend/schemas/orgMessage.js`
+- collection: `orgMessages`
+
+Key fields:
+
+- `orgId`, `authorId`
+- `content`
+- `visibility: members_only | members_and_followers | public`
+- `mentionedEvents[]` (refs `Event`) — derived from content parsing
+- `likes[]`, `likeCount`
+- replies: `parentMessageId`, `replyCount`
+- soft deletion: `isDeleted`, `deletedAt`
+
+## Per-org settings: `Org.messageSettings`
+
+Messaging is controlled per org via:
+
+```javascript
+org.messageSettings = {
+  enabled: Boolean,
+  postingPermissions: [String], // Role names allowed to post
+  visibility: 'members_only' | 'members_and_followers' | 'public',
+  characterLimit: Number, // Org-level cap
+  allowLikes: Boolean,
+  allowReplies: Boolean
+}
+```
+
+The API also reads **global** config values from `OrgManagementConfig.messaging` (if present):
+
+- `maxCharacterLimit` (hard ceiling)
+- `minCharacterLimit` (hard floor)
+- `requireProfanityFilter`
+
+**Effective limit used by the server**:
+
+```javascript
+const effectiveLimit = Math.min(
+  org.messageSettings.characterLimit,
+  systemConfig.messaging.maxCharacterLimit
+);
+```
+
+## Backend routes
+
+File: `Meridian/backend/routes/orgMessageRoutes.js`
+
+Mounted at:
+
+- `/org-messages`
+
+### Create a message
+
+<RequestExample>
+```bash
+POST /org-messages/abc123/messages
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "content": "Check out our next meeting!",
+  "visibility": "members_only"
+}
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+  "_id": "...",
+  "orgId": "abc123",
+  "authorId": "...",
+  "content": "Check out our next meeting!",
+  "mentionedEvents": [],
+  "links": [],
+  "likeCount": 0,
+  "replyCount": 0
+}
+```
+</ResponseExample>
+
+**Auth & rules**:
+- User must be authenticated
+- Org must exist
+- Org messaging must be enabled
+- User must be an **active** org member
+- User role must be included in `postingPermissions` (defaults to `owner/admin/officer`)
+- Message must be within min/max limits
+- Optional profanity filter
+
+**Mentions parsing**:
+- Server calls `parseMessageContent(content, Event, orgId)` from `Meridian/backend/utilities/messageParser.js`
+- Stores `mentionedEvents` and `links`
+
+### List messages (timeline)
+
+- `GET /org-messages/:orgId/messages`
+
+Visibility filtering depends on relationship:
+
+- member → sees all
+- follower → sees members_and_followers + public
+- public → sees public only
+
+### Fetch single message + replies
+
+- `GET /org-messages/:orgId/messages/:messageId`
+
+### Like/unlike
+
+- `POST /org-messages/:orgId/messages/:messageId/like`
+
+Likes are stored as user ids in `likes[]` and denormalized into `likeCount`.
+
+### Reply
+
+- `POST /org-messages/:orgId/messages/:messageId/reply`
+
+Replies are separate `OrgMessage` docs with `parentMessageId` set. Parent `replyCount` is incremented.
+
+### Edit message
+
+- `PUT /org-messages/:orgId/messages/:messageId`
+
+### Delete message
+
+- `DELETE /org-messages/:orgId/messages/:messageId`
+
+Deletion uses soft-delete semantics at the schema level (`isDeleted`), but confirm route behavior in `orgMessageRoutes.js` if you need strict guarantees.
+
+## Frontend usage
+
+The club dashboard includes:
+
+- `OrgMessageFeed` component (see `Meridian/frontend/src/pages/ClubDash/ClubDash.jsx` import)
+
+Typical calls:
+
+- list messages: `GET /org-messages/:orgId/messages`
+- post message: `POST /org-messages/:orgId/messages`
+
+## Common pitfalls
+
+<Warning>
+**Min character limit**: SystemConfig defaults can reject short messages unexpectedly.
+</Warning>
+
+<Warning>
+**Posting permissions use role names**: If you rename roles, update `postingPermissions`.
+</Warning>
+
+<Warning>
+**Visibility vs "followers" model**: Follower schema currently references `Club` instead of `Org`; verify follower queries/populate behavior if you lean on followers for visibility.
+</Warning>
+
+

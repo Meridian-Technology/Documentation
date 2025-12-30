@@ -1,0 +1,114 @@
+---
+title: 'Beacon Overview'
+description: 'Campus-wide engagement feeds and approval workflows'
+---
+
+# Beacon
+
+Beacon is Meridian's module for **campus-wide engagement, event approvals, and workflow automation**. It provides a unified feed of campus activities, automated approval processes, and tools for managing events, organizations, and campus communications.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Engagement Feed" icon="rss">
+    Unified feed of campus events, organization activities, and announcements
+  </Card>
+  <Card title="Approval Workflows" icon="check-circle">
+    Automated event approval processes reducing processing time by up to 70%
+  </Card>
+  <Card title="Event Management" icon="calendar-days">
+    End-to-end event lifecycle management from creation to completion
+  </Card>
+  <Card title="Stakeholder Management" icon="users-gear">
+    Multi-tier stakeholder system with role-based permissions and routing
+  </Card>
+</CardGroup>
+
+## Core Capabilities
+
+### Engagement Feed
+
+- **Unified Timeline**: Single feed showing all campus activities
+- **Personalized Content**: Filter by interests, organizations, or event types
+- **Real-time Updates**: Live updates on events, RSVPs, and announcements
+- **Cross-platform**: Available on web and mobile apps
+
+### Approval Workflows
+
+- **Automated Routing**: Events automatically routed to appropriate approvers
+- **Multi-tier Approval**: Support for complex approval chains
+- **Notification System**: Automated notifications at each approval stage
+- **Tracking & Analytics**: Monitor approval times and bottlenecks
+
+### Event System
+
+The Beacon event system supports:
+
+- **Event Creation**: Comprehensive event forms with room booking integration
+- **RSVP Management**: Track attendees and manage capacity
+- **Promotion Tools**: Campus-wide event promotion and marketing
+- **Check-in System**: Track event attendance
+- **Post-event Analytics**: Measure event success and engagement
+
+### Stakeholder Management
+
+- **Role Assignment**: Assign institutional positions to users
+- **Domain Management**: Organize stakeholders by department or domain
+- **Permission Control**: Granular permissions for different roles
+- **Workflow Configuration**: Customize approval workflows per domain
+
+## Architecture
+
+Beacon integrates with:
+
+- **Frontend**: React-based dashboard (`/feature-admin/beacon`)
+- **Backend API**: RESTful endpoints for events and workflows
+- **Notification System**: Email, SMS, and push notifications
+- **Compass Integration**: Room booking for events
+- **Atlas Integration**: Organization data and member management
+
+## Use Cases
+
+- **Students**: Discover events, RSVP, and engage with campus activities
+- **Event Organizers**: Create events and manage RSVPs
+- **Administrators**: Approve events, monitor engagement, configure workflows
+- **Organization Leaders**: Promote events and track attendance
+
+## Workflow System
+
+### Approval Types
+
+1. **Approval Required**: Event must be approved before going live
+2. **Notification Only**: Stakeholders notified but approval not required
+3. **Acknowledgment**: Stakeholders must acknowledge receipt
+
+### Workflow Configuration
+
+- **Global Configuration**: System-wide settings from root dashboard
+- **Domain-specific**: Custom workflows per department or domain
+- **Stakeholder Roles**: Assign roles that trigger specific workflows
+- **Conditional Routing**: Route based on event type, location, or other criteria
+
+## Performance Metrics
+
+- **Approval Time**: Reduced from days to hours (70% reduction)
+- **Event Discovery**: Increased event visibility and attendance
+- **Engagement**: Improved student participation in campus activities
+
+## Getting Started
+
+<CardGroup cols={2}>
+  <Card title="Event System" icon="calendar" href="/beacon/events">
+    Learn about event creation and management
+  </Card>
+  <Card title="Workflow Configuration" icon="sitemap" href="/beacon/workflows">
+    Set up approval workflows and stakeholder routing
+  </Card>
+  <Card title="Admin Dashboard" icon="dashboard" href="/beacon/admin">
+    Configure Beacon settings and monitor engagement
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/introduction">
+    Integrate with Beacon APIs for events and workflows
+  </Card>
+</CardGroup>
+

@@ -1,71 +1,110 @@
 ---
 title: Introduction
-description: "Welcome to the home of your new documentation"
+description: "Welcome to Meridian Developer Documentation"
 ---
 
 <img
   className="block dark:hidden"
   src="/images/hero-light.svg"
-  alt="Hero Light"
+  alt="Meridian Platform"
 />
 <img
   className="hidden dark:block"
   src="/images/hero-dark.svg"
-  alt="Hero Dark"
+  alt="Meridian Platform"
 />
 
-## Setting up
+## Welcome to Meridian
 
-The first step to world-class documentation is setting up your editing environments.
+Meridian is a **Student Experience Operating System** that unifies campus systems into a single, data-driven platform. Built for universities, Meridian consolidates room booking, event management, organization administration, and space intelligence into one seamless experience.
+
+## Platform Overview
+
+Meridian consists of four integrated modules:
 
 <CardGroup cols={2}>
   <Card
-    title="Edit Your Docs"
-    icon="pen-to-square"
-    href="https://mintlify.com/docs/quickstart"
+    title="Compass"
+    icon="compass"
+    href="/compass/overview"
   >
-    Get your docs set up locally for easy development
+    Rooms, events, services, and space intelligence. Discover and book study spaces, manage events, and access campus services.
   </Card>
   <Card
-    title="Preview Changes"
-    icon="image"
-    href="https://mintlify.com/docs/development"
+    title="Atlas"
+    icon="map"
+    href="/atlas/overview"
   >
-    Preview your changes before you push to make sure they're perfect
+    Academic scheduling and optimization. Manage course schedules, room assignments, and organization management.
+  </Card>
+  <Card
+    title="Beacon"
+    icon="signal"
+    href="/beacon/overview"
+  >
+    Campus-wide engagement feeds and approvals. Connect with organizations, track engagement, and manage workflows.
+  </Card>
+  <Card
+    title="Platform"
+    icon="settings"
+    href="/backend/auth/SAML"
+  >
+    Authentication, APIs, and platform infrastructure. Configure SAML, explore APIs, and set up integrations.
   </Card>
 </CardGroup>
 
-## Make it yours
+## Key Features
 
-Update your docs to your brand and add valuable content for the best user conversion.
+- **Unified Campus Experience**: Single platform for all campus services
+- **Real-time Space Intelligence**: Live availability, ratings, and feedback for study spaces
+- **Automated Workflows**: Reduce approval processing time by up to 70%
+- **Multi-tenant Architecture**: Secure, isolated configurations per university
+- **SAML & OAuth Integration**: Flexible authentication options for students and staff
+- **Mobile & Web**: Cross-platform applications for iOS, Android, and web
+
+## Getting Started
 
 <CardGroup cols={2}>
   <Card
-    title="Customize Style"
-    icon="palette"
-    href="https://mintlify.com/docs/settings/global"
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
   >
-    Customize your docs to your company's colors and brands
+    Set up your development environment and start building
   </Card>
   <Card
-    title="Reference APIs"
+    title="Frontend Development"
     icon="code"
-    href="https://mintlify.com/docs/api-playground/openapi"
+    href="/navigatingthefrontend"
   >
-    Automatically generate endpoints from an OpenAPI spec
+    Learn about the React-based frontend architecture
   </Card>
   <Card
-    title="Add Components"
-    icon="screwdriver-wrench"
-    href="https://mintlify.com/docs/content/components/accordions"
+    title="Backend Authentication"
+    icon="key"
+    href="/backend/auth/SAML"
   >
-    Build interactive features and designs to guide your users
+    Integrate SAML authentication for university SSO
   </Card>
   <Card
-    title="Get Inspiration"
-    icon="stars"
-    href="https://mintlify.com/customers"
+    title="API Reference"
+    icon="book"
+    href="/api-reference/introduction"
   >
-    Check out our showcase of our favorite documentation
+    Explore the REST API endpoints and documentation
   </Card>
 </CardGroup>
+
+## Architecture
+
+Meridian is built with a modern tech stack:
+
+- **Frontend**: React with SCSS, Context API for state management
+- **Backend**: Node.js/Express with PostgreSQL
+- **Mobile**: React Native (Expo) for iOS and Android
+- **Real-time**: WebSocket integration for live updates
+- **Authentication**: SAML 2.0 and OAuth 2.0 support
+
+## Next Steps
+
+Ready to start developing? Check out our [Quick Start Guide](/quickstart) to set up your local development environment.

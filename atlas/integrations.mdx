@@ -1,0 +1,107 @@
+---
+title: "Atlas Integrations"
+description: "Where Atlas integrates with other systems (events, forms, notifications) and where to add new ones"
+---
+
+## Integrations Atlas relies on today
+
+Atlas (org management) is not isolated; it depends on several shared platform systems.
+
+### Events
+
+Atlas uses org-hosted events via the shared `Event` model:
+
+- Public listing: `GET /:orgId/events` (in `orgRoutes`)
+- Org leader tooling + analytics: `/org-event-management/:orgId/...`
+
+Event documents referenced by Atlas typically have:
+
+- `hostingType: 'Org'`
+- `hostingId: <orgId>`
+
+### Forms (member join applications)
+
+When `Org.requireApprovalForJoin` is enabled and `Org.memberForm` is set:
+
+- join requests create a `FormResponse` snapshot
+- that snapshot id is stored on `OrgMemberApplication.formResponse`
+
+This leverages shared schemas:
+
+- `Form`
+- `FormResponse`
+
+### Notifications
+
+Join applications can notify org admins via:
+
+- `NotificationService.createBatchTemplateNotification(...)`
+
+See:
+
+- `Meridian/backend/routes/orgRoutes.js` → `/:orgId/apply-to-org`
+
+### Email/SMS/Push
+
+Org messaging supports notification fanout depending on system settings:
+
+- `OrgManagementConfig.messaging.notificationSettings`
+
+See:
+
+- `Meridian/backend/routes/orgMessageRoutes.js`
+
+## Where to implement “SIS Integration” (future/optional)
+
+There is no single “SIS connector” module inside Atlas today. If you need SIS imports (rosters, org directory, etc), the typical patterns are:
+
+- **Backend import jobs** (scripts or inngest functions) that write to:
+  - `Org` documents (org directory)
+  - `OrgMember` documents (rosters)
+- **Admin tooling** surfaced under `/feature-admin/atlas` to trigger or monitor imports
+
+If you add automated roster sync, be explicit about:
+
+- how you reconcile role assignment (`OrgMember.role`)
+- how you keep `User.clubAssociations` consistent
+- how you handle “inactive” members vs hard deletion
+
+## Where to add new integrations safely
+
+<Steps>
+  <Step title="Decide the scope">
+    <CodeGroup>
+    ```javascript title="Org-scoped"
+    // Store config on Org
+    org.integrationConfig = { ... }
+    ```
+    ```javascript title="Platform-wide"
+    // Store config on OrgManagementConfig
+    config.integrations = { ... }
+    ```
+    </CodeGroup>
+  </Step>
+  <Step title="Create a schema">
+    Add schema for any persistent config
+  </Step>
+  <Step title="Register in getModelService">
+    Register it in `getModelService.js` if it needs to be model-bound
+  </Step>
+  <Step title="Expose API routes">
+    <CodeGroup>
+    ```javascript title="Platform admin"
+    // Under /org-management
+    app.use('/org-management', integrationRoutes);
+    ```
+    ```javascript title="Org-scoped"
+    // Under /org-roles or /org-event-management
+    app.use('/org-roles', orgIntegrationRoutes);
+    ```
+    </CodeGroup>
+  </Step>
+  <Step title="Document invariants">
+    Document in `/atlas/data-model` and `/atlas/backend`
+  </Step>
+</Steps>
+
+

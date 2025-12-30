@@ -1,0 +1,87 @@
+---
+title: "Atlas Troubleshooting"
+description: "Common developer issues and where to look first"
+---
+
+## 1) "I get 403: You are not a member of this organization"
+
+Backend permission middleware (`requireOrgPermission`) requires:
+
+- An `OrgMember` row exists
+- `OrgMember.status === 'active'`
+
+**Check**:
+
+```javascript
+// Query the members collection
+const member = await OrgMember.findOne({
+  org_id: orgId,
+  user_id: userId
+});
+
+// Verify status
+if (member && member.status !== 'active') {
+  // Member exists but is not active
+}
+```
+
+## 2) "I can see the tab in the UI but the API still denies"
+
+**Frontend** does UI gating by inspecting `org.positions` and `OrgMember.role`.
+
+**Backend** checks:
+
+```javascript
+OrgMember.hasPermissionWithOrg(permission, org);
+// Depends on Org.positions[].permissions[]
+```
+
+**Differences that cause mismatch**:
+- Role names don't match (`OrgMember.role` vs `Org.positions[].name`)
+- Booleans (`canManageMembers`) are true in UI but `permissions[]` lacks the string used by middleware
+
+<Note>
+**Recommendation**: Treat `permissions[]` as canonical; keep booleans in sync or remove them from new roles.
+</Note>
+
+## 3) “User can’t access `/club-dashboard/:id`”
+
+The club dashboard contains an additional client-side gate:
+
+- `user.clubAssociations` must contain the org
+
+This is stored on `User` and is updated in some code paths (org creation, role assignment), but not all.
+
+If you see false negatives:
+
+- confirm `User.clubAssociations` contains org ids
+- consider standardizing updates in the backend for all membership creation paths
+
+## 4) “Verification tiers don’t show up / requests fail”
+
+Check:
+
+- `OrgManagementConfig` singleton exists (`GET /org-management/config` will auto-create it)
+- `verificationEnabled === true`
+- tier key exists in `verificationTiers`
+
+Also confirm:
+
+- `Org.verificationType` enum allows the tier key you’re trying to persist.
+
+## 5) “Message rejected for character limit / too short”
+
+Message validation is a min/max across:
+
+- org: `Org.messageSettings.characterLimit`
+- system: `OrgManagementConfig.messaging.maxCharacterLimit` and `minCharacterLimit`
+
+Effective limit is the minimum of org + system max.
+
+## 6) “Followers don’t work / visibility seems off”
+
+`OrgFollower` schema currently uses `ref: 'Club'` for `org_id`.
+
+If you need correct population or schema integrity, fix the ref and migrate as needed.
+
+

@@ -1,0 +1,182 @@
+---
+title: 'Compass Frontend Development'
+description: 'Frontend architecture and development guide for Compass'
+---
+
+# Compass Frontend Development
+
+The Compass frontend is built with **React** and provides the user interface for room discovery, booking, and space management.
+
+## Overview
+
+The Compass frontend is located in `Meridian/frontend/` and serves as the primary user-facing application for Meridian's space management features.
+
+### Key Technologies
+
+- **React** - UI framework
+- **SCSS** - Styling
+- **Context API** - State management
+- **React Router** - Navigation
+- **WebSocket** - Real-time updates
+
+## Component Structure
+
+### Core Components
+
+```
+frontend/src/
+├── components/
+│   ├── CalendarComponents/    # Calendar views for room booking
+│   │   ├── Calendar.jsx
+│   │   ├── DayColumn.jsx
+│   │   └── MobileCalendar.jsx
+│   ├── Classroom/            # Room detail views
+│   │   ├── Classroom.jsx
+│   │   ├── CheckedIn.jsx
+│   │   └── RatingGraph.jsx
+│   ├── SearchBar/            # Room search functionality
+│   └── Popup/                # Modal dialogs
+├── pages/
+│   ├── Classroom.jsx         # Room detail page
+│   └── CreateEvent.jsx       # Event creation
+└── context/
+    ├── AuthContext.js        # User authentication
+    ├── CacheContext.js       # API caching
+    └── WebSocketContext.js  # Real-time updates
+```
+
+## Key Features
+
+### Room Discovery
+
+The search and discovery interface allows users to:
+
+- Browse available rooms by location, capacity, and amenities
+- View real-time availability calendars
+- Filter by specific requirements (projector, whiteboard, etc.)
+- See ratings and reviews from other users
+
+### Booking System
+
+```jsx
+// Example booking component
+import { useAuth } from '../context/AuthContext';
+import { useWebSocket } from '../context/WebSocketContext';
+
+const BookingComponent = () => {
+  const { user } = useAuth();
+  const { sendMessage } = useWebSocket();
+  
+  const handleBooking = async (roomId, timeSlot) => {
+    // Booking logic
+    await bookRoom(roomId, timeSlot);
+    sendMessage('booking_created', { roomId, timeSlot });
+  };
+  
+  return (
+    // Booking UI
+  );
+};
+```
+
+### Real-time Updates
+
+Compass uses WebSocket connections to provide:
+
+- Live availability updates
+- Instant booking confirmations
+- Real-time occupancy status
+- Notification of room changes
+
+## State Management
+
+### Context Providers
+
+**AuthContext**: Manages user authentication and session
+```jsx
+const { user, login, logout } = useAuth();
+```
+
+**CacheContext**: Caches API responses for performance
+```jsx
+const { getCached, setCache } = useCache();
+```
+
+**WebSocketContext**: Handles real-time connections
+```jsx
+const { isConnected, sendMessage, subscribe } = useWebSocket();
+```
+
+## Routing
+
+Key routes for Compass:
+
+- `/` - Landing page with room search
+- `/classroom/:id` - Room detail page
+- `/create-event` - Event creation with room booking
+- `/feature-admin/compass` - Admin dashboard for Compass
+
+## Styling Guidelines
+
+Compass uses SCSS with BEM naming convention:
+
+```scss
+.Classroom {
+  &__header {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  &__details {
+    display: flex;
+    gap: 1rem;
+  }
+  
+  &--featured {
+    border: 2px solid var(--primary-color);
+  }
+}
+```
+
+## Development Workflow
+
+1. **Start Development Server**
+   ```bash
+   cd Meridian/frontend
+   npm start
+   ```
+
+2. **Make Component Changes**
+   - Edit files in `src/components/`
+   - Changes auto-reload via hot module replacement
+
+3. **Test Components**
+   ```bash
+   npm test
+   ```
+
+## Best Practices
+
+- **Component Reusability**: Create reusable components for common UI patterns
+- **Performance**: Use React.memo for expensive components
+- **Accessibility**: Follow WCAG guidelines for inclusive design
+- **Error Handling**: Implement error boundaries for graceful failures
+
+## Integration Points
+
+- **Backend API**: RESTful endpoints for room and event data
+- **WebSocket Server**: Real-time updates and notifications
+- **Calendar Systems**: External calendar integration
+- **Authentication**: SAML/OAuth for user login
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Integration" icon="plug" href="/api-reference/introduction">
+    Learn how to integrate with Compass backend APIs
+  </Card>
+  <Card title="WebSocket Setup" icon="signal" href="/development">
+    Set up real-time WebSocket connections
+  </Card>
+</CardGroup>
+

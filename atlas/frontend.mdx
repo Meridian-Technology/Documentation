@@ -1,0 +1,154 @@
+---
+title: "Atlas Frontend (React)"
+description: "UI entrypoints, components, and how they call Atlas APIs"
+---
+
+## Entry routes
+
+Atlas-related frontend routes are defined in:
+
+- `Meridian/frontend/src/App.js`
+
+Key paths:
+
+- **Public org profile**: `/org/:name`
+- **Org workspace (club dashboard)**: `/club-dashboard/:id`
+- **Org management admin**: `/feature-admin/atlas` (authorized roles: `admin`, `developer`, `oie`)
+- **Org creation**: `/create-org` (authorized roles: `admin`, `developer`)
+
+## HTTP client primitives
+
+### `useFetch(url, options)`
+
+File: `Meridian/frontend/src/hooks/useFetch.js`
+
+```javascript
+const { data, loading, error } = useFetch(
+  `/get-org-by-name/${clubId}?exhaustive=true`
+);
+```
+
+**Characteristics**:
+- Uses Axios
+- Sends cookies (`withCredentials: true`)
+- On 401 with `TOKEN_EXPIRED` / `NO_TOKEN`:
+  - POSTs `/refresh-token`
+  - Retries the original request
+  - If refresh fails: redirects to `/login`
+
+<Note>
+When writing new Atlas UI, default to `useFetch` for "read" queries and reuse `apiRequest` for mutations.
+</Note>
+
+### `apiRequest(url, body, options)`
+
+File: `Meridian/frontend/src/utils/postRequest.js`
+
+```javascript
+const result = await apiRequest(
+  '/org-roles/abc123/members/user456/role',
+  { role: 'treasurer' },
+  { method: 'POST' }
+);
+```
+
+**Characteristics**:
+- Axios wrapper with cookie support
+- On 401:
+  - POSTs `/refresh-token`
+  - Retries once
+- Returns either `response.data` or `{ error, code }` objects on failure
+
+## Public org profile (`/org/:name`)
+
+The public org display page loads org detail by name and renders:
+
+- org overview
+- members/followers (depending on UI)
+- org events (often via `GET /:orgId/events`)
+
+Backend data source:
+
+- `GET /get-org-by-name/:name`
+
+## Club dashboard (org workspace) (`/club-dashboard/:id`)
+
+File: `Meridian/frontend/src/pages/ClubDash/ClubDash.jsx`
+
+### Primary data fetches
+
+- org data: `useFetch(`/get-org-by-name/${clubId}?exhaustive=true`)`
+- meetings: `useFetch(`/get-meetings/${clubId}`)`
+
+### Permission gating (client-side)
+
+The dashboard keeps local UI permissions:
+
+- `canManageRoles`
+- `canManageMembers`
+- `canViewAnalytics`
+
+Computation:
+
+1. Owner check: `org.owner === user._id` → allow all
+2. Else:
+   - fetch all members via `GET /org-roles/:orgId/members`
+   - find the current user’s `OrgMember` row
+   - find role object in `org.positions`
+   - allow based on booleans or `role.permissions`
+
+Backend enforcement still exists (see `/atlas/permissions`).
+
+### Tabs and features
+
+The club dashboard includes components that map to backend APIs:
+
+- **Members** (`Members/`) → `/org-roles/:orgId/members`, role changes, application review
+- **Roles & Permissions** (`Roles/`) → `/org-roles/:orgId/roles` and related mutations
+- **Announcements** (`OrgMessageFeed`) → `/org-messages/:orgId/messages` etc.
+- **Events** (`EventsManagement`) → typically event routes + `/org-event-management/:orgId/...` for analytics/management
+- **Verification request** (`Settings/VerificationRequest`) → `POST /org-management/verification-requests`
+
+## Org management admin dashboard (`/feature-admin/atlas`)
+
+File: `Meridian/frontend/src/pages/FeatureAdmin/OrgManagement/Atlas.jsx`
+
+This is a structured dashboard wrapper with menu items:
+
+- Overview → `OrgOverview`
+- Verification Requests → `VerificationRequests`
+- Organizations → `OrgList`
+- Analytics → `Analytics`
+- Settings → `Configuration` (multiple sub-sections)
+
+### Data sources
+
+- `/org-management/config`
+- `/org-management/verification-requests`
+- `/org-management/organizations`
+- `/org-management/analytics`
+
+### Notable implementation detail: config editing
+
+`Configuration.jsx` maintains `localConfig` state and compares it to an `originalDataRef` snapshot to power an “unsaved changes” banner.
+
+Backend writes to:
+
+- `PUT /org-management/config`
+
+…which converts nested objects into `$set` dot-path updates.
+
+## Where to add new Atlas UI
+
+Typical mapping:
+
+- **Org workspace features** → `Meridian/frontend/src/pages/ClubDash/...`
+- **Platform/admin features** → `Meridian/frontend/src/pages/FeatureAdmin/OrgManagement/...`
+- **Shared UI building blocks** → `Meridian/frontend/src/components/...`
+
+When adding new endpoints:
+
+- prefer adding them under `/org-roles` or `/org-management` depending on scope
+- document them in `/atlas/backend` and link from overview
+
+

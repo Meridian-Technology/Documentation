@@ -1,0 +1,175 @@
+---
+title: "Atlas Permissions & Roles"
+description: "How org roles, permissions, and middleware enforcement work"
+---
+
+## Two layers of authorization
+
+Atlas authorization is a combination of:
+
+- **Global auth**: “is this request authenticated?”
+  - enforced by `verifyToken` in `Meridian/backend/middlewares/verifyToken.js`
+- **Org-scoped auth**: “can this user do X inside org Y?”
+  - enforced by `Meridian/backend/middlewares/orgPermissions.js`
+
+This page documents the org-scoped layer.
+
+## Permission vocabulary
+
+Permissions are defined in:
+
+- `Meridian/backend/constants/permissions.js`
+
+There are multiple namespaces (org/event/user), but Atlas primarily uses org-level permissions like:
+
+- `all`
+- `view_roles`
+- `manage_roles`
+- `manage_members`
+- `manage_events`
+- `view_analytics`
+- `view_events`
+
+## Where permissions are stored
+
+### Org roles
+
+Roles are stored in the org document:
+
+- `Org.positions[]`
+
+Each role has:
+
+- `name` (string key)
+- `permissions[]`
+- plus helper booleans (`canManageMembers`, etc)
+
+The canonical evaluation path uses `permissions[]`.
+
+### Member assignment
+
+Membership records are stored in:
+
+- `OrgMember` documents
+
+Each member has:
+
+- `role` (string key that must match `Org.positions[].name`)
+- overrides:
+  - `customPermissions[]` (force-allow)
+  - `deniedPermissions[]` (force-deny)
+
+## How enforcement works (backend)
+
+### `requireOrgPermission(permission, orgParam = 'orgId')`
+
+File: `Meridian/backend/middlewares/orgPermissions.js`
+
+<Steps>
+  <Step title="Resolve orgId">
+    Extract from `req.params[orgParam]` or body/query
+  </Step>
+  <Step title="Load membership">
+    ```javascript
+    const member = await OrgMember.findOne({ 
+      org_id: orgId, 
+      user_id: req.user.userId, 
+      status: 'active' 
+    });
+    ```
+  </Step>
+  <Step title="Load org">
+    ```javascript
+    const org = await Org.findById(orgId);
+    ```
+  </Step>
+  <Step title="Evaluate permission">
+    ```javascript
+    member.hasPermissionWithOrg(permission, org);
+    ```
+  </Step>
+  <Step title="Attach to request">
+    On success, middleware attaches:
+    - `req.orgMember = member`
+    - `req.org = org`
+  </Step>
+</Steps>
+
+### Member-level override semantics
+
+In `OrgMember.hasPermissionWithOrg(permission, org)`:
+
+<Steps>
+  <Step title="Check denied permissions">
+    If `deniedPermissions.includes(permission)` → **deny**
+  </Step>
+  <Step title="Check custom permissions">
+    Else if `customPermissions.includes(permission)` → **allow**
+  </Step>
+  <Step title="Check org role">
+    Else → `org.hasPermission(this.role, permission)`
+  </Step>
+</Steps>
+
+### Org-level role check semantics
+
+In `Org.hasPermission(roleName, permission)`:
+
+```javascript
+// Allow if role.permissions contains 'all' OR the exact permission string
+org.hasPermission('admin', 'manage_members');
+// Returns true if role.permissions includes 'all' or 'manage_members'
+```
+
+## Role management endpoints (and how they are gated)
+
+Most role operations are served under `/org-roles`:
+
+- `GET /org-roles/:orgId/roles` → requires `requireOrgPermission('view_roles')`
+- `POST /org-roles/:orgId/roles` → requires `requireRoleManagement()` → checks `manage_roles`
+- `PUT /org-roles/:orgId/roles` → requires `manage_roles`
+- `PUT /org-roles/:orgId/roles/:roleName` → requires `manage_roles`
+- `DELETE /org-roles/:orgId/roles/:roleName` → requires `manage_roles`
+
+Important invariants enforced in code:
+
+- You **cannot** remove `owner` or `member` roles (`Org.removeRole`)
+- You **must** preserve `owner` in bulk updates (`PUT /org-roles/:orgId/roles`)
+- Owner role must retain `permissions: ['all']` and role management capability (`Org.updateRole`)
+
+## Member management endpoints (and how they are gated)
+
+- `DELETE /org-roles/:orgId/members/:userId` is gated by `requireMemberManagement()` → checks `manage_members`.
+- Some other member endpoints currently **do not** use middleware gates (e.g. assigning roles) and may rely on higher-level UI gating. When hardening security, audit these and add `requireMemberManagement` where appropriate.
+
+## Frontend permission checks (client-side)
+
+The club dashboard (`Meridian/frontend/src/pages/ClubDash/ClubDash.jsx`) computes permissions to show/hide UI tabs:
+
+- If org owner → all capabilities
+- Else:
+  - fetch `GET /org-roles/:orgId/members`
+  - find current user’s member row
+  - look up role object in `org.positions`
+  - allow if:
+    - role boolean is true **or**
+    - role.permissions includes the string **or**
+    - role.permissions includes `all`
+
+This is UI gating only. Backend enforcement is still required.
+
+## Common pitfalls
+
+<Warning>
+**Role name drift**: Renaming roles without migrating `OrgMember.role` will "orphan" members.
+</Warning>
+
+<Warning>
+**Missing `status: 'active'`**: orgPermission middleware requires active membership.
+</Warning>
+
+<Warning>
+**Inconsistent "admin/root" shape**: Platform routes use `authorizeRoles('admin','root')`; verify what `verifyToken` exposes (`req.user.role` vs `req.user.roles`).
+</Warning>
+
+

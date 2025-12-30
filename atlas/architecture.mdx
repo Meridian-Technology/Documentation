@@ -1,0 +1,156 @@
+---
+title: "Atlas Architecture"
+description: "How Atlas (org management) is wired end-to-end: models, routes, permissions, and UIs"
+---
+
+## What "Atlas" means in this repo
+
+In this codebase, **Atlas** is the "organizations system":
+
+- **Public org profile**: `/org/:name` (frontend route)
+- **Org workspace (club dashboard)**: `/club-dashboard/:id` (frontend route)
+- **Admin/org-management dashboard**: `/feature-admin/atlas` (frontend route)
+- **Backend surfaces**:
+  - **General org routes**: `Meridian/backend/routes/orgRoutes.js` (mounted at `/` in `Meridian/backend/app.js`)
+  - **Role + membership API**: `Meridian/backend/routes/orgRoleRoutes.js` (mounted at `/org-roles`)
+  - **Platform admin (config/verification/analytics)**: `Meridian/backend/routes/orgManagementRoutes.js` (mounted at `/org-management`)
+  - **Org messaging**: `Meridian/backend/routes/orgMessageRoutes.js` (mounted at `/org-messages`)
+  - **Org event management + analytics**: `Meridian/backend/routes/orgEventManagementRoutes.js` (mounted at `/org-event-management`)
+
+<Note>
+Atlas is **not** a standalone service; it's a set of schemas + routes inside the main backend and multiple UIs inside the main React frontend.
+</Note>
+
+## Data storage + "multi-tenant" model access
+
+The backend uses Mongoose schemas in `Meridian/backend/schemas/` but does **not** import models globally. Instead, handlers call:
+
+```javascript
+const { Org, OrgMember } = getModels(req, 'Org', 'OrgMember');
+```
+
+That helper uses `req.db.model(...)` to bind models to the **per-request connection** (`req.db`). This implies a multi-tenant or multi-db routing layer upstream that sets `req.db` (outside Atlas itself).
+
+<Warning>
+**Important for Atlas developers:**
+- Any Atlas handler that needs a model should use `getModels(req, 'Org', 'OrgMember', ...)`.
+- Any new schema you add must be registered in `getModelService.js`.
+</Warning>
+
+## Authentication and authorization layers
+
+### Global auth
+
+Most Atlas endpoints require a session cookie / JWT validated via:
+
+- `verifyToken` middleware (`Meridian/backend/middlewares/verifyToken.js`)
+
+Frontend requests are generally made with `withCredentials: true` so cookies are sent.
+
+### Atlas permission model (org-scoped)
+
+Atlas uses **org-scoped** permissions enforced by:
+
+- `Meridian/backend/middlewares/orgPermissions.js`
+
+This middleware loads:
+
+```javascript
+// Membership lookup
+const member = await OrgMember.findOne({ 
+  org_id, 
+  user_id, 
+  status: 'active' 
+});
+
+// Org lookup
+const org = await Org.findById(org_id);
+
+// Permission check
+member.hasPermissionWithOrg(permission, org);
+```
+
+The permission check ultimately resolves to:
+
+- `Org.hasPermission(roleName, permission)` (role permissions stored on the org document)
+- plus member-level overrides (`customPermissions`, `deniedPermissions`) on `OrgMember`
+
+### Admin surfaces (platform-wide)
+
+The "org-management" API uses `authorizeRoles('admin', 'root')` for system administrators.
+
+<Warning>
+**Important:** In this repo, user roles are stored on `User.roles` (array). Some code uses `req.user.role` and others use roles arrays. When adding new authorization checks, **inspect the current behavior of** `verifyToken` and match its shape.
+</Warning>
+
+## Frontend surfaces
+
+### 1) Club dashboard (org workspace)
+
+File: `Meridian/frontend/src/pages/ClubDash/ClubDash.jsx`
+
+Loads org data via:
+
+```javascript
+const { data: orgData } = useFetch(
+  `/get-org-by-name/${clubId}?exhaustive=true`
+);
+```
+
+Then derives permissions client-side by:
+
+- owner check (`org.owner === user._id`)
+- otherwise calls `GET /org-roles/:orgId/members` and cross-references org roles
+
+### 2) Org management admin dashboard
+
+File: `Meridian/frontend/src/pages/FeatureAdmin/OrgManagement/Atlas.jsx`
+
+Menu items map directly to backend endpoints:
+
+- verification queue → `/org-management/verification-requests`
+- organizations list → `/org-management/organizations`
+- analytics → `/org-management/analytics`
+- system config → `/org-management/config` (+ `PUT /org-management/config`)
+
+### 3) Org messaging
+
+UI components use `/org-messages/:orgId/...` endpoints (see `OrgMessageFeed` usage in club dashboard).
+
+## Mental model: key flows (high level)
+
+<Steps>
+  <Step title="Create org">
+    `/create-org` creates `Org` + `OrgMember(owner)` + pushes org id into `User.clubAssociations`
+  </Step>
+  <Step title="Join org">
+    <CodeGroup>
+    ```javascript title="Immediate join"
+    // If requireApprovalForJoin === false
+    // Membership is created immediately
+    ```
+    ```javascript title="Application required"
+    // If requireApprovalForJoin === true
+    // Creates OrgMemberApplication (optionally with FormResponse)
+    ```
+    </CodeGroup>
+  </Step>
+  <Step title="Role assignment">
+    - `Org.positions[]` defines roles + permissions
+    - `OrgMember.role` references a role `name`
+    - `OrgMember.customPermissions/deniedPermissions` can override the org role
+  </Step>
+  <Step title="Verification">
+    - org admins submit `OrgVerification` requests
+    - platform admins review and update `Org.verified`, `Org.verificationType`, `Org.verificationStatus`
+  </Step>
+</Steps>
+
+## Where to go next
+
+- Start with **data model**: `/atlas/data-model`
+- Then **backend** endpoints: `/atlas/backend`
+- Then **frontend** call graph: `/atlas/frontend`
+- Then **permissions**: `/atlas/permissions`
+
+

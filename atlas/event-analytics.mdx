@@ -1,0 +1,109 @@
+---
+title: "Atlas Event Management & Analytics"
+description: "Org-scoped event analytics, templates, and bulk operations"
+---
+
+## Scope
+
+These endpoints are used by org leaders to manage org events (distinct from the platform-wide “Beacon” event approval system).
+
+Backend route:
+
+- `Meridian/backend/routes/orgEventManagementRoutes.js`
+
+Mounted at:
+
+- `/org-event-management`
+
+Auth:
+
+- `verifyToken`
+- org-scoped permission gate: `requireEventManagement('orgId')` → checks `manage_events`
+
+## Endpoints
+
+### GET `/:orgId/analytics`
+
+<RequestExample>
+```bash
+GET /org-event-management/abc123/analytics?timeRange=30d&eventType=all
+Authorization: Bearer <token>
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+  "totals": {
+    "eventsCreated": 25,
+    "expectedAttendance": 500,
+    "averageAttendance": 20
+  },
+  "analytics": {
+    "views": 1200,
+    "uniqueViews": 800,
+    "rsvps": 450,
+    "engagementRate": 0.375
+  },
+  "breakdowns": {
+    "byType": { "meeting": 15, "social": 10 },
+    "byStatus": { "approved": 20, "pending": 5 }
+  },
+  "topEvents": [...],
+  "monthlyTrend": [...],
+  "memberEngagement": [...]
+}
+```
+</ResponseExample>
+
+**Query params**:
+- `timeRange`: `7d`, `30d`, `90d`, or `1y`
+- `eventType`: `all` or specific event type
+
+**Aggregations computed**:
+- Totals: events created, expected attendance, average attendance
+- Analytics: views, unique views, rsvps, engagement rate (from `EventAnalytics`)
+- Breakdowns: by type, by status
+- Top events by views
+- Monthly trend
+- Member engagement proxy (looks up events where member's `user_id` is in `Event.going`)
+
+### GET `/:orgId/events`
+
+- `GET /org-event-management/:orgId/events`
+
+Used for “manage all events” UIs (filters/pagination are in the route file; confirm exact params in code before building new UI).
+
+### GET `/:orgId/events/:eventId`
+
+- fetches a single event with analytics context
+
+### POST `/:orgId/events/bulk-action`
+
+Performs bulk operations across multiple events (e.g. delete/archive/status change). Audit for allowed actions before exposing to UI.
+
+### Templates
+
+- `POST /org-event-management/:orgId/event-templates`
+- `GET /org-event-management/:orgId/event-templates`
+- `POST /org-event-management/:orgId/events/from-template/:templateId`
+
+These support an “event template” workflow for faster event creation.
+
+## When to use these vs "core event routes"
+
+There are multiple event route families in the backend:
+
+| Route Family | File | Purpose |
+|--------------|------|---------|
+| Beacon event system | `eventRoutes.js` | Approval/event system |
+| Public org events | `orgRoutes.js` | Public listing (`GET /:orgId/events`) |
+| Org management | `orgEventManagementRoutes.js` | Org-scoped event management |
+
+<Note>
+**If you're building org leader tooling**, use `/org-event-management`.
+
+**If you're building public org pages**, use `GET /:orgId/events`.
+</Note>
+
+

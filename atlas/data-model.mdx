@@ -1,0 +1,366 @@
+---
+title: "Atlas Data Model"
+description: "Mongoose schemas, relationships, and invariants for organizations"
+---
+
+## Collections and schemas
+
+All Atlas data is stored in MongoDB via Mongoose schemas and is model-bound per request through `getModels(req, ...)`.
+
+### Core collections (Atlas)
+
+| Model | Schema File | Collection |
+|-------|-------------|------------|
+| `Org` | `Meridian/backend/schemas/org.js` | `orgs` |
+| `OrgMember` | `Meridian/backend/schemas/orgMember.js` | `members` |
+| `OrgMemberApplication` | `Meridian/backend/schemas/orgMemberApplication.js` | `orgMemberApplications` |
+| `OrgFollower` | `Meridian/backend/schemas/orgFollower.js` | `followers` |
+| `OrgVerification` | `Meridian/backend/schemas/orgVerification.js` | `orgVerifications` |
+| `OrgManagementConfig` | `Meridian/backend/schemas/orgManagementConfig.js` | `orgManagementConfigs` |
+| `OrgMessage` | `Meridian/backend/schemas/orgMessage.js` | `orgMessages` |
+
+### User linkage
+
+The user schema has:
+
+```javascript
+clubAssociations: [{
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'Org'
+}]
+```
+
+<Note>
+This is used in the frontend to gate access to `/club-dashboard/:id`.
+</Note>
+
+## `Org` (organization) schema
+
+File: `Meridian/backend/schemas/org.js`
+
+### Identity
+
+```javascript
+{
+  org_name: { type: String, required: true }, // Uniqueness enforced at route level
+  org_profile_image: { type: String, required: true, default: '/Logo.svg' },
+  org_description: { type: String, required: true },
+  owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
+}
+```
+
+### Membership config
+
+```javascript
+{
+  requireApprovalForJoin: { type: Boolean, default: false },
+  memberForm: { type: mongoose.Schema.Types.ObjectId, ref: 'Form', default: null }
+}
+```
+
+<Info>
+If `requireApprovalForJoin` is `true`, join requests create `OrgMemberApplication` instead of immediate membership.
+</Info>
+
+### Roles (`positions[]`)
+
+Roles are stored on the org document in `positions[]`:
+
+```javascript
+positions: [{
+  name: String,              // Role key: 'owner', 'admin', 'officer', 'member'
+  displayName: String,
+  permissions: [String],      // From constants/permissions.js
+  canManageMembers: Boolean, // Legacy boolean (duplicated from permissions)
+  canManageRoles: Boolean,
+  canManageEvents: Boolean,
+  canViewAnalytics: Boolean,
+  order: Number
+}]
+```
+
+<Warning>
+**Invariant:** Role names are referenced by `OrgMember.role`. If you rename role names, you must migrate members.
+</Warning>
+
+### Verification fields
+
+Atlas "verification" is stored directly on the org:
+
+```javascript
+{
+  verified: { type: Boolean, default: false },
+  verifiedAt: Date,
+  verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  verificationType: { 
+    type: String, 
+    enum: ['basic', 'premium', 'gold', 'platinum'] 
+  },
+  verificationStatus: { 
+    type: String, 
+    enum: ['pending', 'approved', 'rejected'] 
+  }
+}
+```
+
+<Note>
+`verificationType` is **validated via config** in `OrgManagementConfig` for requests; on `Org` it is an enum.
+</Note>
+
+### Messaging settings (`messageSettings`)
+
+Per-org constraints:
+
+```javascript
+messageSettings: {
+  enabled: { type: Boolean, default: true },
+  visibility: { 
+    type: String, 
+    enum: ['members_only', 'members_and_followers', 'public'],
+    default: 'members_only'
+  },
+  postingPermissions: [String], // Role names allowed to post
+  allowReplies: { type: Boolean, default: true },
+  allowLikes: { type: Boolean, default: true },
+  requireApproval: { type: Boolean, default: false },
+  characterLimit: { type: Number, min: 100, max: 2000, default: 500 }
+}
+```
+
+### Org-level helper methods
+
+`Org` defines helpers used by permission checks and role management:
+
+```javascript
+// Get role by name
+org.getRoleByName('admin')
+
+// Check if role has permission
+org.hasPermission('admin', 'manage_members')
+
+// Role management
+org.addCustomRole({ name: 'treasurer', ... })
+org.updateRole('treasurer', { permissions: [...] })
+org.removeRole('treasurer')
+```
+
+## `OrgMember` schema
+
+File: `Meridian/backend/schemas/orgMember.js`
+
+### Fields
+
+```javascript
+{
+  org_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Org', required: true },
+  user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  role: { type: String, default: 'member' }, // Must match Org.positions[].name
+  status: { 
+    type: String, 
+    enum: ['active', 'inactive', 'pending', 'suspended'],
+    default: 'active'
+  },
+  joinedAt: Date,
+  assignedAt: Date,
+  assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  roleHistory: [{
+    role: String,
+    changedAt: Date,
+    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  }],
+  customPermissions: [String],  // Force-allow permissions
+  deniedPermissions: [String]   // Force-deny permissions
+}
+```
+
+### Indexes
+
+```javascript
+// Unique compound index prevents multiple membership rows
+{ org_id: 1, user_id: 1 }, { unique: true }
+
+// Role queries
+{ org_id: 1, role: 1 }
+
+// User membership queries
+{ user_id: 1, status: 1 }
+```
+
+### Permission evaluation
+
+```javascript
+member.hasPermissionWithOrg(permission, org)
+```
+
+<Steps>
+  <Step title="Check denied permissions">
+    If `deniedPermissions.includes(permission)` → **deny**
+  </Step>
+  <Step title="Check custom permissions">
+    Else if `customPermissions.includes(permission)` → **allow**
+  </Step>
+  <Step title="Check org role">
+    Else → `org.hasPermission(this.role, permission)`
+  </Step>
+</Steps>
+
+## `OrgMemberApplication` schema
+
+File: `Meridian/backend/schemas/orgMemberApplication.js`
+
+Represents a join application when `Org.requireApprovalForJoin === true`.
+
+### Fields
+
+```javascript
+{
+  org_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Org', required: true },
+  user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  status: { 
+    type: String, 
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
+  },
+  reason: String, // Used for approval/rejection decisions
+  formResponse: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'FormResponse' 
+  }, // Created when org has memberForm
+  approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  approvedAt: Date
+}
+```
+
+## `OrgManagementConfig` (global system config)
+
+File: `Meridian/backend/schemas/orgManagementConfig.js`
+
+<Warning>
+This is a **singleton document** (read via `findOne()`).
+</Warning>
+
+### Key sections
+
+```javascript
+{
+  verification: {
+    verificationEnabled: Boolean,
+    verificationRequired: Boolean,
+    allowedRequestTypes: [String], // Feature flags
+    verificationTiers: {
+      // Keyed by tier id
+      'basic': { requirements: [...], benefits: [...] },
+      'premium': { requirements: [...], benefits: [...] }
+    }
+  },
+  featureAccess: {
+    eventCreation: Boolean,
+    memberManagement: Boolean,
+    fundingRequests: Boolean,
+    spaceReservation: Boolean
+  },
+  reviewWorkflow: {
+    requireMultipleApprovers: Boolean,
+    minApprovers: Number,
+    autoEscalateAfterDays: Number
+  },
+  reporting: {
+    analyticsEnabled: Boolean,
+    retentionDays: Number
+  },
+  messaging: {
+    maxCharacterLimit: Number,
+    minCharacterLimit: Number,
+    requireProfanityFilter: Boolean,
+    notificationSettings: {...}
+  }
+}
+```
+
+## `OrgVerification` (verification request)
+
+File: `Meridian/backend/schemas/orgVerification.js`
+
+### Fields
+
+```javascript
+{
+  orgId: { type: mongoose.Schema.Types.ObjectId, ref: 'Org', required: true },
+  requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  requestType: { 
+    type: String, 
+    enum: ['verification', 'funding', 'feature_access'] 
+  },
+  verificationType: String, // Tier key; validated against config
+  status: { 
+    type: String, 
+    enum: ['pending', 'under_review', 'approved', 'rejected'],
+    default: 'pending'
+  },
+  requestData: mongoose.Schema.Types.Mixed, // Freeform payload
+  reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  reviewedAt: Date,
+  reviewNotes: String,
+  attachments: [{
+    url: String,
+    filename: String,
+    uploadedAt: Date
+  }]
+}
+```
+
+## `OrgMessage` (announcements/messages)
+
+File: `Meridian/backend/schemas/orgMessage.js`
+
+### Fields
+
+```javascript
+{
+  orgId: { type: mongoose.Schema.Types.ObjectId, ref: 'Org', required: true },
+  authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  content: { type: String, required: true, maxlength: 2000 },
+  visibility: { 
+    type: String, 
+    enum: ['members_only', 'members_and_followers', 'public'],
+    default: 'members_only'
+  },
+  mentionedEvents: [{ 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Event' 
+  }], // Derived from content parsing
+  links: [String],
+  likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  likeCount: { type: Number, default: 0 },
+  parentMessageId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'OrgMessage' 
+  },
+  replyCount: { type: Number, default: 0 },
+  isDeleted: { type: Boolean, default: false },
+  deletedAt: Date
+}
+```
+
+<Note>
+Indexes are tuned for timeline queries (`orgId + createdAt`).
+</Note>
+
+## `OrgFollower` (followers)
+
+File: `Meridian/backend/schemas/orgFollower.js`
+
+### Fields
+
+```javascript
+{
+  org_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
+  user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+}
+```
+
+<Warning>
+**Important:** This schema currently defines `org_id: ref 'Club'`, but the model is named `OrgFollower` and used as "org followers" throughout routes. Treat this as a **likely ref mismatch** (it should probably be `ref: 'Org'`). If you rely on population behavior here, verify the reference is correct.
+</Warning>
+
+

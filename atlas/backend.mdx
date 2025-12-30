@@ -1,0 +1,402 @@
+---
+title: "Atlas Backend (Routes & APIs)"
+description: "Endpoint map, auth/permission requirements, and request/response shapes"
+---
+
+## Route mounting map
+
+Atlas endpoints are split across multiple Express routers:
+
+```javascript
+// Meridian/backend/app.js
+app.use(orgRoutes);                                    // Mounted at /
+app.use('/org-roles', orgRoleRoutes);
+app.use('/org-management', orgManagementRoutes);
+app.use('/org-messages', orgMessageRoutes);
+app.use('/org-event-management', orgEventManagementRoutes);
+```
+
+| Route Prefix | File | Purpose |
+|--------------|------|---------|
+| `/` | `orgRoutes.js` | General org CRUD operations |
+| `/org-roles` | `orgRoleRoutes.js` | Roles and membership management |
+| `/org-management` | `orgManagementRoutes.js` | Platform admin (config, verification, analytics) |
+| `/org-messages` | `orgMessageRoutes.js` | Org messaging and announcements |
+| `/org-event-management` | `orgEventManagementRoutes.js` | Org-scoped event management |
+
+## Common auth behavior
+
+Most endpoints require `verifyToken` and depend on cookies (`withCredentials: true`).
+
+<Note>
+**Frontend integration:**
+- `useFetch` retries after POSTing `/refresh-token` on 401
+- `apiRequest` also attempts `/refresh-token` and retries
+</Note>
+
+## `orgRoutes` (mounted at `/`)
+
+File: `Meridian/backend/routes/orgRoutes.js`
+
+### GET `/get-org/:id`
+
+- **Auth**: none
+- **Behavior**: `Org.find({ _id: orgId })` (returns array)
+
+### GET `/get-org-by-name/:name`
+
+<RequestExample>
+```bash
+GET /get-org-by-name/computer-science-club?exhaustive=true
+Authorization: Bearer <token>
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+  "overview": {
+    "_id": "...",
+    "org_name": "Computer Science Club",
+    "org_description": "...",
+    "memberForm": { ... }
+  },
+  "members": [
+    {
+      "_id": "...",
+      "user_id": { "_id": "...", "name": "..." },
+      "role": "admin"
+    }
+  ],
+  "followers": [...],
+  "isMember": true,
+  "isFollower": false,
+  "isPending": false
+}
+```
+</ResponseExample>
+
+**Auth**: Required (`verifyToken`)
+
+**Query params**:
+- `exhaustive=true` enables extra counters (e.g. eventCount)
+
+**Returns**:
+- `overview` (org doc, populated `memberForm`)
+- `members` (OrgMember rows, populated `user_id`)
+- `followers` (OrgFollower rows, populated `user_id`)
+- `isMember`, `isFollower`, `isPending`
+
+### POST `/create-org`
+
+<RequestExample>
+```bash
+POST /create-org
+Content-Type: multipart/form-data
+Authorization: Bearer <token>
+
+org_name=Computer Science Club
+org_description=We code things
+weekly_meeting=Monday 6pm
+custom_roles=["treasurer","secretary"]
+image=<file>
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+  "success": true,
+  "org": {
+    "_id": "...",
+    "org_name": "Computer Science Club",
+    "owner": "..."
+  }
+}
+```
+</ResponseExample>
+
+**Auth**: Required
+
+**Multipart**: Supports `image` upload (S3)
+
+**Side effects**:
+- creates `Org`
+- creates `OrgMember` with role `owner`
+- pushes `orgId` into `User.clubAssociations`
+
+**Key request fields** (form-data):
+- `org_name`, `org_description`
+- `weekly_meeting`
+- `custom_roles` (JSON string array)
+
+### POST `/edit-org`
+
+- **Auth**: required; **owner-only** (compares `org.owner` to `req.user.userId`)
+- **Multipart**: supports image upload and S3 update
+- Supports editing:
+  - `org_name`, `org_description`, `positions`, `weekly_meeting`
+  - `requireApprovalForJoin`
+  - `memberForm` (creates or updates `Form`)
+
+### POST `/:orgId/apply-to-org`
+
+<RequestExample>
+```bash
+POST /abc123/apply-to-org
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "formAnswers": {
+    "question1": "I love coding",
+    "question2": "3 years"
+  }
+}
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+  "success": true,
+  "member": {
+    "_id": "...",
+    "org_id": "abc123",
+    "user_id": "...",
+    "role": "member"
+  }
+}
+```
+</ResponseExample>
+
+**Auth**: Required
+
+**Behavior**:
+
+<CodeGroup>
+```javascript title="Immediate join"
+// If org.requireApprovalForJoin === false
+// Creates OrgMember(role='member') immediately
+```
+```javascript title="Application required"
+// If org.requireApprovalForJoin === true
+// Creates OrgMemberApplication(status='pending')
+// If org has memberForm, creates FormResponse snapshot
+// Notifies org admins via NotificationService template 'org_member_applied'
+```
+</CodeGroup>
+
+### GET `/get-meetings/:name`
+
+- **Auth**: required
+- Fetches the org by `org_name`, then returns events where:
+  - `hostingId: org._id`, `hostingType: 'Org'`, `type: 'meeting'`
+
+### GET `/:orgId/events`
+
+- **Auth**: required
+- Lists upcoming org events (approved / not-applicable), paginated.
+
+## `orgRoleRoutes` (mounted at `/org-roles`)
+
+File: `Meridian/backend/routes/orgRoleRoutes.js`
+
+This router is the “authoritative” API for:
+
+- org roles (`Org.positions`)
+- org membership (`OrgMember`)
+- applications (`OrgMemberApplication`)
+
+Notable endpoints (subset):
+
+### Roles
+
+| Endpoint | Method | Permission Required |
+|----------|--------|---------------------|
+| `/org-roles/:orgId/roles` | GET | `view_roles` |
+| `/org-roles/:orgId/roles` | POST | `manage_roles` |
+| `/org-roles/:orgId/roles` | PUT | `manage_roles` |
+| `/org-roles/:orgId/roles/:roleName` | PUT | `manage_roles` |
+| `/org-roles/:orgId/roles/:roleName` | DELETE | `manage_roles` |
+
+<Warning>
+DELETE endpoint disallows deleting roles assigned to members.
+</Warning>
+
+### Membership + applications
+
+#### GET `/org-roles/:orgId/members`
+
+<RequestExample>
+```bash
+GET /org-roles/abc123/members
+Authorization: Bearer <token>
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+  "members": [
+    {
+      "_id": "...",
+      "user_id": { "_id": "...", "name": "..." },
+      "role": "admin",
+      "status": "active"
+    }
+  ],
+  "applications": [
+    {
+      "_id": "...",
+      "user_id": { "_id": "...", "name": "..." },
+      "status": "pending",
+      "formResponse": { ... }
+    }
+  ],
+  "count": 10
+}
+```
+</ResponseExample>
+
+#### POST `/org-roles/:orgId/members/:userId/role`
+
+<RequestExample>
+```bash
+POST /org-roles/abc123/members/user456/role
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "role": "treasurer"
+}
+```
+</RequestExample>
+
+**Side effects**:
+- Assigns/changes a member's role
+- Pushes the org into `User.clubAssociations` if missing
+
+#### DELETE `/org-roles/:orgId/members/:userId`
+
+**Permission**: `manage_members`
+
+<Warning>
+Prevents removing org owner.
+</Warning>
+
+#### POST `/org-roles/:orgId/applications/:applicationId/approve`
+
+**Permission**: `manage_members`
+
+**Side effect**: Turns an application into an active `OrgMember`
+
+## `orgManagementRoutes` (mounted at `/org-management`)
+
+File: `Meridian/backend/routes/orgManagementRoutes.js`
+
+This is the **platform-admin** surface (intended for `admin/root` roles).
+
+### Verification requests
+
+- `POST /org-management/verification-requests`
+  - requires org membership role `owner` or `admin` (checked inline)
+  - requires system config `verificationEnabled`
+  - validates `verificationType` against `OrgManagementConfig.verificationTiers`
+- `GET /org-management/verification-requests`
+  - admin/root can see all
+  - others see only requests for orgs where they are `owner/admin`
+- `PUT /org-management/verification-requests/:requestId`
+  - admin/root only
+  - on approve, updates `Org.verified`, `Org.verificationType`, etc.
+
+### Config
+
+- `GET /org-management/config` → admin/root only
+  - creates a default config document if missing
+- `PUT /org-management/config` → admin/root only
+  - converts nested objects into dot-notation `$set` paths
+
+### Analytics
+
+#### GET `/org-management/analytics`
+
+<RequestExample>
+```bash
+GET /org-management/analytics?timeRange=30d
+Authorization: Bearer <token>
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+  "totalOrgs": 150,
+  "verifiedOrgs": 45,
+  "newOrgs": 12,
+  "totalMembers": 2500,
+  "eventsCreated": 320,
+  "verificationRequests": {
+    "pending": 8,
+    "approved": 45,
+    "rejected": 12
+  },
+  "topOrgs": [
+    {
+      "org_name": "Computer Science Club",
+      "memberCount": 120
+    }
+  ]
+}
+```
+</ResponseExample>
+
+**Auth**: Admin/root only
+
+**Query params**:
+- `timeRange`: `7d`, `30d`, or `90d`
+
+**Aggregates**: Org counts, member counts, events, verification request stats
+
+### Orgs list + export
+
+- `GET /org-management/organizations`
+  - admin/root only
+  - server-side pagination + per-org computed `memberCount` and `recentEventCount`
+- `GET /org-management/organizations/export?format=json|csv`
+
+## `orgMessageRoutes` (mounted at `/org-messages`)
+
+File: `Meridian/backend/routes/orgMessageRoutes.js`
+
+Endpoints:
+
+- `POST /org-messages/:orgId/messages`
+- `GET /org-messages/:orgId/messages`
+- `GET /org-messages/:orgId/messages/:messageId`
+- `POST /org-messages/:orgId/messages/:messageId/like`
+- `POST /org-messages/:orgId/messages/:messageId/reply`
+- `PUT /org-messages/:orgId/messages/:messageId`
+- `DELETE /org-messages/:orgId/messages/:messageId`
+
+See `/atlas/messaging` for details.
+
+## `orgEventManagementRoutes` (mounted at `/org-event-management`)
+
+File: `Meridian/backend/routes/orgEventManagementRoutes.js`
+
+This is an org-scoped “events management” API gated by `requireEventManagement('orgId')` (i.e. `manage_events`).
+
+Endpoints:
+
+- `GET /org-event-management/:orgId/analytics`
+- `GET /org-event-management/:orgId/events`
+- `GET /org-event-management/:orgId/events/:eventId`
+- `POST /org-event-management/:orgId/events/bulk-action`
+- `POST /org-event-management/:orgId/event-templates`
+- `GET /org-event-management/:orgId/event-templates`
+- `POST /org-event-management/:orgId/events/from-template/:templateId`
+
+See `/atlas/event-analytics` for details.
+
+

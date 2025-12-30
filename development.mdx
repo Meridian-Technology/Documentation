@@ -1,106 +1,367 @@
 ---
-title: 'Development'
-description: 'Preview changes locally to update your docs'
+title: 'Development Guide'
+description: 'Meridian development workflow and best practices'
 ---
 
 <Info>
-  **Prerequisite**: Please install Node.js (version 19 or higher) before proceeding.
+  **Prerequisite**: Complete the [Quick Start Guide](/quickstart) before proceeding with development.
 </Info>
 
-Follow these steps to install and run Mintlify on your operating system:
+## Development Environment
 
-**Step 1**: Install Mintlify:
+Meridian uses a monorepo structure with separate frontend and backend applications that communicate via REST APIs and WebSockets.
 
-<CodeGroup>
+## Project Structure
 
-  ```bash npm
-  npm i -g mintlify
-  ```
-
-```bash yarn
-yarn global add mintlify
+```
+Meridian-Mono/
+├── Meridian/
+│   ├── frontend/          # React application
+│   │   ├── src/
+│   │   │   ├── components/
+│   │   │   ├── context/
+│   │   │   ├── pages/
+│   │   │   └── hooks/
+│   │   └── package.json
+│   ├── backend/           # Node.js/Express API
+│   │   ├── routes/
+│   │   ├── schemas/
+│   │   ├── services/
+│   │   └── package.json
+│   └── README.md
+├── Meridian-Mobile/       # React Native mobile app
+└── Meridian-Mintlify/     # Documentation site
 ```
 
-</CodeGroup>
+## Running Development Servers
 
-**Step 2**: Navigate to the docs directory (where the `mint.json` file is located) and execute the following command:
+### Option 1: Run Both Together
+
+From the root directory:
 
 ```bash
-mintlify dev
+npm run dev
 ```
 
-A local preview of your documentation will be available at `http://localhost:3000`.
+This concurrently runs:
+- Frontend on `http://localhost:3000`
+- Backend on `http://localhost:5001`
+
+### Option 2: Run Separately
+
+**Frontend:**
+```bash
+cd Meridian/frontend
+npm start
+```
+
+**Backend:**
+```bash
+cd Meridian/backend
+npm start
+```
 
 ### Custom Ports
 
-By default, Mintlify uses port 3000. You can customize the port Mintlify runs on by using the `--port` flag. To run Mintlify on port 3333, for instance, use this command:
+**Frontend:**
+```bash
+PORT=3001 npm start
+```
+
+**Backend:**
+```bash
+PORT=5002 npm start
+```
+
+## Development Workflow
+
+### 1. Create a Feature Branch
 
 ```bash
-mintlify dev --port 3333
+git checkout -b feature/your-feature-name
 ```
 
-If you attempt to run Mintlify on a port that's already in use, it will use the next available port:
+### 2. Make Your Changes
 
-```md
-Port 3000 is already in use. Trying 3001 instead.
-```
+- Frontend: Edit files in `Meridian/frontend/src/`
+- Backend: Edit files in `Meridian/backend/`
 
-## Mintlify Versions
-
-Please note that each CLI release is associated with a specific version of Mintlify. If your local website doesn't align with the production version, please update the CLI:
-
-<CodeGroup>
-
-```bash npm
-npm i -g mintlify@latest
-```
-
-```bash yarn
-yarn global upgrade mintlify
-```
-
-</CodeGroup>
-
-## Validating Links
-
-The CLI can assist with validating reference links made in your documentation. To identify any broken links, use the following command:
+### 3. Test Your Changes
 
 ```bash
-mintlify broken-links
+# Frontend tests
+cd Meridian/frontend
+npm test
+
+# Backend tests
+cd Meridian/backend
+npm test
 ```
 
-## Deployment
+### 4. Format Code
 
-<Tip>
-  Unlimited editors available under the [Pro
-  Plan](https://mintlify.com/pricing) and above.
-</Tip>
+```bash
+# Format all code
+npm run format
 
-If the deployment is successful, you should see the following:
+# Or use Prettier directly
+npx prettier --write "**/*.{js,jsx,scss,json}"
+```
 
-<Frame>
-  <img src="/images/checks-passed.png" style={{ borderRadius: '0.5rem' }} />
-</Frame>
+### 5. Commit and Push
 
-## Code Formatting
+```bash
+git add .
+git commit -m "feat: your feature description"
+git push origin feature/your-feature-name
+```
 
-We suggest using extensions on your IDE to recognize and format MDX. If you're a VSCode user, consider the [MDX VSCode extension](https://marketplace.visualstudio.com/items?itemName=unifiedjs.vscode-mdx) for syntax highlighting, and [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode) for code formatting.
+## Frontend Development
 
-## Troubleshooting
+### Key Technologies
+
+- **React** - UI framework
+- **SCSS** - Styling
+- **Context API** - State management
+- **React Router** - Navigation
+- **WebSocket** - Real-time updates
+
+### Component Structure
+
+```jsx
+// Example component structure
+import React from 'react';
+import { useAuth } from '../context/AuthContext';
+import './Component.scss';
+
+const Component = () => {
+  const { user } = useAuth();
+  
+  return (
+    <div className="Component">
+      <h1>Hello, {user?.name}</h1>
+    </div>
+  );
+};
+
+export default Component;
+```
+
+### State Management
+
+Meridian uses React Context API for global state:
+
+- `AuthContext` - User authentication
+- `CacheContext` - API response caching
+- `ErrorContext` - Error handling
+- `NotificationContext` - Notifications
+- `WebSocketContext` - Real-time connections
+
+### Styling Guidelines
+
+- Use SCSS modules for component styles
+- Follow BEM naming convention
+- Keep styles co-located with components
+
+```scss
+.Component {
+  &__header {
+    font-size: 1.5rem;
+  }
+  
+  &__content {
+    margin: 1rem 0;
+  }
+}
+```
+
+## Backend Development
+
+### API Structure
+
+```
+backend/
+├── routes/          # API route handlers
+├── schemas/         # Data validation schemas
+├── services/        # Business logic
+├── middlewares/     # Express middlewares
+└── utilities/       # Helper functions
+```
+
+### Creating a New Route
+
+```javascript
+// routes/example.js
+const express = require('express');
+const router = express.Router();
+const { validateRequest } = require('../middlewares/validation');
+
+router.get('/example', validateRequest, async (req, res) => {
+  try {
+    // Your logic here
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+module.exports = router;
+```
+
+### Database Migrations
+
+```bash
+cd Meridian/backend
+npm run migrate        # Run migrations
+npm run migrate:rollback  # Rollback last migration
+```
+
+## Code Quality
+
+### Linting
+
+```bash
+# Frontend
+cd Meridian/frontend
+npm run lint
+
+# Backend
+cd Meridian/backend
+npm run lint
+```
+
+### Type Checking
+
+For TypeScript files:
+
+```bash
+npm run type-check
+```
+
+## Debugging
+
+### Frontend Debugging
+
+1. Use React Developer Tools browser extension
+2. Check browser console for errors
+3. Use `console.log()` strategically (remove before committing)
+
+### Backend Debugging
+
+1. Use `console.log()` or `debugger` statements
+2. Check server logs in terminal
+3. Use Postman/Insomnia for API testing
+
+### Database Debugging
+
+```bash
+# Connect to PostgreSQL
+psql meridian
+
+# View tables
+\dt
+
+# Query data
+SELECT * FROM users LIMIT 10;
+```
+
+## Testing
+
+### Frontend Tests
+
+```bash
+cd Meridian/frontend
+npm test              # Run tests
+npm test -- --watch   # Watch mode
+npm test -- --coverage # Coverage report
+```
+
+### Backend Tests
+
+```bash
+cd Meridian/backend
+npm test              # Run tests
+npm test -- --watch   # Watch mode
+```
+
+## Environment Variables
+
+Never commit `.env` files. Use `.env.example` as a template:
+
+```bash
+# Copy example file
+cp .env.example .env
+
+# Edit with your values
+nano .env
+```
+
+## Common Issues
 
 <AccordionGroup>
-  <Accordion title='Error: Could not load the "sharp" module using the darwin-arm64 runtime'>
-
-    This may be due to an outdated version of node. Try the following:
-    1. Remove the currently-installed version of mintlify: `npm remove -g mintlify`
-    2. Upgrade to Node v19 or higher.
-    3. Reinstall mintlify: `npm install -g mintlify`
+  <Accordion title="Module Not Found">
+    **Solution**: Delete `node_modules` and reinstall:
+    ```bash
+    rm -rf node_modules package-lock.json
+    npm install
+    ```
   </Accordion>
-
-  <Accordion title="Issue: Encountering an unknown error">
   
-    Solution: Go to the root of your device and delete the \~/.mintlify folder. Afterwards, run `mintlify dev` again.
+  <Accordion title="Port Already in Use">
+    **Solution**: Kill the process using the port:
+    ```bash
+    lsof -ti:3000 | xargs kill
+    ```
+  </Accordion>
+  
+  <Accordion title="Database Connection Failed">
+    **Solution**: Ensure PostgreSQL is running and credentials are correct:
+    ```bash
+    # Check PostgreSQL status
+    brew services list  # macOS
+    sudo systemctl status postgresql  # Linux
+    ```
+  </Accordion>
+  
+  <Accordion title="WebSocket Connection Failed">
+    **Solution**: Check backend WebSocket server is running and CORS is configured correctly.
   </Accordion>
 </AccordionGroup>
 
-Curious about what changed in the CLI version? [Check out the CLI changelog.](https://www.npmjs.com/package/mintlify?activeTab=versions)
+## Best Practices
+
+1. **Write Descriptive Commits**: Use conventional commit format
+   ```
+   feat: add user authentication
+   fix: resolve login redirect issue
+   docs: update API documentation
+   ```
+
+2. **Keep Components Small**: Single responsibility principle
+
+3. **Use TypeScript**: For better type safety (where applicable)
+
+4. **Test Your Code**: Write unit and integration tests
+
+5. **Document Complex Logic**: Add comments for non-obvious code
+
+6. **Follow Code Style**: Use Prettier and ESLint
+
+## Resources
+
+<CardGroup cols={2}>
+  <Card title="Frontend Guide" icon="code" href="/navigatingthefrontend">
+    Detailed frontend architecture guide
+  </Card>
+  <Card title="API Reference" icon="book" href="/api-reference/introduction">
+    Complete API documentation
+  </Card>
+  <Card title="SAML Auth" icon="key" href="/backend/auth/SAML">
+    Authentication setup guide
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Setup instructions
+  </Card>
+</CardGroup>
+
+Need help? Check the [Quick Start Guide](/quickstart) or reach out to the development team.

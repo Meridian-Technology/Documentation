@@ -1,0 +1,105 @@
+---
+title: 'Atlas Admin Dashboard'
+description: 'Administrator guide for Atlas organization management'
+---
+
+# Atlas Admin Dashboard
+
+The Atlas admin dashboard provides administrators with comprehensive tools to manage organizations, monitor engagement, and configure scheduling settings.
+
+## Access
+
+Navigate to `/feature-admin/atlas` in the Meridian frontend application. Access requires administrator or OIE (Office of Institutional Effectiveness) role permissions.
+
+## Key Features
+
+### Organization Management
+
+- **View All Organizations**: Browse complete directory of campus clubs and organizations
+- **Organization Details**: View profiles, membership, and activity
+- **Member Management**: Add, remove, or modify organization members
+- **Role Assignment**: Assign leadership roles and permissions
+
+### Engagement Analytics
+
+- **Activity Tracking**: Monitor organization events and activities
+- **Membership Growth**: Track membership trends over time
+- **Participation Metrics**: Analyze member engagement levels
+- **Event Statistics**: View event attendance and RSVP data
+
+### Configuration
+
+- **Organization Settings**: Configure organization types and categories
+- **Permission Management**: Set role-based access controls
+- **Notification Settings**: Configure alerts and notifications
+- **Integration Settings**: Manage SIS and external system connections
+
+## Dashboard Components
+
+### Organization List
+
+View and search all organizations:
+
+- Filter by type, status, or activity level
+- Sort by membership size or activity
+- Quick actions: Edit, View Details, Manage Members
+
+### Analytics Dashboard
+
+Key metrics displayed:
+
+- Total organizations
+- Active organizations (with recent activity)
+- Total members across all organizations
+- Average events per organization
+- Engagement trends over time
+
+### Member Management
+
+Tools for managing organization membership:
+
+- Add members manually or via import
+- Assign roles (President, Treasurer, Member, etc.)
+- Track membership history
+- Export member lists
+
+## Best Practices
+
+1. **Regular Monitoring**: Check analytics weekly to identify trends
+2. **Member Verification**: Periodically verify member rosters
+3. **Role Updates**: Keep leadership roles current
+4. **Data Export**: Export data regularly for backup
+
+## Integration with Other Modules
+
+- **Compass**: Organizations can book rooms for events
+- **Beacon**: Organization events appear in engagement feeds
+- **SIS**: Sync member rosters from student information systems
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Organization Not Appearing">
+    Check that the organization is marked as active and has at least one member assigned.
+  </Accordion>
+  
+  <Accordion title="Member Import Failed">
+    Verify CSV format matches expected schema. Check for duplicate entries or invalid email addresses.
+  </Accordion>
+  
+  <Accordion title="Analytics Not Updating">
+    Analytics refresh on a schedule. Wait 15-30 minutes for updates, or manually refresh the dashboard.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/api-reference/introduction">
+    Use APIs to automate organization management
+  </Card>
+  <Card title="SIS Integration" icon="plug" href="/atlas/integrations">
+    Set up automated roster synchronization
+  </Card>
+</CardGroup>
+

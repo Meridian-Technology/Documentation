@@ -1,18 +1,18 @@
 {
   "$schema": "https://mintlify.com/schema.json",
-  "name": "Starter Kit",
+  "name": "Meridian",
   "logo": {
     "dark": "/logo/dark.svg",
     "light": "/logo/light.svg"
   },
   "favicon": "/favicon.svg",
   "colors": {
-    "primary": "#FA756D",
-    "light": "#FA756D",
-    "dark": "#FA756D",
+    "primary": "#6D8EFA",
+    "light": "#6D8EFA",
+    "dark": "#6D8EFA",
     "anchors": {
-      "from": "#0D9373",
-      "to": "#07C983"
+      "from": "#6D8EFA",
+      "to": "#87AFF1"
     }
   },
   "topbarLinks": [
@@ -33,19 +33,9 @@
   ],
   "anchors": [
     {
-      "name": "Documentation",
-      "icon": "book-open-cover",
-      "url": "https://mintlify.com/docs"
-    },
-    {
-      "name": "Community",
-      "icon": "slack",
-      "url": "https://mintlify.com/community"
-    },
-    {
-      "name": "Blog",
-      "icon": "newspaper",
-      "url": "https://mintlify.com/blog"
+      "name": "Meridian Website",
+      "icon": "globe-pointer",
+      "url": "https://meridian.study"
     }
   ],
   "navigation": [
@@ -54,36 +44,49 @@
       "pages": [
         "introduction",
         "quickstart",
-        "development",
+        "development"
+      ]
+    },
+    {
+      "group": "Compass",
+      "pages": [
+        "compass/overview",
+        "compass/frontend",
         "navigatingthefrontend"
       ]
     },
     {
-      "group": "Essentials",
+      "group": "Atlas",
       "pages": [
-        "essentials/markdown",
-        "essentials/code",
-        "essentials/images",
-        "essentials/settings",
-        "essentials/navigation",
-        "essentials/reusable-snippets"
+        "atlas/overview",
+        "atlas/architecture",
+        "atlas/data-model",
+        "atlas/backend",
+        "atlas/frontend",
+        "atlas/permissions",
+        "atlas/membership",
+        "atlas/verification",
+        "atlas/configuration",
+        "atlas/analytics",
+        "atlas/event-analytics",
+        "atlas/messaging",
+        "atlas/integrations",
+        "atlas/admin",
+        "atlas/troubleshooting"
       ]
     },
     {
-      "group" : "Backend Authentication Infrastructure",
-      "pages" : [
-        "backend/auth.SAML.mdx"
+      "group": "Beacon",
+      "pages": [
+        "beacon/overview",
+        "beacon/events"
       ]
     },
     {
-      "group": "API Documentation",
+      "group": "Platform",
       "pages": [
-        "api-reference/introduction"
-      ]
-    },
-    {
-      "group": "Endpoint Examples",
-      "pages": [
+        "backend/auth.SAML.mdx",
+        "api-reference/introduction",
         "api-reference/endpoint/get",
         "api-reference/endpoint/create",
         "api-reference/endpoint/delete"

@@ -1,67 +1,213 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in under 5 minutes"
+title: "Quick Start"
+description: "Get started with Meridian development in minutes"
 ---
 
-## Setup your development
+## Prerequisites
 
-Learn how to update your docs locally and deploy them to the public.
+Before you begin, ensure you have the following installed:
 
-### Edit and preview
+- **Node.js** (version 19 or higher)
+- **npm** (comes with Node.js)
+- **Git** for version control
+- **PostgreSQL** (for backend development)
+
+You can verify your installations:
+
+```bash
+node -v
+npm -v
+git --version
+psql --version
+```
+
+## Clone the Repository
+
+Clone the Meridian monorepo to your local machine:
+
+```bash
+git clone <repository-url>
+cd Meridian-Mono
+```
+
+## Installation
+
+Meridian uses a monorepo structure with separate frontend and backend directories. Install dependencies for each:
+
+### 1. Root Dependencies
+
+```bash
+npm install
+```
+
+### 2. Frontend Dependencies
+
+```bash
+cd Meridian/frontend
+npm install
+```
+
+### 3. Backend Dependencies
+
+```bash
+cd ../backend
+npm install
+```
+
+## Environment Setup
+
+### Backend Configuration
+
+Create a `.env` file in `Meridian/backend/`:
+
+```bash
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/meridian
+
+# Authentication
+JWT_SECRET=your-secret-key
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# Server
+PORT=5001
+NODE_ENV=development
+```
+
+### Frontend Configuration
+
+Create a `.env` file in `Meridian/frontend/`:
+
+```bash
+REACT_APP_API_URL=http://localhost:5001
+REACT_APP_GOOGLE_CLIENT_ID=your-google-client-id
+```
+
+## Running the Application
+
+### Development Mode (Both Frontend & Backend)
+
+From the root directory, run:
+
+```bash
+npm run dev
+```
+
+This starts:
+- **Frontend**: `http://localhost:3000`
+- **Backend API**: `http://localhost:5001`
+
+### Running Separately
+
+**Frontend only:**
+```bash
+cd Meridian/frontend
+npm start
+```
+
+**Backend only:**
+```bash
+cd Meridian/backend
+npm start
+```
+
+## Database Setup
+
+### Initialize PostgreSQL Database
+
+```bash
+# Create database
+createdb meridian
+
+# Run migrations
+cd Meridian/backend
+npm run migrate
+```
+
+## Verify Installation
+
+1. **Frontend**: Navigate to `http://localhost:3000` - you should see the Meridian landing page
+2. **Backend**: Check `http://localhost:5001/api/health` - should return a health status
+
+## Development Workflow
 
 <AccordionGroup>
-  <Accordion title="Clone your docs locally" icon="github">
-    During the onboarding process, we created a repository on your Github with
-    your docs content. You can find this repository on our
-    [dashboard](https://dashboard.mintlify.com). To clone the repository
-    locally, follow these
-    [instructions](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository)
-    in your terminal.
+  <Accordion title="Making Changes" icon="code">
+    - Frontend changes auto-reload via React's hot module replacement
+    - Backend changes require server restart (or use nodemon)
+    - Check the console for errors and warnings
   </Accordion>
-  <Accordion title="Preview changes" icon="rectangle-terminal">
-    Previewing helps you make sure your changes look as intended. We built a
-    command line interface to render these changes locally. 1. Install the
-    [Mintlify CLI](https://www.npmjs.com/package/mintlify) to preview the
-    documentation changes locally with this command: `npm i -g mintlify`
-    2. Run the following command at the root of your documentation (where
-    `mint.json` is): `mintlify dev`
+  
+  <Accordion title="Testing" icon="flask">
+    Run tests for frontend and backend:
+    ```bash
+    # Frontend tests
+    cd Meridian/frontend
+    npm test
+    
+    # Backend tests
+    cd Meridian/backend
+    npm test
+    ```
+  </Accordion>
+  
+  <Accordion title="Code Formatting" icon="paintbrush">
+    We use Prettier for code formatting. Format your code:
+    ```bash
+    npm run format
+    ```
   </Accordion>
 </AccordionGroup>
 
-### Deploy your changes
-
-<AccordionGroup>
-  <Accordion title="Install our Github app" icon="message-bot">
-    Our Github app automatically deploys your changes to your docs site, so you
-    don't need to manage deployments yourself. You can find the link to install on
-    your [dashboard](https://dashboard.mintlify.com). Once the bot has been
-    successfully installed, there should be a check mark next to the commit hash
-    of the repo.
-  </Accordion>
-  <Accordion title="Push your changes" icon="rocket">
-    [Commit and push your changes to
-    Git](https://docs.github.com/en/get-started/using-git/pushing-commits-to-a-remote-repository#about-git-push)
-    for your changes to update in your docs site. If you push and don't see that
-    the Github app successfully deployed your changes, you can also manually
-    update your docs through our [dashboard](https://dashboard.mintlify.com).
-  </Accordion>
-</AccordionGroup>
-
-## Update your docs
-
-Add content directly in your files with MDX syntax and React components. You can use any of our components, or even build your own.
+## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Style Your Docs" icon="paintbrush" href="/settings/global">
-    Add flair to your docs with personalized branding.
+  <Card title="Frontend Guide" icon="code" href="/navigatingthefrontend">
+    Learn about React components, routing, and state management
   </Card>
-  <Card title="Add API Endpoints" icon="square-code" href="/api-playground/configuration">
-    Implement your OpenAPI spec and enable API user interaction.
+  <Card title="Backend API" icon="server" href="/api-reference/introduction">
+    Explore API endpoints and authentication
   </Card>
-  <Card title="Integrate Analytics" icon="chart-mixed" href="/analytics/supported-integrations">
-    Draw insights from user interactions with your documentation.
+  <Card title="SAML Integration" icon="key" href="/backend/auth/SAML">
+    Set up university SSO authentication
   </Card>
-  <Card title="Host on a Custom Domain" icon="browser" href="/settings/custom-domain/subdomain">
-    Keep your docs on your own website's subdomain.
+  <Card title="Development Tips" icon="lightbulb" href="/development">
+    Best practices and troubleshooting
   </Card>
 </CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Port Already in Use">
+    If port 3000 or 5001 is already in use:
+    ```bash
+    # Kill process on port 3000
+    lsof -ti:3000 | xargs kill
+    
+    # Kill process on port 5001
+    lsof -ti:5001 | xargs kill
+    ```
+  </Accordion>
+  
+  <Accordion title="Database Connection Issues">
+    Ensure PostgreSQL is running:
+    ```bash
+    # macOS
+    brew services start postgresql
+    
+    # Linux
+    sudo systemctl start postgresql
+    ```
+  </Accordion>
+  
+  <Accordion title="Module Not Found Errors">
+    Clear node_modules and reinstall:
+    ```bash
+    rm -rf node_modules package-lock.json
+    npm install
+    ```
+  </Accordion>
+</AccordionGroup>
+
+Need help? Check out our [Development Guide](/development) or reach out to the team.

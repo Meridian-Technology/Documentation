@@ -1,0 +1,48 @@
+---
+title: "Atlas Analytics"
+description: "Org management analytics (platform) and org event analytics (org-scoped)"
+---
+
+## Two analytics surfaces
+
+Atlas analytics exists in two main places:
+
+### 1) Platform admin analytics (all orgs)
+
+Backend:
+
+- `GET /org-management/analytics?timeRange=7d|30d|90d`
+
+Frontend:
+
+- `Meridian/frontend/src/pages/FeatureAdmin/OrgManagement/Analytics/Analytics.jsx`
+
+What it aggregates:
+
+- total org count, verified org count, new orgs
+- member totals (via `OrgMember.aggregate`)
+- events created in window (via `Event.aggregate`, `hostingType: 'Org'`)
+- verification request counts by status (via `OrgVerification.aggregate`)
+- top orgs by member count (via join against `orgs`)
+
+### 2) Org-scoped event analytics (single org)
+
+Backend:
+
+- `GET /org-event-management/:orgId/analytics`
+
+This is gated by org permission `manage_events`.
+
+See `/atlas/event-analytics` for details.
+
+## Developer tips
+
+<Note>
+The admin dashboard uses `useFetch`, which will retry after refresh-token on 401.
+</Note>
+
+<Warning>
+**Important:** Aggregations depend on collection names used by `getModelService.js` (`orgs`, `members`, etc). If you change collection names, analytics will silently break.
+</Warning>
+
+
