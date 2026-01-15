@@ -91,6 +91,13 @@
         "api-reference/endpoint/create",
         "api-reference/endpoint/delete"
       ]
+    },
+    {
+      "group": "Mobile",
+      "pages": [
+        "mobile/deep-links",
+        "mobile/analytics"
+      ]
     }
   ],
   "footerSocials": {
