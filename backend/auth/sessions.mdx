@@ -5,40 +5,18 @@ description: 'Multi-device session management for concurrent logins across devic
 
 # Session Management
 
-Meridian supports multi-device session management, allowing users to be logged in from multiple devices simultaneously. Each device maintains its own session with independent refresh tokens.
-
-<Note>
-This system replaces the previous single-session model where only one device could be logged in at a time.
-</Note>
+This guide explains how multi-device session management works in Meridian, allowing users to be logged in from multiple devices simultaneously.
 
 ## Overview
 
-<CardGroup cols={2}>
-  <Card
-    title="Multi-Device Support"
-    icon="devices"
-  >
-    Users can be logged in from multiple devices simultaneously without invalidating other sessions.
-  </Card>
-  <Card
-    title="Device Tracking"
-    icon="location"
-  >
-    Each session tracks device information, IP address, and client type for security auditing.
-  </Card>
-  <Card
-    title="Session Management"
-    icon="settings"
-  >
-    Users can view and revoke specific sessions from their account settings.
-  </Card>
-  <Card
-    title="Automatic Expiration"
-    icon="clock"
-  >
-    Sessions automatically expire after 30 days and are cleaned up automatically.
-  </Card>
-</CardGroup>
+Meridian supports multi-device session management, allowing users to be logged in from multiple devices simultaneously. Each device maintains its own session with independent refresh tokens. This replaces the previous single-session model where only one device could be logged in at a time.
+
+### Key Features
+
+- **Multi-Device Support**: Users can be logged in from multiple devices simultaneously without invalidating other sessions
+- **Device Tracking**: Each session tracks device information, IP address, and client type for security auditing
+- **Session Management**: Users can view and revoke specific sessions from their account settings
+- **Automatic Expiration**: Sessions automatically expire after 30 days and are cleaned up automatically
 
 ## How It Works
 
@@ -46,45 +24,20 @@ This system replaces the previous single-session model where only one device cou
 
 When a user logs in (via email/password, Google OAuth, Apple Sign In, or SAML), a new session is created:
 
-<Steps>
-  <Step title="User Authenticates">
-    User provides credentials or completes OAuth flow
-  </Step>
-  <Step title="Session Created">
-    System creates a new session record with:
-    <ul>
-      <li>Unique refresh token</li>
-      <li>Device information (device type, user agent)</li>
-      <li>IP address</li>
-      <li>Client type (web, mobile, ios, android)</li>
-      <li>Expiration timestamp (30 days)</li>
-    </ul>
-  </Step>
-  <Step title="Tokens Issued">
-    Access token (1 minute) and refresh token (30 days) are set as HTTP-only cookies
-  </Step>
-  <Step title="Session Stored">
-    Session is stored in database, allowing multiple concurrent sessions per user
-  </Step>
-</Steps>
+1. User provides credentials or completes OAuth flow
+2. System creates a new session record with:
+   - Unique refresh token
+   - Device information (device type, user agent)
+   - IP address
+   - Client type (web, mobile, ios, android)
+   - Expiration timestamp (30 days)
+3. Access token (1 minute) and refresh token (30 days) are set as HTTP-only cookies
+4. Session is stored in database, allowing multiple concurrent sessions per user
 
 ### Session Validation
 
 When refreshing tokens, the system validates against the session database:
 
-<RequestExample>
-  <RequestExampleMethod method="POST" path="/refresh-token" />
-  <RequestExampleResponse>
-    ```json
-    {
-      "success": true,
-      "message": "Token refreshed successfully"
-    }
-    ```
-  </RequestExampleResponse>
-</RequestExample>
-
-**Validation Process:**
 1. Extract refresh token from HTTP-only cookie
 2. Verify JWT signature
 3. Look up session in database
@@ -94,146 +47,99 @@ When refreshing tokens, the system validates against the session database:
 
 ### Session Deletion
 
-When logging out, only the current session is deleted:
+When logging out, only the current session is deleted. Other devices remain logged in.
 
-<RequestExample>
-  <RequestExampleMethod method="POST" path="/logout" />
-  <RequestExampleResponse>
-    ```json
-    {
-      "success": true,
-      "message": "Logged out successfully"
-    }
-    ```
-  </RequestExampleResponse>
-</RequestExample>
-
-## API Reference
+## API Endpoints
 
 ### List Active Sessions
 
 Get all active sessions for the current user.
 
-<RequestExample>
-  <RequestExampleMethod method="GET" path="/sessions" />
-  <RequestExampleResponse>
-    ```json
-    {
-      "success": true,
-      "data": {
-        "sessions": [
-          {
-            "id": "507f1f77bcf86cd799439011",
-            "deviceInfo": "iPhone",
-            "clientType": "ios",
-            "ipAddress": "192.168.1.1",
-            "lastUsed": "2024-01-15T10:30:00Z",
-            "createdAt": "2024-01-01T08:00:00Z",
-            "expiresAt": "2024-01-31T08:00:00Z",
-            "isCurrent": true
-          },
-          {
-            "id": "507f1f77bcf86cd799439012",
-            "deviceInfo": "Chrome Browser",
-            "clientType": "web",
-            "ipAddress": "192.168.1.2",
-            "lastUsed": "2024-01-14T15:20:00Z",
-            "createdAt": "2023-12-20T09:00:00Z",
-            "expiresAt": "2024-01-19T09:00:00Z",
-            "isCurrent": false
-          }
-        ]
+**Endpoint:** `GET /sessions`
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "sessions": [
+      {
+        "id": "507f1f77bcf86cd799439011",
+        "deviceInfo": "iPhone",
+        "clientType": "ios",
+        "ipAddress": "192.168.1.1",
+        "lastUsed": "2024-01-15T10:30:00Z",
+        "createdAt": "2024-01-01T08:00:00Z",
+        "expiresAt": "2024-01-31T08:00:00Z",
+        "isCurrent": true
+      },
+      {
+        "id": "507f1f77bcf86cd799439012",
+        "deviceInfo": "Chrome Browser",
+        "clientType": "web",
+        "ipAddress": "192.168.1.2",
+        "lastUsed": "2024-01-14T15:20:00Z",
+        "createdAt": "2023-12-20T09:00:00Z",
+        "expiresAt": "2024-01-19T09:00:00Z",
+        "isCurrent": false
       }
-    }
-    ```
-  </RequestExampleResponse>
-</RequestExample>
+    ]
+  }
+}
+```
 
 **Response Fields:**
 
-<ResponseField name="sessions" type="array">
-  Array of active sessions for the user
-  <Expandable title="Session Object">
-    <ResponseField name="id" type="string">
-      Unique session identifier
-    </ResponseField>
-    <ResponseField name="deviceInfo" type="string">
-      Human-readable device description (e.g., "iPhone", "Chrome Browser")
-    </ResponseField>
-    <ResponseField name="clientType" type="string">
-      Client type: `web`, `mobile`, `ios`, or `android`
-    </ResponseField>
-    <ResponseField name="ipAddress" type="string">
-      IP address where session was created
-    </ResponseField>
-    <ResponseField name="lastUsed" type="string">
-      ISO 8601 timestamp of last token refresh
-    </ResponseField>
-    <ResponseField name="createdAt" type="string">
-      ISO 8601 timestamp of session creation
-    </ResponseField>
-    <ResponseField name="expiresAt" type="string">
-      ISO 8601 timestamp when session expires
-    </ResponseField>
-    <ResponseField name="isCurrent" type="boolean">
-      Whether this is the current session making the request
-    </ResponseField>
-  </Expandable>
-</ResponseField>
+- `sessions` (array): Array of active sessions for the user
+  - `id` (string): Unique session identifier
+  - `deviceInfo` (string): Human-readable device description (e.g., "iPhone", "Chrome Browser")
+  - `clientType` (string): Client type: `web`, `mobile`, `ios`, or `android`
+  - `ipAddress` (string): IP address where session was created
+  - `lastUsed` (string): ISO 8601 timestamp of last token refresh
+  - `createdAt` (string): ISO 8601 timestamp of session creation
+  - `expiresAt` (string): ISO 8601 timestamp when session expires
+  - `isCurrent` (boolean): Whether this is the current session making the request
 
 ### Revoke Specific Session
 
 Revoke a specific session by its ID. Only the session owner can revoke their own sessions.
 
-<RequestExample>
-  <RequestExampleMethod method="DELETE" path="/sessions/:sessionId" />
-  <RequestExampleResponse>
-    ```json
-    {
-      "success": true,
-      "message": "Session revoked successfully"
-    }
-    ```
-  </RequestExampleResponse>
-</RequestExample>
+**Endpoint:** `DELETE /sessions/:sessionId`
 
 **Path Parameters:**
+- `sessionId` (string, required): The ID of the session to revoke
 
-<ParamField name="sessionId" type="string" required>
-  The ID of the session to revoke
-</ParamField>
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Session revoked successfully"
+}
+```
 
-**Error Responses:**
-
-<ResponseField name="404" type="object">
-  Session not found or user doesn't have permission
-  ```json
-  {
-    "success": false,
-    "message": "Session not found or you do not have permission to revoke it"
-  }
-  ```
-</ResponseField>
+**Error Response (404):**
+```json
+{
+  "success": false,
+  "message": "Session not found or you do not have permission to revoke it"
+}
+```
 
 ### Revoke All Other Sessions
 
 Revoke all sessions except the current one. Useful for "logout from all devices" functionality.
 
-<RequestExample>
-  <RequestExampleMethod method="POST" path="/sessions/revoke-all-others" />
-  <RequestExampleResponse>
-    ```json
-    {
-      "success": true,
-      "message": "All other sessions revoked successfully"
-    }
-    ```
-  </RequestExampleResponse>
-</RequestExample>
+**Endpoint:** `POST /sessions/revoke-all-others`
 
-<Warning>
-This will log out the user from all devices except the one making the request. Use with caution.
-</Warning>
+**Response:**
+```json
+{
+  "success": true,
+  "message": "All other sessions revoked successfully"
+}
+```
+
+**Warning:** This will log out the user from all devices except the one making the request. Use with caution.
 
 ## Frontend Integration
 
@@ -241,109 +147,152 @@ This will log out the user from all devices except the one making the request. U
 
 Show users their active sessions in account settings:
 
-<CodeGroup>
-  <CodeGroupItem title="React">
-    ```jsx
-    import { useState, useEffect } from 'react';
-    import apiRequest from './utils/postRequest';
+**React (Web):**
+```javascript
+import { useState, useEffect } from 'react';
+import apiRequest from './utils/postRequest';
 
-    function SessionsList() {
-      const [sessions, setSessions] = useState([]);
+function SessionsList() {
+  const [sessions, setSessions] = useState([]);
 
-      useEffect(() => {
-        fetchSessions();
-      }, []);
+  useEffect(() => {
+    fetchSessions();
+  }, []);
 
-      const fetchSessions = async () => {
-        const response = await apiRequest('/sessions', null, { method: 'GET' });
-        if (response.success) {
-          setSessions(response.data.sessions);
-        }
-      };
+  const fetchSessions = async () => {
+    const response = await apiRequest('/sessions', null, { method: 'GET' });
+    if (response.success) {
+      setSessions(response.data.sessions);
+    }
+  };
 
-      const revokeSession = async (sessionId) => {
-        const response = await apiRequest(`/sessions/${sessionId}`, null, { 
-          method: 'DELETE' 
-        });
-        if (response.success) {
-          fetchSessions(); // Refresh list
-        }
-      };
+  const revokeSession = async (sessionId) => {
+    const response = await apiRequest(`/sessions/${sessionId}`, null, { 
+      method: 'DELETE' 
+    });
+    if (response.success) {
+      fetchSessions(); // Refresh list
+    }
+  };
 
-      return (
-        <div>
-          <h2>Active Sessions</h2>
-          {sessions.map(session => (
-            <div key={session.id}>
-              <p>{session.deviceInfo} - {session.clientType}</p>
-              <p>Last used: {new Date(session.lastUsed).toLocaleString()}</p>
-              {!session.isCurrent && (
-                <button onClick={() => revokeSession(session.id)}>
-                  Revoke
-                </button>
-              )}
-              {session.isCurrent && <span>Current Session</span>}
-            </div>
-          ))}
+  return (
+    <div>
+      <h2>Active Sessions</h2>
+      {sessions.map(session => (
+        <div key={session.id}>
+          <p>{session.deviceInfo} - {session.clientType}</p>
+          <p>Last used: {new Date(session.lastUsed).toLocaleString()}</p>
+          {!session.isCurrent && (
+            <button onClick={() => revokeSession(session.id)}>
+              Revoke
+            </button>
+          )}
+          {session.isCurrent && <span>Current Session</span>}
         </div>
-      );
+      ))}
+    </div>
+  );
+}
+```
+
+**React Native (Mobile):**
+```tsx
+import { useState, useEffect } from 'react';
+import { View, Text, Button } from 'react-native';
+import { httpClient } from '@/services/api';
+
+function SessionsList() {
+  const [sessions, setSessions] = useState([]);
+
+  useEffect(() => {
+    fetchSessions();
+  }, []);
+
+  const fetchSessions = async () => {
+    try {
+      const response = await httpClient.get('/sessions');
+      if (response.success) {
+        setSessions(response.data.sessions);
+      }
+    } catch (error) {
+      console.error('Failed to fetch sessions:', error);
     }
-    ```
-  </CodeGroupItem>
-  <CodeGroupItem title="Mobile (React Native)">
-    ```tsx
-    import { useState, useEffect } from 'react';
-    import { httpClient } from '@/services/api';
+  };
 
-    function SessionsList() {
-      const [sessions, setSessions] = useState([]);
+  const revokeSession = async (sessionId: string) => {
+    try {
+      await httpClient.delete(`/sessions/${sessionId}`);
+      fetchSessions(); // Refresh list
+    } catch (error) {
+      console.error('Failed to revoke session:', error);
+    }
+  };
 
-      useEffect(() => {
-        fetchSessions();
-      }, []);
-
-      const fetchSessions = async () => {
-        try {
-          const response = await httpClient.get('/sessions');
-          if (response.success) {
-            setSessions(response.data.sessions);
-          }
-        } catch (error) {
-          console.error('Failed to fetch sessions:', error);
-        }
-      };
-
-      const revokeSession = async (sessionId: string) => {
-        try {
-          await httpClient.delete(`/sessions/${sessionId}`);
-          fetchSessions(); // Refresh list
-        } catch (error) {
-          console.error('Failed to revoke session:', error);
-        }
-      };
-
-      return (
-        <View>
-          <Text>Active Sessions</Text>
-          {sessions.map(session => (
-            <View key={session.id}>
-              <Text>{session.deviceInfo} - {session.clientType}</Text>
-              <Text>Last used: {new Date(session.lastUsed).toLocaleString()}</Text>
-              {!session.isCurrent && (
-                <Button 
-                  title="Revoke" 
-                  onPress={() => revokeSession(session.id)} 
-                />
-              )}
-              {session.isCurrent && <Text>Current Session</Text>}
-            </View>
-          ))}
+  return (
+    <View>
+      <Text>Active Sessions</Text>
+      {sessions.map(session => (
+        <View key={session.id}>
+          <Text>{session.deviceInfo} - {session.clientType}</Text>
+          <Text>Last used: {new Date(session.lastUsed).toLocaleString()}</Text>
+          {!session.isCurrent && (
+            <Button 
+              title="Revoke" 
+              onPress={() => revokeSession(session.id)} 
+            />
+          )}
+          {session.isCurrent && <Text>Current Session</Text>}
         </View>
-      );
-    }
-    ```
-  </CodeGroupItem>
-</CodeGroup>
+      ))}
+    </View>
+  );
+}
+```
+
+## Examples
+
+### List All Sessions
+
+```javascript
+// Fetch all active sessions
+const response = await fetch('/sessions', {
+  credentials: 'include'
+});
+const { sessions } = await response.json();
+
+// Display sessions
+sessions.forEach(session => {
+  console.log(`${session.deviceInfo} - Last used: ${session.lastUsed}`);
+});
+```
+
+### Revoke a Session
+
+```javascript
+// Revoke a specific session
+await fetch(`/sessions/${sessionId}`, {
+  method: 'DELETE',
+  credentials: 'include'
+});
+
+// Revoke all other sessions
+await fetch('/sessions/revoke-all-others', {
+  method: 'POST',
+  credentials: 'include'
+});
+```
+
+### Check Current Session
+
+```javascript
+const response = await fetch('/sessions', {
+  credentials: 'include'
+});
+const { sessions } = await response.json();
+
+const currentSession = sessions.find(s => s.isCurrent);
+console.log('Current session:', currentSession.deviceInfo);
+```
 
 ## Security Considerations
 
@@ -363,36 +312,9 @@ Each session stores:
 
 ### Best Practices
 
-<CardGroup cols={2}>
-  <Card title="Session Monitoring">
-    <ul>
-      <li>Regularly review active sessions</li>
-      <li>Revoke suspicious sessions immediately</li>
-      <li>Monitor for unusual login patterns</li>
-    </ul>
-  </Card>
-  <Card title="User Education">
-    <ul>
-      <li>Encourage users to review sessions</li>
-      <li>Provide "logout from all devices" option</li>
-      <li>Show clear device information</li>
-    </ul>
-  </Card>
-  <Card title="Security Features">
-    <ul>
-      <li>Automatic expiration</li>
-      <li>IP address tracking</li>
-      <li>Device fingerprinting</li>
-    </ul>
-  </Card>
-  <Card title="Implementation">
-    <ul>
-      <li>Use HTTP-only cookies</li>
-      <li>Validate sessions on each refresh</li>
-      <li>Clean up expired sessions periodically</li>
-    </ul>
-  </Card>
-</CardGroup>
+- **Session Monitoring**: Regularly review active sessions and revoke suspicious sessions immediately
+- **User Education**: Encourage users to review sessions and provide "logout from all devices" option
+- **Security Features**: Use HTTP-only cookies, validate sessions on each refresh, clean up expired sessions periodically
 
 ## Migration Notes
 
@@ -428,80 +350,50 @@ setInterval(async () => {
 
 ## Troubleshooting
 
-### Common Issues
+### Session Not Found
 
-<AccordionGroup>
-  <Accordion title="Session Not Found">
-    **Error:** `Session not found or you do not have permission to revoke it`
-    
-    **Causes:**
-    - Session was already revoked
-    - Session expired
-    - User doesn't own the session
-    
-    **Solution:**
-    - Refresh the sessions list
-    - Check session expiration dates
-    - Verify user authentication
-  </Accordion>
-  
-  <Accordion title="Multiple Sessions Not Working">
-    **Issue:** New login invalidates previous session
-    
-    **Causes:**
-    - Old code still using `refreshToken` field on User model
-    - Session creation not implemented in login endpoint
-    
-    **Solution:**
-    - Verify all login endpoints use `createSession()`
-    - Check that `refreshToken` field is no longer updated on User model
-    - Ensure Session model is registered in `getModelService.js`
-  </Accordion>
-  
-  <Accordion title="Sessions Not Expiring">
-    **Issue:** Sessions remain active after expiration
-    
-    **Causes:**
-    - Cleanup job not running
-    - Expiration check not implemented
-    
-    **Solution:**
-    - Implement periodic cleanup job
-    - Verify `expiresAt` is set correctly on session creation
-    - Check `validateSession()` includes expiration check
-  </Accordion>
-</AccordionGroup>
+**Error:** `Session not found or you do not have permission to revoke it`
 
-## API Endpoints Summary
+**Causes:**
+- Session was already revoked
+- Session expired
+- User doesn't own the session
 
-<Table>
-  <TableHead>
-    <TableRow>
-      <TableHeader>Method</TableHeader>
-      <TableHeader>Endpoint</TableHeader>
-      <TableHeader>Description</TableHeader>
-      <TableHeader>Auth Required</TableHeader>
-    </TableRow>
-  </TableHead>
-  <TableBody>
-    <TableRow>
-      <TableCell><code>GET</code></TableCell>
-      <TableCell><code>/sessions</code></TableCell>
-      <TableCell>List all active sessions</TableCell>
-      <TableCell><Badge variant="success">Yes</Badge></TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell><code>DELETE</code></TableCell>
-      <TableCell><code>/sessions/:sessionId</code></TableCell>
-      <TableCell>Revoke a specific session</TableCell>
-      <TableCell><Badge variant="success">Yes</Badge></TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell><code>POST</code></TableCell>
-      <TableCell><code>/sessions/revoke-all-others</code></TableCell>
-      <TableCell>Revoke all sessions except current</TableCell>
-      <TableCell><Badge variant="success">Yes</Badge></TableCell>
-    </TableRow>
-  </TableBody>
-</Table>
+**Solution:**
+- Refresh the sessions list
+- Check session expiration dates
+- Verify user authentication
 
+### Multiple Sessions Not Working
+
+**Issue:** New login invalidates previous session
+
+**Causes:**
+- Old code still using `refreshToken` field on User model
+- Session creation not implemented in login endpoint
+
+**Solution:**
+- Verify all login endpoints use `createSession()`
+- Check that `refreshToken` field is no longer updated on User model
+- Ensure Session model is registered in `getModelService.js`
+
+### Sessions Not Expiring
+
+**Issue:** Sessions remain active after expiration
+
+**Causes:**
+- Cleanup job not running
+- Expiration check not implemented
+
+**Solution:**
+- Implement periodic cleanup job
+- Verify `expiresAt` is set correctly on session creation
+- Check `validateSession()` includes expiration check
+
+## Notes
+
+- Sessions work independently across devices - logging out from one device doesn't affect others
+- Each session has its own refresh token stored securely in the database
+- Session information is automatically tracked (device, IP, client type)
+- Users can manage their sessions through the account settings page
+- Expired sessions are automatically invalidated and cleaned up
