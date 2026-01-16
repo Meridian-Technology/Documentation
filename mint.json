@@ -85,7 +85,8 @@
     {
       "group": "Platform",
       "pages": [
-        "backend/auth.SAML.mdx",
+        "backend/auth/SAML",
+        "backend/auth/sessions",
         "api-reference/introduction",
         "api-reference/endpoint/get",
         "api-reference/endpoint/create",
