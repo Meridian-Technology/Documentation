@@ -1,0 +1,243 @@
+---
+title: Development Build Setup
+---
+
+This guide explains how to install a development build on your physical device (iOS or Android) that is differentiated from your preview build.
+
+## What's the Difference?
+
+- **Preview Build**: A standalone build with your app code bundled in. Installed via TestFlight/Google Play or direct download. Cannot reload code without rebuilding.
+- **Development Build**: Includes the Expo development client. Can connect to `expo start` and reload code instantly without rebuilding.
+
+## Key Differences on Your Device
+
+The development build uses a different bundle identifier/package name (`com.meridian.mobile.dev`) so it will:
+- Appear as a **separate app** on your home screen
+- Coexist with your preview build
+- Allow you to connect to `expo start` for hot reloading
+
+---
+
+## iOS Development Build
+
+### Step 1: Build the Development Build
+
+From the `Meridian-Mobile` directory, run:
+
+```bash
+npm run build:ios:development
+```
+
+Or directly:
+
+```bash
+eas build --platform ios --profile development
+```
+
+This will:
+1. Build a development client with your app
+2. Take ~15-30 minutes
+3. Generate a QR code and download link when complete
+
+### Step 2: Install on Your iPhone
+
+#### Option A: Via QR Code (Easiest)
+
+1. When the build completes, EAS will show you a QR code
+2. Open your iPhone camera
+3. Scan the QR code
+4. Tap the notification to download
+5. Go to Settings → General → VPN & Device Management
+6. Trust the developer certificate
+7. Open the app
+
+#### Option B: Via Download Link
+
+1. When the build completes, EAS will provide a download link
+2. Open the link on your iPhone (Safari)
+3. Tap "Install"
+4. Go to Settings → General → VPN & Device Management
+5. Trust the developer certificate
+6. Open the app
+
+### Step 3: Connect to Development Server
+
+Once the development build is installed:
+
+1. **Start the development server** on your computer:
+   ```bash
+   npm start
+   # or
+   expo start
+   ```
+
+2. **Connect your iPhone**:
+   - Make sure your iPhone and computer are on the same Wi-Fi network
+   - Open the development build app on your iPhone
+   - Shake your device (or press `Cmd+D` if using simulator) to open the developer menu
+   - Tap "Enter URL manually" or scan the QR code from the terminal
+   - Enter your computer's IP address (shown in the terminal), e.g., `exp://192.168.1.XXX:8081`
+
+3. **Load your app**:
+   - The app will connect and load your JavaScript bundle
+   - You can now make changes and see them instantly with hot reload!
+
+### iOS Troubleshooting
+
+#### "Untrusted Developer" Error
+
+1. Go to Settings → General → VPN & Device Management
+2. Find the developer certificate
+3. Tap "Trust [Developer Name]"
+4. Confirm trust
+
+#### Build Fails
+
+- Make sure you're logged into EAS: `eas login`
+- Check your Apple Developer account is linked: `eas credentials`
+- Ensure the bundle identifier `com.meridian.mobile.dev` is registered in your Apple Developer account
+
+---
+
+## Android Development Build
+
+### Step 1: Build the Development Build
+
+From the `Meridian-Mobile` directory, run:
+
+```bash
+npm run build:android:development
+```
+
+Or directly:
+
+```bash
+eas build --platform android --profile development
+```
+
+This will:
+1. Build a development client with your app as an APK
+2. Take ~15-30 minutes
+3. Generate a QR code and download link when complete
+
+### Step 2: Install on Your Android Device
+
+#### Option A: Via QR Code (Easiest)
+
+1. When the build completes, EAS will show you a QR code
+2. Open your Android device camera or a QR code scanner app
+3. Scan the QR code
+4. Tap the notification to download the APK
+5. If prompted, allow installation from unknown sources:
+   - Go to Settings → Security → Enable "Install unknown apps" for your browser
+6. Tap "Install" when the download completes
+7. Open the app
+
+#### Option B: Via Download Link
+
+1. When the build completes, EAS will provide a download link
+2. Open the link on your Android device (Chrome or any browser)
+3. Download the APK file
+4. If prompted, allow installation from unknown sources
+5. Tap the downloaded APK file to install
+6. Tap "Install" when prompted
+7. Open the app
+
+#### Option C: Via ADB (For Developers)
+
+If you have ADB installed:
+
+```bash
+# Download the APK first, then:
+adb install path/to/your-app.apk
+```
+
+### Step 3: Connect to Development Server
+
+Once the development build is installed:
+
+1. **Start the development server** on your computer:
+   ```bash
+   npm start
+   # or
+   expo start
+   ```
+
+2. **Connect your Android device**:
+   - Make sure your Android device and computer are on the same Wi-Fi network
+   - Open the development build app on your Android device
+   - Shake your device (or press `Cmd+M` / `Ctrl+M` if using emulator) to open the developer menu
+   - Tap "Enter URL manually" or scan the QR code from the terminal
+   - Enter your computer's IP address (shown in the terminal), e.g., `exp://192.168.1.XXX:8081`
+
+3. **Load your app**:
+   - The app will connect and load your JavaScript bundle
+   - You can now make changes and see them instantly with hot reload!
+
+### Android Troubleshooting
+
+#### "Install blocked" or "Unknown sources" Error
+
+1. Go to Settings → Security (or Apps & notifications → Special app access)
+2. Enable "Install unknown apps" for your browser (Chrome, Firefox, etc.)
+3. Try downloading and installing again
+
+#### Can't Connect to Development Server
+
+1. Ensure both devices are on the same Wi-Fi network
+2. Check your firewall isn't blocking port 8081
+3. Try entering the URL manually: `exp://YOUR_IP:8081`
+4. Verify your computer's IP address hasn't changed
+5. On Android, you may need to use `exp://` instead of `http://`
+
+#### Build Fails
+
+- Make sure you're logged into EAS: `eas login`
+- Check your Android credentials: `eas credentials`
+- Ensure the package name `com.meridian.mobile.dev` is available (EAS will handle this automatically)
+
+#### Developer Menu Not Appearing
+
+- Shake your device physically
+- Or press `Cmd+M` (Mac) / `Ctrl+M` (Windows/Linux) if using an emulator
+- Or run: `adb shell input keyevent 82` (if ADB is installed)
+
+---
+
+## Differentiating the Apps
+
+The development build will appear as a separate app because:
+- **iOS Bundle ID**: `com.meridian.mobile.dev` (vs `com.meridian.mobile` for preview)
+- **Android Package**: `com.meridian.mobile.dev` (vs `com.meridian.mobile` for preview)
+- **App Name**: "Meridian Dev" (vs "Meridian" for preview)
+
+The different bundle ID/package name and app name ensure they're completely separate apps on your device.
+
+## Quick Reference
+
+```bash
+# Build iOS development build
+npm run build:ios:development
+
+# Build Android development build
+npm run build:android:development
+
+# Start development server
+npm start
+
+# Check iOS build status
+eas build:list --platform ios --profile development
+
+# Check Android build status
+eas build:list --platform android --profile development
+```
+
+## Next Steps
+
+Once installed, you can:
+- Make code changes and see them instantly
+- Use React Native Debugger
+- Test native modules and custom native code
+- Develop without rebuilding the app
+- Test on physical devices with full native capabilities
+
