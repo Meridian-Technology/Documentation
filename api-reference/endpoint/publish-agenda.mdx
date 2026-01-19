@@ -1,0 +1,100 @@
+---
+title: 'Publish Event Agenda'
+openapi: 'POST /org-event-management/{orgId}/events/{eventId}/agenda/publish'
+---
+
+Publishes an event agenda, marking it as complete and ready. Once published, the agenda's `isPublished` field is set to `true`. Any subsequent modifications to the agenda will automatically set `isPublished` back to `false`.
+
+<ParamField path="orgId" type="string" required>
+  The organization ID that owns the event
+</ParamField>
+
+<ParamField path="eventId" type="string" required>
+  The event ID for which to publish the agenda
+</ParamField>
+
+## Request
+
+The endpoint requires authentication via Bearer token and the user must have event management permissions for the organization.
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Indicates whether the request was successful
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable message describing the result
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Contains the updated agenda object
+  <Expandable title="Agenda Object">
+    <ResponseField name="agenda" type="object">
+      The updated EventAgenda document with `isPublished: true`
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Error Responses
+
+<ResponseField name="404" type="object">
+  Agenda not found
+  <Expandable title="Response Body">
+    ```json
+    {
+      "success": false,
+      "message": "Agenda not found"
+    }
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="400" type="object">
+  Cannot publish empty agenda
+  <Expandable title="Response Body">
+    ```json
+    {
+      "success": false,
+      "message": "Cannot publish an empty agenda"
+    }
+    ```
+  </Expandable>
+</ResponseField>
+
+## Example
+
+<RequestExample>
+```bash
+curl -X POST \
+  https://api.meridian.study/org-event-management/507f1f77bcf86cd799439011/events/507f191e810c19729de860ea/agenda/publish \
+  -H 'Authorization: Bearer YOUR_TOKEN_HERE'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+  "success": true,
+  "message": "Agenda published successfully",
+  "data": {
+    "agenda": {
+      "_id": "507f191e810c19729de860ea",
+      "eventId": "507f191e810c19729de860ea",
+      "orgId": "507f1f77bcf86cd799439011",
+      "items": [...],
+      "isPublished": true,
+      "createdAt": "2024-01-15T10:00:00.000Z",
+      "updatedAt": "2024-01-15T10:00:00.000Z"
+    }
+  }
+}
+```
+</ResponseExample>
+
+## Notes
+
+- The agenda must have at least one item before it can be published
+- Publishing an agenda sets `isPublished: true` and marks it as ready for public viewing
+- Any modifications to agenda items (create, update, delete) will automatically reset `isPublished` to `false`
+- This endpoint is used in the Event Dashboard's Agenda Builder to explicitly mark the agenda as complete

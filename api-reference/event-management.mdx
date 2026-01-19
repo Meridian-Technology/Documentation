@@ -1,0 +1,133 @@
+---
+title: 'Event Management API'
+description: 'API endpoints for managing events, agendas, jobs, and assignments'
+---
+
+## Overview
+
+The Event Management API provides endpoints for organizations to manage their events, including agendas, volunteer jobs, assignments, and RSVP tracking. All endpoints require authentication and event management permissions for the organization.
+
+## Base URL
+
+All event management endpoints are prefixed with:
+
+```
+/org-event-management/{orgId}/events
+```
+
+## Authentication
+
+All endpoints require:
+- **Bearer Token**: Passed in the `Authorization` header
+- **Event Management Permissions**: User must have event management permissions for the specified organization
+
+## Key Features
+
+### Agenda Management
+- Create and update event agendas
+- Publish agendas to mark them as complete
+- Automatic `isPublished` reset on modifications
+
+### Job & Assignment Management
+- Create event jobs from templates
+- Assign volunteers to job positions
+- Remove assignments when needed
+- Track job coverage and staffing status
+
+### RSVP Growth Tracking
+- Track daily RSVP counts
+- Dynamic projection calculations
+- Support for past and future events
+- Guest count tracking
+
+## Common Response Format
+
+All endpoints follow a consistent response structure:
+
+<ResponseField name="success" type="boolean">
+  Indicates whether the request was successful
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable message describing the result (optional)
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Response data (varies by endpoint)
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message details (only present on error responses)
+</ResponseField>
+
+## Endpoints
+
+### Agenda Endpoints
+
+<CardGroup cols={2}>
+  <Card
+    title="Publish Agenda"
+    icon="file-check"
+    href="/api-reference/endpoint/publish-agenda"
+  >
+    Mark an event agenda as published and ready
+  </Card>
+</CardGroup>
+
+### Assignment Endpoints
+
+<CardGroup cols={2}>
+  <Card
+    title="Delete Assignment"
+    icon="user-minus"
+    href="/api-reference/endpoint/delete-assignment"
+  >
+    Remove a volunteer from a job position
+  </Card>
+</CardGroup>
+
+### Analytics Endpoints
+
+<CardGroup cols={2}>
+  <Card
+    title="Get RSVP Growth"
+    icon="chart-line"
+    href="/api-reference/endpoint/get-rsvp-growth"
+  >
+    Retrieve daily RSVP data and projections
+  </Card>
+</CardGroup>
+
+## Error Handling
+
+All endpoints return appropriate HTTP status codes:
+
+- `200` - Success
+- `201` - Created
+- `400` - Bad Request (validation errors)
+- `401` - Unauthorized (missing/invalid token)
+- `403` - Forbidden (insufficient permissions)
+- `404` - Not Found (resource doesn't exist)
+- `500` - Internal Server Error
+
+## Rate Limiting
+
+API rate limits apply to prevent abuse. Check response headers for rate limit information:
+
+- `X-RateLimit-Limit`: Maximum requests per window
+- `X-RateLimit-Remaining`: Remaining requests in current window
+- `X-RateLimit-Reset`: Time when the rate limit resets
+
+## Best Practices
+
+1. **Always check `success` field** before processing response data
+2. **Handle errors gracefully** - display user-friendly error messages
+3. **Cache data appropriately** - RSVP growth data can be cached for a few minutes
+4. **Use pagination** - For endpoints that return lists, use pagination parameters
+5. **Validate input** - Client-side validation improves UX and reduces errors
+
+## Related Documentation
+
+- [Atlas Event Analytics](/atlas/event-analytics) - Event analytics overview
+- [Atlas Backend](/atlas/backend) - Backend architecture details
+- [API Reference Introduction](/api-reference/introduction) - General API documentation

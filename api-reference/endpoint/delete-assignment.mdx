@@ -1,0 +1,85 @@
+---
+title: 'Delete Event Job Assignment'
+openapi: 'DELETE /org-event-management/{orgId}/events/{eventId}/assignments/{assignmentId}'
+---
+
+Removes a member assignment from an event job. This endpoint allows event managers to remove volunteers from job positions when needed.
+
+<ParamField path="orgId" type="string" required>
+  The organization ID that owns the event
+</ParamField>
+
+<ParamField path="eventId" type="string" required>
+  The event ID containing the job assignment
+</ParamField>
+
+<ParamField path="assignmentId" type="string" required>
+  The assignment ID to remove (MongoDB ObjectId of the assignment within the job's assignments array)
+</ParamField>
+
+## Request
+
+The endpoint requires authentication via Bearer token and the user must have event management permissions for the organization.
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Indicates whether the request was successful
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable message describing the result
+</ResponseField>
+
+## Error Responses
+
+<ResponseField name="404" type="object">
+  Assignment not found
+  <Expandable title="Response Body">
+    ```json
+    {
+      "success": false,
+      "message": "Assignment not found"
+    }
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="500" type="object">
+  Server error during deletion
+  <Expandable title="Response Body">
+    ```json
+    {
+      "success": false,
+      "message": "Error deleting assignment",
+      "error": "Error message details"
+    }
+    ```
+  </Expandable>
+</ResponseField>
+
+## Example
+
+<RequestExample>
+```bash
+curl -X DELETE \
+  https://api.meridian.study/org-event-management/507f1f77bcf86cd799439011/events/507f191e810c19729de860ea/assignments/507f1f77bcf86cd799439012 \
+  -H 'Authorization: Bearer YOUR_TOKEN_HERE'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+  "success": true,
+  "message": "Assignment deleted successfully"
+}
+```
+</ResponseExample>
+
+## Notes
+
+- The assignment is removed from the job's `assignments` array using MongoDB's `pull` method
+- This operation is irreversible - the assignment data is permanently removed
+- After deletion, the job's filled count will decrease, potentially making the job available for new assignments
+- Used in the Event Dashboard's Jobs Manager when removing a volunteer from a job position

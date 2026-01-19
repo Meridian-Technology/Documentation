@@ -69,6 +69,7 @@
         "atlas/configuration",
         "atlas/analytics",
         "atlas/event-analytics",
+        "atlas/event-dashboard",
         "atlas/messaging",
         "atlas/integrations",
         "atlas/admin",
@@ -88,9 +89,13 @@
         "backend/auth/SAML",
         "backend/auth/sessions",
         "api-reference/introduction",
+        "api-reference/event-management",
         "api-reference/endpoint/get",
         "api-reference/endpoint/create",
-        "api-reference/endpoint/delete"
+        "api-reference/endpoint/delete",
+        "api-reference/endpoint/publish-agenda",
+        "api-reference/endpoint/delete-assignment",
+        "api-reference/endpoint/get-rsvp-growth"
       ]
     },
     {

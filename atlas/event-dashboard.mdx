@@ -1,0 +1,173 @@
+---
+title: 'Event Dashboard'
+description: 'Event preparation and management dashboard features'
+---
+
+## Overview
+
+The Event Dashboard is a comprehensive interface for event managers to prepare and manage events. It provides tools for agenda management, volunteer job assignments, RSVP tracking, and event readiness monitoring.
+
+## Features
+
+### Overview Tab
+
+The Overview tab provides a high-level view of event status and readiness:
+
+<CardGroup cols={2}>
+  <Card
+    title="Event Readiness"
+    icon="clipboard-check"
+  >
+    Checklist showing agenda publication status, job fill rates, and event publication status
+  </Card>
+  <Card
+    title="RSVP Growth Chart"
+    icon="chart-line"
+  >
+    Visual representation of RSVP growth over time with dynamic projections
+  </Card>
+</CardGroup>
+
+#### Readiness Checks
+
+1. **Agenda Published**: Indicates whether the agenda has been explicitly published
+   - Shows "Pending Changes" when agenda is modified
+   - Requires explicit "Publish" action to mark as ready
+
+2. **Jobs Filled**: Tracks volunteer job coverage
+   - Shows filled vs required positions
+   - Progress bar turns red below 50% coverage
+   - Integrated from the Jobs Manager
+
+3. **Event Published**: Indicates if the event is publicly visible
+
+### Agenda Builder
+
+The Agenda Builder allows event managers to create and manage event agendas:
+
+#### Key Features
+- Add, edit, and reorder agenda items
+- Publish agenda when ready
+- Automatic status tracking
+
+#### Publishing Workflow
+
+1. **Create/Modify Agenda**: When agenda items are created, updated, or deleted, `isPublished` is automatically set to `false`
+2. **Review Changes**: The agenda shows "Pending Changes" status
+3. **Publish**: Click "Publish Agenda" button to explicitly mark as published (`isPublished: true`)
+
+<Warning>
+  Any modification to agenda items (create, update, delete) will reset the published status. This ensures agendas are always reviewed before being marked as complete.
+</Warning>
+
+### Jobs Manager
+
+The Jobs Manager handles volunteer job assignments and tracking:
+
+#### Key Features
+- Create jobs from templates
+- Assign volunteers to positions
+- Track job coverage
+- Remove assignments when needed
+
+#### Assignment Workflow
+
+1. **Create Job Slots**: Add job positions from organization job templates
+2. **Assign Volunteers**: Click open slots to assign members
+3. **Track Coverage**: View filled vs required positions
+4. **Remove Assignments**: Use the remove button (X) to unassign volunteers
+
+#### Job Status
+
+- **Fully Staffed**: Jobs that have met their required count show a green badge
+- **Open Slots**: Placeholder slots appear for unfilled positions
+- **Assignment Status**: All new assignments default to `'confirmed'` status
+
+<Note>
+  Once a job reaches its target number of members, the add dropdown is hidden and no additional members can be assigned.
+</Note>
+
+### RSVP Growth Chart
+
+The RSVP Growth Chart visualizes RSVP trends and projections:
+
+#### Features
+- **Cumulative View**: Shows total RSVPs over time (default)
+- **Daily View**: Toggle to see daily RSVP counts
+- **Dynamic Projections**: Future day projections adjust based on actual performance
+- **Frozen Data**: Past events show historical data frozen at event date
+
+#### Data Calculation
+
+**Past Days**:
+- Uses original predicted cumulative targets for the required growth line
+- Actual RSVPs tracked from `EventAnalytics.rsvpHistory` (primary) or `Event.attendees` (fallback)
+- Includes guest counts in RSVP totals
+
+**Future Days**:
+- Dynamically recalculates required growth based on actual performance
+- If behind schedule: increases daily required rate
+- If ahead of schedule: decreases daily required rate
+- Ensures target is still achievable by event date
+
+#### Data Sources (Priority)
+
+1. `EventAnalytics.rsvpHistory` - Most accurate, indexed timestamps
+2. `Event.attendees.rsvpDate` - Fallback if rsvpHistory is empty
+3. Even distribution - If only `rsvpStats.going` count is available
+
+### Analytics Tab
+
+The Analytics tab provides detailed event analytics including:
+- View counts over time
+- RSVP trends
+- Export functionality
+
+## Schema Changes
+
+### EventAgenda Schema
+
+Added `isPublished` field:
+
+```javascript
+{
+  isPublished: {
+    type: Boolean,
+    default: false
+  }
+}
+```
+
+**Behavior**:
+- Defaults to `false` when agenda is created
+- Set to `false` automatically when agenda items are modified
+- Set to `true` only via explicit publish action
+
+### EventJob Assignments
+
+**Default Status**: All new assignments default to `'confirmed'` status with `confirmedAt` timestamp set.
+
+**Removal**: Assignments can be removed via DELETE endpoint, which removes them from the job's assignments array.
+
+## API Integration
+
+The Event Dashboard integrates with the following API endpoints:
+
+- `POST /org-event-management/{orgId}/events/{eventId}/agenda/publish` - Publish agenda
+- `DELETE /org-event-management/{orgId}/events/{eventId}/assignments/{assignmentId}` - Remove assignment
+- `GET /org-event-management/{orgId}/events/{eventId}/rsvp-growth` - Get RSVP growth data
+
+See [Event Management API](/api-reference/event-management) for complete documentation.
+
+## Best Practices
+
+1. **Agenda Management**: Always review agenda changes before publishing
+2. **Job Assignments**: Monitor job coverage regularly to ensure adequate staffing
+3. **RSVP Tracking**: Use the growth chart to identify if additional promotion is needed
+4. **Readiness Checks**: Complete all readiness items before event day
+
+## Related Documentation
+
+- [Event Management API](/api-reference/event-management) - API endpoint documentation
+- [Atlas Event Analytics](/atlas/event-analytics) - Event analytics overview
+- [Atlas Backend](/atlas/backend) - Backend architecture

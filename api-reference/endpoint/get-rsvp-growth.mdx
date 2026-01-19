@@ -1,0 +1,184 @@
+---
+title: 'Get RSVP Growth Data'
+openapi: 'GET /org-event-management/{orgId}/events/{eventId}/rsvp-growth'
+---
+
+Retrieves daily RSVP growth data and projections for an event. This endpoint provides both actual RSVP counts (for past days) and dynamically calculated required growth projections (for future days) to help event managers track progress toward attendance goals.
+
+<ParamField path="orgId" type="string" required>
+  The organization ID that owns the event
+</ParamField>
+
+<ParamField path="eventId" type="string" required>
+  The event ID for which to retrieve RSVP growth data
+</ParamField>
+
+## Request
+
+The endpoint requires authentication via Bearer token and the user must have event management permissions for the organization.
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Indicates whether the request was successful
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Contains the RSVP growth data
+  <Expandable title="Data Object">
+    <ResponseField name="dailyData" type="array">
+      Array of daily RSVP data from event creation to the day before the event
+      <Expandable title="Daily Data Item">
+        <ResponseField name="date" type="string">
+          ISO date string (YYYY-MM-DD) for the day
+        </ResponseField>
+        <ResponseField name="dailyRSVPs" type="number">
+          Number of RSVPs received on this specific day (0 for future days)
+        </ResponseField>
+        <ResponseField name="cumulativeRSVPs" type="number">
+          Total RSVPs received up to and including this day
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="requiredGrowth" type="array">
+      Array of required cumulative RSVP targets for each day
+      <Expandable title="Required Growth Item">
+        <ResponseField name="date" type="string">
+          ISO date string (YYYY-MM-DD) for the day
+        </ResponseField>
+        <ResponseField name="required" type="number">
+          Cumulative RSVP target required by this day to meet the event's expected attendance
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="targetAttendance" type="number">
+      The event's expected attendance target
+    </ResponseField>
+    <ResponseField name="totalDays" type="number">
+      Total number of days from event creation to the day before the event
+    </ResponseField>
+    <ResponseField name="requiredPerDay" type="number">
+      Average RSVPs required per day to meet the target (for reference)
+    </ResponseField>
+    <ResponseField name="eventStart" type="string">
+      ISO timestamp of the event start date
+    </ResponseField>
+    <ResponseField name="eventCreated" type="string">
+      ISO timestamp of when the event was created
+    </ResponseField>
+    <ResponseField name="isFrozen" type="boolean">
+      Whether the event has passed (data is frozen in time)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Data Calculation Logic
+
+### Past Days
+- Uses **original predicted cumulative target** (not actual RSVPs) for the required growth line
+- Actual RSVPs are tracked from `EventAnalytics.rsvpHistory` (primary source) or `Event.attendees` (fallback)
+- RSVPs are grouped by day using timestamps, with guest counts included
+
+### Future Days
+- Dynamically recalculates required growth based on actual performance
+- If **behind schedule**: remaining days require higher daily RSVP rates
+- If **ahead of schedule**: remaining days require lower daily RSVP rates
+- Ensures the total target is still met by the event date
+
+### Data Sources (Priority Order)
+1. `EventAnalytics.rsvpHistory` - Most accurate, indexed timestamps
+2. `Event.attendees.rsvpDate` - Fallback if rsvpHistory is empty
+3. Even distribution fallback - If only `rsvpStats.going` count is available
+
+## Error Responses
+
+<ResponseField name="404" type="object">
+  Event not found
+  <Expandable title="Response Body">
+    ```json
+    {
+      "success": false,
+      "message": "Event not found"
+    }
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="500" type="object">
+  Server error during data retrieval
+  <Expandable title="Response Body">
+    ```json
+    {
+      "success": false,
+      "message": "Error fetching RSVP growth data",
+      "error": "Error message details"
+    }
+    ```
+  </Expandable>
+</ResponseField>
+
+## Example
+
+<RequestExample>
+```bash
+curl -X GET \
+  https://api.meridian.study/org-event-management/507f1f77bcf86cd799439011/events/507f191e810c19729de860ea/rsvp-growth \
+  -H 'Authorization: Bearer YOUR_TOKEN_HERE'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+  "success": true,
+  "data": {
+    "dailyData": [
+      {
+        "date": "2024-01-15",
+        "dailyRSVPs": 5,
+        "cumulativeRSVPs": 5
+      },
+      {
+        "date": "2024-01-16",
+        "dailyRSVPs": 3,
+        "cumulativeRSVPs": 8
+      },
+      {
+        "date": "2024-01-17",
+        "dailyRSVPs": 0,
+        "cumulativeRSVPs": 8
+      }
+    ],
+    "requiredGrowth": [
+      {
+        "date": "2024-01-15",
+        "required": 10
+      },
+      {
+        "date": "2024-01-16",
+        "required": 20
+      },
+      {
+        "date": "2024-01-17",
+        "required": 25
+      }
+    ],
+    "targetAttendance": 100,
+    "totalDays": 10,
+    "requiredPerDay": 10,
+    "eventStart": "2024-01-25T18:00:00.000Z",
+    "eventCreated": "2024-01-15T10:00:00.000Z",
+    "isFrozen": false
+  }
+}
+```
+</ResponseExample>
+
+## Notes
+
+- **Date Range**: Data spans from event creation date to the day before the event start date
+- **Frozen Events**: For past events, data is frozen at the day before the event start (RSVPs after event day don't count)
+- **Dynamic Projections**: Future day projections adjust based on actual RSVP performance to ensure the target is still achievable
+- **Guest Counts**: RSVP counts include guest counts from attendee records
+- **Timezone Handling**: Uses a 1-hour buffer for "today" to account for timezone/server clock differences
+- Used in the Event Dashboard's Overview tab to display the RSVP Growth Chart
