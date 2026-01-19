@@ -97,7 +97,9 @@
       "group": "Mobile",
       "pages": [
         "mobile/deep-links",
-        "mobile/analytics"
+        "mobile/analytics",
+        "mobile/development-build-setup",
+        "mobile/responsive-design"
       ]
     }
   ],

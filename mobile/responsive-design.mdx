@@ -1,0 +1,267 @@
+---
+title: Responsive Design Guide
+---
+
+This guide explains how to make your app responsive to different screen sizes, especially for smaller Android phones.
+
+## Quick Start
+
+```tsx
+import {useResponsive} from '@/hooks';
+
+function MyScreen() {
+  const {padding, fontSize, spacing, isSmall, isMedium, isLarge} = useResponsive();
+  
+  return (
+    <View style={{padding: padding.md}}>
+      <Text style={{fontSize: fontSize.xl}}>Responsive Text</Text>
+    </View>
+  );
+}
+```
+
+## Screen Size Categories
+
+- **Small**: < 375px (iPhone SE, small Android phones)
+- **Medium**: 375px - 414px (most iPhones, standard Android)
+- **Large**: > 414px (iPhone Pro Max, large Android phones)
+
+## Available Hooks
+
+### `useResponsive()`
+
+Main hook that provides all responsive utilities:
+
+```tsx
+const {
+  // Screen info
+  screenSize,    // 'small' | 'medium' | 'large'
+  width,          // Current screen width
+  height,         // Current screen height
+  isSmall,        // boolean
+  isMedium,       // boolean
+  isLarge,        // boolean
+  
+  // Scaling functions
+  scaleFont,      // (size: number) => number
+  scaleSize,      // (size: number) => number
+  
+  // Responsive values
+  padding,        // { xs, sm, md, lg, xl, '2xl' }
+  fontSize,       // { xs, sm, md, lg, xl, '2xl', '3xl', '4xl' }
+  spacing,        // { xs, sm, md, lg, xl, '2xl', '3xl' }
+  
+  // Utility function
+  getValue,       // Get responsive value based on screen size
+} = useResponsive();
+```
+
+## Responsive Values
+
+### Padding
+
+```tsx
+const {padding} = useResponsive();
+
+// Usage
+<View style={{padding: padding.md}}>
+<View style={{paddingHorizontal: padding.lg}}>
+<View style={{paddingTop: padding.xl}}>
+```
+
+**Values:**
+- `xs`: 8-12px (small-medium-large)
+- `sm`: 12-16px
+- `md`: 16-24px
+- `lg`: 20-28px
+- `xl`: 24-32px
+- `2xl`: 28-40px
+
+### Font Sizes
+
+```tsx
+const {fontSize} = useResponsive();
+
+// Usage
+<Text style={{fontSize: fontSize.xl}}>
+<Text style={{fontSize: fontSize['3xl']}}>
+```
+
+**Values:**
+- `xs`: 10-12px
+- `sm`: 12-14px
+- `md`: 14-16px
+- `lg`: 16-18px
+- `xl`: 20-24px
+- `2xl`: 24-28px
+- `3xl`: 28-32px
+- `4xl`: 32-36px
+
+### Spacing
+
+```tsx
+const {spacing} = useResponsive();
+
+// Usage
+<View style={{marginTop: spacing.lg}}>
+<View style={{gap: spacing.md}}>
+```
+
+**Values:**
+- `xs`: 4-6px
+- `sm`: 8-10px
+- `md`: 12-16px
+- `lg`: 16-20px
+- `xl`: 20-24px
+- `2xl`: 24-32px
+- `3xl`: 32-40px
+
+## Examples
+
+### Example 1: Responsive Screen
+
+```tsx
+import {useResponsive} from '@/hooks';
+
+function MyScreen() {
+  const {padding, fontSize, isSmall} = useResponsive();
+  
+  return (
+    <View style={{padding: padding.md}}>
+      <Text style={{fontSize: fontSize['3xl']}}>Title</Text>
+      <Text style={{fontSize: fontSize.md}}>Subtitle</Text>
+      
+      {!isSmall && (
+        <Text>This only shows on medium/large screens</Text>
+      )}
+    </View>
+  );
+}
+```
+
+### Example 2: Conditional Rendering
+
+```tsx
+const {isSmall, getValue} = useResponsive();
+
+// Get different values based on screen size
+const columns = getValue({
+  small: 1,
+  medium: 2,
+  large: 3,
+  default: 2,
+});
+
+// Or use boolean checks
+const showSidebar = !isSmall;
+```
+
+### Example 3: Custom Scaling
+
+```tsx
+const {scaleFont, scaleSize} = useResponsive();
+
+// Scale a specific font size
+const customFontSize = scaleFont(18);
+
+// Scale a specific dimension
+const customPadding = scaleSize(30);
+```
+
+## Migration Guide
+
+### Before (Fixed Sizes)
+
+```tsx
+const styles = StyleSheet.create({
+  container: {
+    padding: 24,
+  },
+  title: {
+    fontSize: 28,
+  },
+});
+```
+
+### After (Responsive)
+
+```tsx
+function MyComponent() {
+  const {padding, fontSize} = useResponsive();
+  
+  return (
+    <View style={{padding: padding.lg}}>
+      <Text style={{fontSize: fontSize['3xl']}}>Title</Text>
+    </View>
+  );
+}
+```
+
+Or with StyleSheet:
+
+```tsx
+function MyComponent() {
+  const {padding, fontSize} = useResponsive();
+  
+  const styles = StyleSheet.create({
+    container: {
+      padding: padding.lg,
+    },
+    title: {
+      fontSize: fontSize['3xl'],
+    },
+  });
+  
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Title</Text>
+    </View>
+  );
+}
+```
+
+## Best Practices
+
+1. **Use responsive values for padding/margins**: Always use `padding.md`, `spacing.lg`, etc. instead of fixed values
+2. **Use responsive font sizes**: Use `fontSize.xl` instead of fixed `fontSize: 20`
+3. **Test on different screen sizes**: Test on small (< 375px), medium (375-414px), and large (> 414px) screens
+4. **Use conditional rendering for complex layouts**: Use `isSmall`, `isMedium`, `isLarge` for layout changes
+5. **Scale custom values**: Use `scaleFont()` and `scaleSize()` for one-off custom values
+
+## Common Patterns
+
+### Responsive Header
+
+```tsx
+const {padding, fontSize} = useResponsive();
+
+<View style={{paddingHorizontal: padding.lg, paddingTop: padding.md}}>
+  <Text style={{fontSize: fontSize['3xl']}}>Title</Text>
+</View>
+```
+
+### Responsive List
+
+```tsx
+const {padding, spacing} = useResponsive();
+
+<FlatList
+  contentContainerStyle={{
+    padding: padding.md,
+    paddingBottom: padding.xl,
+  }}
+  ItemSeparatorComponent={() => <View style={{height: spacing.md}} />}
+/>
+```
+
+### Responsive Card
+
+```tsx
+const {padding, fontSize, spacing} = useResponsive();
+
+<View style={{padding: padding.md, marginBottom: spacing.md}}>
+  <Text style={{fontSize: fontSize.lg}}>Card Title</Text>
+  <Text style={{fontSize: fontSize.sm, marginTop: spacing.sm}}>Card Content</Text>
+</View>
+```
+
