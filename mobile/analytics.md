@@ -1,6 +1,6 @@
 # Analytics System Documentation
 
-This guide explains the analytics data collection system implemented for Meridian Mobile. The system provides a lightweight, future-proof way to collect raw event data reliably for mobile launch and beyond.
+This guide explains the analytics data collection system implemented for Meridian Mobile. For a platform-level view (philosophy, event lifecycle from tracking to storage, and backend implementation), see [Platform Analytics (Event Pipeline)](/backend/analytics-platform). The system provides a lightweight, future-proof way to collect raw event data reliably for mobile launch and beyond.
 
 ## Overview
 

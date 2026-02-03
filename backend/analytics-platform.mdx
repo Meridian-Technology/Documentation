@@ -1,0 +1,188 @@
+---
+title: "Platform Analytics (Event Pipeline)"
+description: "Philosophy, architecture, and event lifecycle for the analytics ingestion system"
+---
+
+This document describes the **new** platform analytics system: the event pipeline that ingests raw events via `POST /v1/events` and stores them in the `analytics_events` collection. It is intended for anyone implementing on top of this system (e.g. new clients or downstream consumers) or adjusting it on the backend. It does **not** cover the legacy analytics system (Visit, RepeatedVisit, Search, or the older `/routes/analytics.js` routes), which remains in place for backwards compatibility.
+
+---
+
+## Philosophy
+
+The system is designed as a **dumb pipe**: it collects raw event payloads, validates and lightly enriches them, then stores them in MongoDB. It does not compute aggregates, dashboards, or funnels in the ingestion path. That separation gives you:
+
+- **Tool independence** — The same event store can feed GA4, PostHog, BigQuery, or custom pipelines. You choose the consumer later.
+- **Stable contract** — A single envelope schema and a small set of rules. Clients and backend agree on shape and semantics; interpretation happens downstream.
+- **Privacy by design** — No PII in the envelope; client and server both scrub. Identifiers are device/session/user IDs, not emails or names. IP and user agent are hashed or summarized.
+- **Reliability and idempotency** — Clients can retry safely. Each event has a unique `event_id`; duplicates are detected and not re-inserted, so at-least-once delivery does not create duplicate rows.
+
+If you are extending or changing this system, keeping the “dumb pipe” idea in mind will keep the pipeline simple and reusable.
+
+---
+
+## Event Lifecycle: From Tracking to Storage
+
+End-to-end, an event moves through these stages:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. TRACKING (client)                                                         │
+│    App calls track(name, properties). SDK builds an event object that        │
+│    conforms to the envelope (event_id, event, ts, anonymous_id, session_id,  │
+│    platform, app_version, env, context, properties, etc.).                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2. QUEUING (client)                                                          │
+│    Event is appended to a local queue (e.g. AsyncStorage on mobile).         │
+│    Queue is persisted so events survive restarts and network failures.       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 3. BATCHING & SEND (client)                                                  │
+│    Periodically or on triggers (e.g. timer, background), the client sends   │
+│    a batch of events in one request: POST /v1/events with body               │
+│    { "events": [ ... ] }.                                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 4. INGESTION (backend)                                                       │
+│    - Payload size and array length checks (max 1MB, max 50 events).          │
+│    - Per-event validation (required fields, enums, event size limits).       │
+│    - PII scrubbing on properties; optional server-side enrichment            │
+│      (e.g. received_at, ip_hash, user_agent_summary).                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 5. STORAGE (backend)                                                         │
+│    Enriched documents are inserted into MongoDB collection analytics_events. │
+│    Insert uses ordered: false so duplicate event_id (unique index) does not  │
+│    fail the whole batch; duplicates are counted and not re-inserted.         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+So: **track → queue → batch → POST /v1/events → validate & enrich → insert into analytics_events**. Any new client (e.g. web, another app) that implements steps 1–3 and sends the same envelope to `POST /v1/events` will fit into this pipeline without backend changes, as long as it respects the same schema and limits.
+
+---
+
+## Event Envelope (Schema)
+
+Every event that is stored has the same conceptual shape. Clients send it; the backend may add a few server-only fields (e.g. `received_at`, `ip_hash`, `user_agent_summary`). The stored document looks like this:
+
+| Field | Type | Meaning |
+|-------|------|--------|
+| `schema_version` | number | Envelope version (currently 1). |
+| `event_id` | string | Unique id (e.g. UUID). Used for idempotency. |
+| `event` | string | Event name (e.g. `screen_view`, `event_rsvp`). |
+| `ts` | Date | Client timestamp when the event occurred. |
+| `received_at` | Date | Server time when the batch was received (set by backend). |
+| `anonymous_id` | string | Device-scoped persistent id (no PII). |
+| `user_id` | ObjectId or null | Set when user is known (e.g. after login). |
+| `session_id` | string | Session id (e.g. regenerated after long background). |
+| `platform` | string | `ios` \| `android` \| `web`. |
+| `app` | string | Application name (e.g. `meridian`). |
+| `app_version` | string | Application version. |
+| `build` | string \| number | Build identifier. |
+| `env` | string | `prod` \| `staging` \| `dev`. |
+| `context` | object | Optional: `screen`, `route`, `referrer`, `locale`, `timezone`, `device_model`, `os_version`, `network`. |
+| `properties` | object | Event-specific payload; must be JSON-safe, no PII; size-limited. |
+| `ip_hash` | string | SHA-256 hash of IP (set by backend). |
+| `user_agent_summary` | string | High-level device/browser (e.g. `ios`, `chrome`) (set by backend). |
+
+Required from the client for each event: `event`, `ts`, `event_id`, `anonymous_id`, `session_id`, `platform`, `app_version`, `env`. Validation and limits are described below.
+
+---
+
+## Backend: Ingestion API
+
+**Endpoint:** `POST /v1/events`  
+(Mounted on the same prefix as the rest of the events router; no extra path prefix in front of `v1/events`.)
+
+**Body:** `{ "events": [ ... ] }` — array of event objects conforming to the envelope.
+
+**Limits:**
+
+- Payload: max 1 MB (total request body).
+- Events per request: max 50.
+- Per-event size: max 10 KB (after JSON serialization).
+- Per-event `properties`: max 5 KB (after sanitization); excess can be truncated.
+
+**Validation:**
+
+- Required fields must be present and non-null.
+- `platform` must be one of `ios`, `android`, `web`.
+- `env` must be one of `prod`, `staging`, `dev`.
+- `ts` must be a valid Date or ISO date string.
+- `event_id` must be a non-empty string.
+
+Events that fail validation are **dropped** (not inserted); they are counted in the response as `dropped`. The request still returns 200 so the client can clear its queue.
+
+**Enrichment (server-side):**
+
+- `received_at`: set to the time the request is processed.
+- `ip_hash`: SHA-256 of client IP (if available).
+- `user_agent_summary`: derived from `User-Agent` (e.g. `ios`, `android`, `chrome`).
+
+**PII handling:**
+
+- A fixed list of keys (e.g. `email`, `name`, `phone`, `password`, `ssn`, `credit_card`, `address`) is stripped from `properties` (and nested objects). Oversized `properties` may be replaced with a truncation marker.
+
+**Idempotency:**
+
+- Insert is done with `ordered: false`. The collection has a unique index on `event_id`. If the same `event_id` is sent again (e.g. retry), that document is not inserted again and is counted as `duplicates` in the response.
+
+**Response:**
+
+```json
+{
+  "received": 5,
+  "inserted": 4,
+  "duplicates": 1,
+  "dropped": 0
+}
+```
+
+So: **received** = events in the request; **inserted** = new documents written; **duplicates** = rejected by unique index; **dropped** = validation or other failure. Success is returned even when there are duplicates or drops, so the client can treat the batch as delivered.
+
+---
+
+## Backend: Storage
+
+**Collection:** `analytics_events` (MongoDB).
+
+**Model:** Mongoose schema in `Meridian/backend/events/schemas/analyticsEvent.js`; model name `AnalyticsEvent`, collection name `analytics_events`. The schema reflects the envelope above (including `schema_version`, `event_id`, `event`, `ts`, `received_at`, `anonymous_id`, `user_id`, `session_id`, `platform`, `app`, `app_version`, `build`, `env`, `context`, `properties`, `ip_hash`, `user_agent_summary`).
+
+**Indexes:**
+
+- `event_id` (unique) — idempotency and deduplication.
+- `ts` (descending) — time-range and recency queries.
+- `user_id` + `ts` (descending) — per-user activity.
+- `anonymous_id` + `ts` (descending) — anonymous user activity.
+
+Index creation is done by a backend script (e.g. `createAnalyticsIndexes.js`); run it per environment/school as needed so new deployments have the same indexes.
+
+---
+
+## Extending the System
+
+**Adding new event types:** No backend change required. Emit new `event` names and put event-specific data in `properties`. Keep naming consistent (e.g. snake_case) and avoid PII.
+
+**Adding a new client (e.g. web):** Implement the same envelope and call `POST /v1/events` with batches. Ensure `event_id` is unique per event (e.g. UUID), set `platform` and `env` appropriately, and respect the same size and validation rules. Optionally implement queueing and batching for reliability.
+
+**Changing validation or enrichment:** Update `Meridian/backend/events/routes/analyticsRoutes.js` (e.g. `validateEvent`, `sanitizeProperties`, or the enrichment block). Keep idempotency (unique `event_id`) and the response shape so existing clients keep working.
+
+**Downstream consumers:** Read from `analytics_events` (or a replicated view). Transform the envelope into your analytics tool (GA4, PostHog, BigQuery, etc.). The envelope is designed to map easily to common analytics models.
+
+---
+
+## Summary
+
+- **New system only:** `POST /v1/events` and `analytics_events`. Legacy Visit/RepeatedVisit/Search and old analytics routes are separate and not covered here.
+- **Philosophy:** Dumb pipe — validate, enrich lightly, store. No aggregation in the pipeline; tool-agnostic and privacy-conscious.
+- **Path:** Track → queue → batch → `POST /v1/events` → validate & enrich → insert into `analytics_events` with duplicate detection via `event_id`.
+
+For client-side usage (e.g. mobile SDK, queue, batching, and event taxonomy), see the [Mobile analytics](/mobile/analytics) doc.

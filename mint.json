@@ -88,6 +88,7 @@
       "pages": [
         "backend/auth/SAML",
         "backend/auth/sessions",
+        "backend/analytics-platform",
         "api-reference/introduction",
         "api-reference/event-management",
         "api-reference/endpoint/get",

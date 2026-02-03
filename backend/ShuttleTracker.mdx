@@ -1,0 +1,606 @@
+---
+title: 'Shuttle Tracker Documentation'
+description: 'Documentation for RPI Shubble'
+---
+## Base URL
+```
+https://api-shuttles.rpi.edu
+```
+
+## Overview
+The Shubble API provides real-time shuttle tracking data for Rensselaer Polytechnic Institute (RPI). All endpoints return JSON data and do not require authentication for GET requests.
+
+## Response Headers
+Some endpoints include helpful timing headers:
+- `X-Server-Time`: Current server time in ISO format
+- `X-Oldest-Data-Time`: Timestamp of the oldest data point in the response
+- `X-Data-Age-Seconds`: Age of the oldest data point in seconds
+
+## Endpoints
+
+### 1. GET /api/locations
+Returns the latest location for each vehicle currently inside the geofence.
+
+**Response:** Object keyed by vehicle ID, containing location data for each active shuttle.
+
+**Example Request:**
+```bash
+curl https://api-shuttles.rpi.edu/api/locations
+```
+
+**Example Response:**
+```json
+{
+  "281474977371235": {
+    "name": "412",
+    "latitude": 42.730279,
+    "longitude": -73.67487,
+    "timestamp": "2026-01-28T17:20:26+00:00",
+    "heading_degrees": 50.0,
+    "speed_mph": 18.633,
+    "is_ecu_speed": true,
+    "formatted_location": "14 Sherry Road, City of Troy, NY, 12180",
+    "address_id": "7249532",
+    "address_name": "RPI Student Union",
+    "license_plate": "52BLEI",
+    "vin": "1FDES8PM6KKA95397",
+    "asset_type": "vehicle",
+    "gateway_model": "VG54NAH",
+    "gateway_serial": "GZPF-R6S-UN8",
+    "driver": {
+      "id": "51036047",
+      "name": "Cecchetto, Gregory"
+    }
+  },
+  "281474979465689": {
+    "name": "450",
+    "latitude": 42.732513,
+    "longitude": -73.671982,
+    "timestamp": "2026-01-28T17:20:23+00:00",
+    "heading_degrees": 281.0,
+    "speed_mph": 19.864,
+    "is_ecu_speed": true,
+    "formatted_location": "1699 Peoples Avenue, City of Troy, NY, 12180",
+    "address_id": "81952107",
+    "address_name": "B Lot",
+    "license_plate": "DC36DB",
+    "vin": "1FDFE4FS3KDC07453",
+    "asset_type": "vehicle",
+    "gateway_model": "VG54NAH",
+    "gateway_serial": "GCDH-KM6-9A5",
+    "driver": {
+      "id": "30990587",
+      "name": "Benson, Melissa"
+    }
+  }
+}
+```
+
+**Response Fields:**
+- `name` (string): Vehicle name/number
+- `latitude` (number): GPS latitude coordinate
+- `longitude` (number): GPS longitude coordinate
+- `timestamp` (string): ISO 8601 timestamp of the location reading
+- `heading_degrees` (number): Vehicle heading in degrees (0-360)
+- `speed_mph` (number): Vehicle speed in miles per hour
+- `is_ecu_speed` (boolean): Whether speed is from ECU or GPS
+- `formatted_location` (string): Human-readable address
+- `address_id` (string): Samsara address ID
+- `address_name` (string): Name of the location/address
+- `license_plate` (string): Vehicle license plate
+- `vin` (string): Vehicle identification number
+- `asset_type` (string): Type of asset (typically "vehicle")
+- `gateway_model` (string): Gateway device model
+- `gateway_serial` (string): Gateway device serial number
+- `driver` (object|null): Current driver information
+  - `id` (string): Driver ID
+  - `name` (string): Driver name
+
+**Caching:** 15-300 seconds (soft/hard TTL)
+
+---
+
+### 2. GET /api/velocities
+Returns predicted velocity and route matching data for each vehicle currently inside the geofence.
+
+**Response:** Object keyed by vehicle ID, containing velocity predictions and route information.
+
+**Example Request:**
+```bash
+curl https://api-shuttles.rpi.edu/api/velocities
+```
+
+**Example Response:**
+```json
+{
+  "281474979465689": {
+    "speed_kmh": 11.048456876873008,
+    "timestamp": "2026-01-28T17:20:34.250000+00:00",
+    "route_name": "NORTH",
+    "polyline_index": 7,
+    "is_at_stop": false,
+    "current_stop": null
+  },
+  "281474977371235": {
+    "speed_kmh": 20.98838310352409,
+    "timestamp": "2026-01-28T17:21:26+00:00",
+    "route_name": "NORTH",
+    "polyline_index": 0,
+    "is_at_stop": false,
+    "current_stop": null
+  },
+  "281474979530259": {
+    "speed_kmh": 8.593263689335014,
+    "timestamp": "2026-01-28T17:17:52.750000+00:00",
+    "route_name": "WEST",
+    "polyline_index": 7,
+    "is_at_stop": true,
+    "current_stop": "STUDENT_UNION"
+  }
+}
+```
+
+**Response Fields:**
+- `speed_kmh` (number|null): Predicted speed in kilometers per hour
+- `timestamp` (string): ISO 8601 timestamp of the velocity reading
+- `route_name` (string|null): Name of the matched route (e.g., "NORTH", "WEST") or null if not matched
+- `polyline_index` (number|null): Index into the route polyline array
+- `is_at_stop` (boolean): Whether the vehicle is currently at a stop
+- `current_stop` (string|null): Name of the current stop if `is_at_stop` is true
+
+**Caching:** 15-300 seconds (soft/hard TTL)
+
+---
+
+### 3. GET /api/etas
+Returns ETA (Estimated Time of Arrival) information for each vehicle currently inside the geofence.
+
+**Response:** Object keyed by vehicle ID, containing predicted arrival times for each stop on the route.
+
+**Example Request:**
+```bash
+curl https://api-shuttles.rpi.edu/api/etas
+```
+
+**Example Response:**
+```json
+{
+  "281474977371235": {
+    "stop_times": {
+      "STUDENT_UNION": "2026-01-28T17:11:29+00:00",
+      "COLONIE": "2026-01-28T17:21:17.532482+00:00",
+      "GEORGIAN": "2026-01-28T17:22:07.127784+00:00",
+      "STAC_1": "2026-01-28T17:22:42.454363+00:00",
+      "STAC_2": "2026-01-28T17:23:06.774743+00:00",
+      "STAC_3": "2026-01-28T17:23:24.234286+00:00",
+      "ECAV": "2026-01-28T17:23:35.643119+00:00",
+      "HOUSTON_FIELD_HOUSE": "2026-01-28T17:23:53.868247+00:00",
+      "STUDENT_UNION_RETURN": "2026-01-28T17:24:04.000236+00:00"
+    },
+    "timestamp": "2026-01-28T17:20:28.116102+00:00"
+  },
+  "281474979465689": {
+    "stop_times": {
+      "STUDENT_UNION": "2026-01-28T17:11:12+00:00",
+      "COLONIE": "2026-01-28T16:54:20+00:00",
+      "GEORGIAN": "2026-01-28T17:15:30+00:00",
+      "STAC_1": "2026-01-28T17:16:31+00:00",
+      "STAC_2": "2026-01-28T17:16:58+00:00",
+      "STAC_3": "2026-01-28T17:17:44+00:00",
+      "ECAV": "2026-01-28T17:18:20+00:00",
+      "HOUSTON_FIELD_HOUSE": "2026-01-28T16:59:11+00:00",
+      "STUDENT_UNION_RETURN": "2026-01-28T17:20:12.276863+00:00"
+    },
+    "timestamp": "2026-01-28T17:20:00.722805+00:00"
+  }
+}
+```
+
+**Response Fields:**
+- `stop_times` (object): Object keyed by stop name, containing ISO 8601 timestamps for predicted arrival times
+- `timestamp` (string): ISO 8601 timestamp when the ETA predictions were calculated
+
+**Caching:** 15-300 seconds (soft/hard TTL)
+
+---
+
+### 4. GET /api/routes
+Returns route definitions including polylines, stops, and colors.
+
+**Response:** Object containing route definitions for all shuttle routes.
+
+**Example Request:**
+```bash
+curl https://api-shuttles.rpi.edu/api/routes
+```
+
+**Example Response (truncated):**
+```json
+{
+  "NORTH": {
+    "COLOR": "#FF0000",
+    "STOPS": [
+      "STUDENT_UNION",
+      "COLONIE",
+      "GEORGIAN",
+      "STAC_1",
+      "STAC_2",
+      "STAC_3",
+      "ECAV",
+      "HOUSTON_FIELD_HOUSE",
+      "STUDENT_UNION_RETURN"
+    ],
+    "POLYLINE_STOPS": [
+      "STUDENT_UNION",
+      "COLONIE",
+      "GHOST_STOP_1",
+      "GEORGIAN",
+      "STAC_1",
+      "STAC_2",
+      "STAC_3",
+      "ECAV",
+      "HOUSTON_FIELD_HOUSE",
+      "GHOST_STOP_2",
+      "STUDENT_UNION_RETURN"
+    ],
+    "STUDENT_UNION": {
+      "COORDINATES": [42.730711, -73.676737],
+      "OFFSET": 0,
+      "NAME": "Student Union"
+    },
+    "COLONIE": {
+      "COORDINATES": [42.737048, -73.670397],
+      "OFFSET": 3,
+      "NAME": "Colonie"
+    },
+    "ROUTES": {
+      "NORTH_0": {
+        "POLYLINE": [
+          [42.730711, -73.676737],
+          [42.7308, -73.6765],
+          [42.731, -73.6762],
+          ...
+        ]
+      }
+    }
+  },
+  "WEST": {
+    "COLOR": "#0000FF",
+    ...
+  }
+}
+```
+
+**Response Fields:**
+- `COLOR` (string): Hex color code for the route (e.g., "#FF0000" for red)
+- `STOPS` (array): List of stop identifiers in order
+- `POLYLINE_STOPS` (array): List of stops including ghost stops for polyline rendering
+- `[STOP_NAME]` (object): Stop definition objects containing:
+  - `COORDINATES` (array): [latitude, longitude]
+  - `OFFSET` (number): Offset into the polyline array
+  - `NAME` (string): Human-readable stop name
+- `ROUTES` (object): Route variants keyed by route identifier, containing:
+  - `POLYLINE` (array): Array of [latitude, longitude] coordinate pairs
+
+**Caching:** No caching (serves static file)
+
+---
+
+### 5. GET /api/schedule
+Returns the shuttle schedule organized by day and route.
+
+**Response:** Object containing schedule data organized by day type and route.
+
+**Example Request:**
+```bash
+curl https://api-shuttles.rpi.edu/api/schedule
+```
+
+**Example Response (truncated):**
+```json
+{
+  "MONDAY": "weekday",
+  "TUESDAY": "weekday",
+  "WEDNESDAY": "weekday",
+  "THURSDAY": "weekday",
+  "FRIDAY": "weekday",
+  "SATURDAY": "saturday",
+  "SUNDAY": "sunday",
+  "weekday": {
+    "AM WEST Bus 1": [
+      ["7:00 AM", "WEST"],
+      ["7:25 AM", "WEST"],
+      ["7:50 AM", "WEST"],
+      ["8:15 AM", "WEST"],
+      ["8:40 AM", "WEST"],
+      ["9:05 AM", "WEST"],
+      ["9:30 AM", "WEST"],
+      ["9:55 AM", "WEST"],
+      ["10:20 AM", "WEST"],
+      ["10:45 AM", "WEST"],
+      ["11:35 AM", "WEST"],
+      ["12:00 PM", "WEST"],
+      ["12:25 PM", "WEST"],
+      ["12:50 PM", "WEST"],
+      ["1:15 PM", "WEST"],
+      ["1:40 PM", "WEST"],
+      ["2:05 PM", "WEST"],
+      ["2:30 PM", "WEST"],
+      ...
+    ],
+    "PM WEST Bus 1": [...],
+    "AM NORTH Bus 1": [...],
+    ...
+  },
+  "saturday": {...},
+  "sunday": {...}
+}
+```
+
+**Response Structure:**
+- Day names map to day type strings ("weekday", "saturday", "sunday")
+- Day type objects contain route schedules keyed by route name
+- Each route schedule is an array of [time, route_name] pairs
+
+**Caching:** No caching (serves static file)
+
+---
+
+### 6. GET /api/today
+Returns all location data and geofence events for today (campus timezone).
+
+**Response:** Object keyed by vehicle ID, containing historical location data and geofence entry/exit times.
+
+**Example Request:**
+```bash
+curl https://api-shuttles.rpi.edu/api/today
+```
+
+**Example Response (truncated):**
+```json
+{
+  "281474979575559": {
+    "entry": null,
+    "exit": "2026-01-28T05:15:46.026000+00:00",
+    "data": [
+      {
+        "latitude": 42.730625,
+        "longitude": -73.676343,
+        "timestamp": "2026-01-28T05:00:01+00:00",
+        "speed_mph": 9.305,
+        "heading_degrees": 7.0,
+        "address_id": "322551053"
+      },
+      {
+        "latitude": 42.730774,
+        "longitude": -73.676609,
+        "timestamp": "2026-01-28T05:00:06+00:00",
+        "speed_mph": 13.667,
+        "heading_degrees": 284.0,
+        "address_id": "322551053"
+      },
+      ...
+    ]
+  }
+}
+```
+
+**Response Fields:**
+- `entry` (string|null): ISO 8601 timestamp of first geofence entry today, or null if not entered
+- `exit` (string|null): ISO 8601 timestamp of geofence exit today, or null if still in geofence
+- `data` (array): Array of location readings throughout the day, each containing:
+  - `latitude` (number): GPS latitude
+  - `longitude` (number): GPS longitude
+  - `timestamp` (string): ISO 8601 timestamp
+  - `speed_mph` (number): Speed in miles per hour
+  - `heading_degrees` (number): Heading in degrees
+  - `address_id` (string): Samsara address ID
+
+**Note:** "Today" is calculated based on campus timezone (America/New_York), not UTC.
+
+**Caching:** No caching
+
+---
+
+### 7. GET /api/aggregated-schedule
+Returns aggregated schedule data.
+
+**Response:** Aggregated schedule information (may return 404 if file not found).
+
+**Status:** May not be available on all deployments.
+
+---
+
+### 8. GET /api/matched-schedules
+Returns matched schedules with vehicle-to-stop assignments.
+
+**Response:** Object containing matched schedule information.
+
+**Example Request:**
+```bash
+curl https://api-shuttles.rpi.edu/api/matched-schedules
+```
+
+**Example Response:**
+```json
+{
+  "status": "success",
+  "matchedSchedules": {},
+  "source": "computed"
+}
+```
+
+**Response Fields:**
+- `status` (string): "success" or "error"
+- `matchedSchedules` (object): Matched schedule data (may be empty)
+- `source` (string): "computed" or "recomputed"
+
+**Caching:** 3600-86400 seconds (1 hour to 1 day)
+
+---
+
+### 9. POST /api/webhook
+Webhook endpoint for receiving geofence events from Samsara.
+
+**Authentication:** Requires Samsara webhook signature verification.
+
+**Request Headers:**
+- `X-Samsara-Timestamp`: Timestamp of the webhook
+- `X-Samsara-Signature`: HMAC signature for verification
+
+**Request Body:** JSON payload containing geofence event data.
+
+**Response:** 
+```json
+{
+  "status": "success"
+}
+```
+
+**Note:** This endpoint is intended for Samsara webhook integration and requires proper authentication. Not typically used by frontend applications.
+
+---
+
+## Error Responses
+
+All endpoints may return standard HTTP error codes:
+
+- `400 Bad Request`: Invalid request parameters
+- `404 Not Found`: Resource not found
+- `405 Method Not Allowed`: HTTP method not supported
+- `500 Internal Server Error`: Server error
+
+Error responses follow this format:
+```json
+{
+  "status": "error",
+  "message": "Error description"
+}
+```
+
+---
+
+## Rate Limiting & Caching
+
+- Most endpoints are cached with Redis (15-300 second TTLs)
+- No explicit rate limiting is enforced, but excessive requests may be throttled
+- Cache headers are not currently exposed in responses
+
+---
+
+## Frontend Integration Examples
+
+### JavaScript/TypeScript Example
+```javascript
+const API_BASE = 'https://api-shuttles.rpi.edu';
+
+// Fetch current locations
+async function getLocations() {
+  const response = await fetch(`${API_BASE}/api/locations`);
+  const data = await response.json();
+  
+  // Get timing metadata from headers
+  const serverTime = response.headers.get('X-Server-Time');
+  const dataAge = response.headers.get('X-Data-Age-Seconds');
+  
+  return { data, serverTime, dataAge };
+}
+
+// Fetch route definitions
+async function getRoutes() {
+  const response = await fetch(`${API_BASE}/api/routes`);
+  return await response.json();
+}
+
+// Fetch velocities and route matching
+async function getVelocities() {
+  const response = await fetch(`${API_BASE}/api/velocities`);
+  return await response.json();
+}
+
+// Fetch ETAs
+async function getETAs() {
+  const response = await fetch(`${API_BASE}/api/etas`);
+  return await response.json();
+}
+
+// Example: Poll for updates every 15 seconds
+setInterval(async () => {
+  const locations = await getLocations();
+  console.log('Active shuttles:', Object.keys(locations.data).length);
+  
+  locations.data.forEach((shuttle, vehicleId) => {
+    console.log(`${shuttle.name}: ${shuttle.latitude}, ${shuttle.longitude}`);
+  });
+}, 15000);
+```
+
+### React Hook Example
+```typescript
+import { useState, useEffect } from 'react';
+
+interface ShuttleLocation {
+  name: string;
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+  heading_degrees: number;
+  speed_mph: number;
+  route_name?: string;
+  driver?: {
+    id: string;
+    name: string;
+  };
+}
+
+export function useShuttleLocations() {
+  const [locations, setLocations] = useState<Record<string, ShuttleLocation>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    const fetchLocations = async () => {
+      try {
+        const response = await fetch('https://api-shuttles.rpi.edu/api/locations');
+        const data = await response.json();
+        setLocations(data);
+        setLoading(false);
+      } catch (err) {
+        setError(err as Error);
+        setLoading(false);
+      }
+    };
+
+    fetchLocations();
+    const interval = setInterval(fetchLocations, 15000); // Poll every 15 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return { locations, loading, error };
+}
+```
+
+---
+
+## Notes for Frontend Developers
+
+1. **Vehicle IDs**: Vehicle IDs are large integers (e.g., `281474977371235`). Use them as keys in your data structures.
+
+2. **Timestamps**: All timestamps are in ISO 8601 format with UTC timezone (`+00:00`). Convert to local time as needed.
+
+3. **Route Matching**: Use `/api/velocities` to get route matching data. The `route_name` will be `null` if the vehicle is not close enough to any route (< 0.050 distance threshold).
+
+4. **Empty Responses**: If no vehicles are in the geofence, endpoints return empty objects `{}`.
+
+5. **Data Freshness**: Check the `X-Data-Age-Seconds` header on `/api/locations` to determine how fresh the data is.
+
+6. **CORS**: The API may have CORS restrictions. If building a frontend on a different domain, you may need to configure CORS or use a proxy.
+
+7. **Polling Frequency**: Recommended polling interval is 15-30 seconds to balance freshness with server load.
+
+---
+
+## Support
+
+For issues or questions about the API, contact the Shubble development team.
