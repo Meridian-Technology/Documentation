@@ -1,0 +1,42 @@
+---
+title: 'Updating Local Database'
+description: 'Export MongoDB Atlas and import into your local MongoDB instance'
+---
+
+This guide walks you through exporting data from MongoDB Atlas and restoring it into your local MongoDB so you can work with up-to-date data. You need your own Mongo Atlas URL (ask your team lead if you don’t have one).
+
+## Step 1: Export the MongoDB Atlas Database
+
+Export your MongoDB Atlas database to a BSON (Binary JSON) dump using `mongodump`.
+
+1. **Export the database**
+
+   Use `mongodump` with the same connection string as in your backend `.env`. Replace `MONGO_URL` with the `MONGO_URL` value from `Meridian/backend/.env`, and set a local path for the dump:
+
+   ```sh
+   mongodump --uri="MONGO_URL" --out=/path/to/dump
+   ```
+
+<Note>
+Your dump path is only a temporary location. Examples: `C:\Users\<username>\dump` (Windows) or `~/dump` (macOS/Linux).
+</Note>
+
+   Replace `your-atlas-connection-string` with your actual Atlas connection string and `/path/to/dump` with the directory where you want the dump files.
+
+## Step 2: Import the Dump into Your Local MongoDB Instance
+
+Import the BSON dump into your local MongoDB using `mongorestore`.
+
+1. **Import the database**
+
+   Run `mongorestore` with the dump path and the database name (e.g. `studycompass`):
+
+   ```sh
+   mongorestore --db studycompass --drop /path/to/dump/studycompass
+   ```
+
+<Note>
+Append the database name to your dump path. For example, if your dump path was `C:\Users\James\dump`, the mongorestore path is `C:\Users\James\dump\studycompass`.
+</Note>
+
+   Replace `your-local-db-name` with the name you want for your local database, `/path/to/dump` with the path to the dump directory, and `your-atlas-db-name` with the Atlas database name (e.g. `studycompass`).

@@ -43,8 +43,14 @@
       "group": "Get Started",
       "pages": [
         "introduction",
-        "quickstart",
-        "development"
+        "quickstart"
+      ]
+    },
+    {
+      "group": "Development Guides",
+      "pages": [
+        "development",
+        "update-local-db"
       ]
     },
     {
