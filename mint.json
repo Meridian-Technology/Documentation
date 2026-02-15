@@ -95,6 +95,7 @@
         "backend/auth/SAML",
         "backend/auth/sessions",
         "backend/analytics-platform",
+        "backend/analytics-collected-events",
         "backend/best-practices",
         "api-reference/introduction",
         "api-reference/event-management",

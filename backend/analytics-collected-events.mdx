@@ -1,0 +1,102 @@
+---
+title: "Analytics Collected Events"
+description: "Reference of all events collected by the platform analytics pipeline"
+---
+
+This document lists all events collected by the Meridian web frontend and sent to the platform analytics pipeline (`POST /v1/events`). For architecture and ingestion details, see [Platform Analytics (Event Pipeline)](/backend/analytics-platform).
+
+---
+
+## Admin Exclusion
+
+When the `excludeAdminUsersFromTracking` config is enabled (default: `true`), users with the `admin` role are excluded from all tracking. No events are sent for admin users in this case. Configure this in **Feature Admin → Beacon → Analytics**.
+
+---
+
+## Session & System Events
+
+| Event | Type | Description | Properties |
+|-------|------|-------------|------------|
+| `session_start` | System | Fired when the analytics SDK initializes | — |
+| `screen_view` | Page View | Fired when a user views a screen/page | `screen`, `event_id`, `org_id`, etc. (varies by page) |
+
+---
+
+## Event Pages & Actions
+
+### Page Views
+
+| Event | Screen Name | Description | Properties |
+|-------|--------------|-------------|------------|
+| `screen_view` | Event Page | User views an event detail page | `event_id`, `event_name` |
+| `screen_view` | Event Workspace | User views event management workspace | `event_id` |
+| `screen_view` | Events Dashboard | User views the main events dashboard | — |
+| `screen_view` | Explore | User views the event explore/discovery page | — |
+| `screen_view` | Orgs List | User views the organizations list | — |
+| `screen_view` | Create Event | User views the event creation form | — |
+| `screen_view` | Club Dashboard | User views an org's club dashboard | `org_id` |
+| `screen_view` | Events Management | Org admin views events management | `org_id` |
+| `screen_view` | Approval Dashboard (OIE) | OIE/admin views approval dashboard | `approval_group` |
+| `screen_view` | Org Management | Admin views org management (Atlas) | — |
+| `screen_view` | Event System Config (Beacon) | Admin views event system configuration | — |
+
+### Event Actions
+
+| Event | Description | Properties |
+|-------|-------------|------------|
+| `event_view` | User views an event detail page | `event_id` |
+| `event_agenda_view` | User opens the event agenda modal | `event_id` |
+| `event_registration` | User registers for an event | `event_id` |
+| `event_registration_withdraw` | User withdraws registration from an event | `event_id` |
+| `event_checkin` | User checks in to an event (during event time) | `event_id` |
+| `event_checkout` | User checks out of an event | `event_id` |
+| `event_create_click` | User clicks to create event from dashboard | `source` |
+| `event_create_submitted` | User successfully submits event creation | `event_id`, `as_draft`, `hosting_type` |
+
+---
+
+## Organization Pages & Actions
+
+### Page Views
+
+| Event | Screen Name | Description | Properties |
+|-------|--------------|-------------|------------|
+| `screen_view` | Org Page | User views an organization's public page | `org_id`, `org_name` |
+
+### Org Actions
+
+| Event | Description | Properties |
+|-------|-------------|------------|
+| `org_join` | User joins an organization (or submits application) | `org_id` |
+| `org_leave` | User leaves an organization | `org_id` |
+| `org_follow` | User follows an organization | `org_id` |
+| `org_unfollow` | User unfollows an organization | `org_id` |
+
+---
+
+## Event Envelope
+
+All events conform to the [event envelope schema](/backend/analytics-platform#event-envelope-schema). Key fields:
+
+- **event** — Event name (e.g. `screen_view`, `event_registration`)
+- **ts** — Client timestamp (ISO 8601)
+- **event_id** — Unique id for idempotency (UUID)
+- **anonymous_id** — Device-scoped persistent id
+- **user_id** — Set when user is logged in
+- **session_id** — Session identifier
+- **platform** — `web`
+- **app** — `meridian`
+- **context** — `screen`, `route`, `referrer`, `locale`, `timezone`
+- **properties** — Event-specific payload (no PII)
+
+---
+
+## Adding New Events
+
+To add new events:
+
+1. Use `analytics.track('event_name', { ...properties })` for actions
+2. Use `analytics.screen('Screen Name', { ...properties })` for page views
+3. Keep event names in `snake_case`
+4. Avoid PII in properties (email, name, phone, etc. are stripped)
+5. Update this document when adding new event types
