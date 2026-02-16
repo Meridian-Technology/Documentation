@@ -29,7 +29,7 @@ When the `excludeAdminUsersFromTracking` config is enabled (default: `true`), us
 | Event | Screen Name | Description | Properties |
 |-------|--------------|-------------|------------|
 | `screen_view` | Event Page | User views an event detail page | `event_id`, `event_name` |
-| `screen_view` | Event Workspace | User views event management workspace | `event_id` |
+| `screen_view` | Event Workspace | User views event management workspace (Club Dashboard overlay) | `event_id`, `org_id` |
 | `screen_view` | Events Dashboard | User views the main events dashboard | — |
 | `screen_view` | Explore | User views the event explore/discovery page | — |
 | `screen_view` | Orgs List | User views the organizations list | — |
@@ -52,6 +52,10 @@ When the `excludeAdminUsersFromTracking` config is enabled (default: `true`), us
 | `event_checkout` | User checks out of an event | `event_id` |
 | `event_create_click` | User clicks to create event from dashboard | `source` |
 | `event_create_submitted` | User successfully submits event creation | `event_id`, `as_draft`, `hosting_type` |
+| `event_workspace_view` | Org admin views event dashboard/workspace | `event_id`, `org_id` |
+| `event_workspace_tab_view` | Org admin views a tab within event workspace | `event_id`, `org_id`, `tab` |
+
+**Event Workspace tabs:** `overview`, `agenda`, `jobs`, `analytics`, `edit`, `registrations`, `checkin`, `equipment`, `communications`
 
 ---
 
