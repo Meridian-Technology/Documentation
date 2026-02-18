@@ -96,6 +96,7 @@
         "backend/auth/sessions",
         "backend/analytics-platform",
         "backend/analytics-collected-events",
+        "backend/analytics-referrer-sources",
         "backend/best-practices",
         "api-reference/introduction",
         "api-reference/event-management",

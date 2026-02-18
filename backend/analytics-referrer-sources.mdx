@@ -1,0 +1,96 @@
+---
+title: "Referrer Sources (Event Analytics)"
+description: "How event views are attributed to discovery sources (org page, explore, direct)"
+---
+
+Event organizers can see where their event traffic comes from in the **Sources** section of the Event Analytics tab. This document describes how referrer attribution works end-to-end.
+
+---
+
+## Overview
+
+The system tracks where users were **immediately before** viewing an event page and aggregates those views into three sources:
+
+| Source | Meaning |
+|--------|---------|
+| **Org Page** | User came from an org profile (`/org/...`) or club dashboard |
+| **Explore** | User came from the events dashboard / explore page |
+| **Direct** | Empty referrer, external URL, or unrecognized path |
+
+This helps organizers understand discovery channels: e.g. whether people find events via org pages, the explore feed, or direct links (shared URLs, search, etc.).
+
+---
+
+## Why SPA Referrer Tracking?
+
+`document.referrer` does **not** update on client-side navigation. When a user navigates from `/events-dashboard` to `/event/123`, the browser's referrer still points to the previous external page (or is empty). The app therefore tracks the previous pathname on every route change and injects it into `context.referrer` for all analytics events.
+
+---
+
+## Frontend: Referrer Context
+
+**File:** `Meridian/frontend/src/utils/referrerContext.js`
+
+### Flow
+
+1. **Layout** calls `updateReferrerOnNavigation(pathname)` on every route change (via React Router).
+2. The previous pathname is stored in session storage as the "referrer" for the next page.
+3. The analytics SDK uses `getReferrerPath() || document.referrer` when building events, so `context.referrer` reflects where the user came from.
+
+### Overlay Override
+
+When content is shown in an **overlay** (e.g. org profile over `/events-dashboard`), the URL does not change. Clicks from the overlay would otherwise get the wrong referrer. To fix this:
+
+- **On overlay mount:** Call `setReferrerOverride('/org/OrgName')` so the next navigation uses that path as the referrer.
+- **On overlay close (without navigation):** Call `clearReferrerOverride()` so the override is not reused incorrectly.
+
+**Example:** `OrgDisplay.jsx` sets the override when the org profile overlay opens and clears it when the user clicks Back.
+
+---
+
+## Backend: Source Aggregation
+
+**File:** `Meridian/backend/routes/eventAnalyticsRoutes.js`
+
+The event analytics endpoint (`GET /event-analytics/event/:eventId`) aggregates `event_view` events by derived source:
+
+1. If `properties.source` is explicitly set and valid (`org_page`, `explore`, `direct`), use it.
+2. Otherwise, derive from `context.referrer`:
+   - Contains `org/` or `club-dashboard` → `org_page`
+   - Contains `events-dashboard` → `explore`
+   - Else → `direct`
+
+The result is returned as `platform.referrerSources`:
+
+```json
+{
+  "referrerSources": {
+    "org_page": 45,
+    "explore": 120,
+    "direct": 30
+  }
+}
+```
+
+---
+
+## UI: Sources Section
+
+The Event Analytics tab displays the Sources breakdown in a **ProportionalBarList** component: each source (Direct, Explore, Org Page) is shown with a count and a proportional grey bar. Only sources with count > 0 are shown; rows are sorted by count descending.
+
+---
+
+## Adding New Sources
+
+To add a new source:
+
+1. **Backend:** Extend the `$switch` branches in the referrer aggregation (`eventAnalyticsRoutes.js`) with a new path-matching condition.
+2. **Frontend:** Add the new source key to the `sourceItems` array in `EventAnalyticsDetail.jsx` with an appropriate label and icon.
+3. **Documentation:** Update this page and [Analytics Collected Events](/backend/analytics-collected-events#referrer-attribution-all-events).
+
+---
+
+## Related
+
+- [Analytics Collected Events](/backend/analytics-collected-events) — Event types and referrer attribution overview
+- [Platform Analytics](/backend/analytics-platform) — Event pipeline and envelope schema
