@@ -44,9 +44,10 @@ When the `excludeAdminUsersFromTracking` config is enabled (default: `true`), us
 
 | Event | Description | Properties |
 |-------|-------------|------------|
-| `event_view` | User views an event detail page | `event_id` |
+| `event_view` | User views an event detail page | `event_id`, `source` (implicit from route) |
 | `event_agenda_view` | User opens the event agenda modal | `event_id` |
 | `event_registration` | User registers for an event | `event_id` |
+| `event_registration_form_open` | User opens the registration form modal (before submitting or closing) | `event_id` |
 | `event_registration_withdraw` | User withdraws registration from an event | `event_id` |
 | `event_checkin` | User checks in to an event (during event time) | `event_id` |
 | `event_checkout` | User checks out of an event | `event_id` |
@@ -56,6 +57,20 @@ When the `excludeAdminUsersFromTracking` config is enabled (default: `true`), us
 | `event_workspace_tab_view` | Org admin views a tab within event workspace | `event_id`, `org_id`, `tab` |
 
 **Event Workspace tabs:** `overview`, `agenda`, `jobs`, `analytics`, `edit`, `registrations`, `checkin`, `equipment`, `communications`
+
+### Referrer Attribution (all events)
+
+Because `document.referrer` does not update on client-side SPA navigation, the app tracks the previous pathname on every route change and injects it into `context.referrer` for **all** analytics events (track and screen). The analytics SDK automatically uses this SPA referrer when available, falling back to `document.referrer` for external links and new tabs.
+
+This provides accurate referrers for any page view or event without per-page logic. The backend derives normalized sources from `context.referrer` for event analytics:
+
+| Source | Condition (pathname or URL contains) |
+|--------|--------------------------------------|
+| `org_page` | `/org/` or `/club-dashboard/` |
+| `explore` | `/events-dashboard` |
+| `direct` | Empty, external URL, or unrecognized |
+
+To add new sources, extend the backend aggregation's path-matching logic in `eventAnalyticsRoutes.js`. The raw `context.referrer` is available for custom analytics or downstream consumers.
 
 ---
 
@@ -75,6 +90,27 @@ When the `excludeAdminUsersFromTracking` config is enabled (default: `true`), us
 | `org_leave` | User leaves an organization | `org_id` |
 | `org_follow` | User follows an organization | `org_id` |
 | `org_unfollow` | User unfollows an organization | `org_id` |
+
+---
+
+## Mobile App Landing Page
+
+The Mobile Landing page (`/mobile`) promotes the Meridian mobile app and tracks install-related actions.
+
+### Page Views
+
+| Event | Screen Name | Description | Properties |
+|-------|--------------|-------------|------------|
+| `screen_view` | Mobile Landing | User views the mobile app landing page | — |
+
+### Mobile Landing Actions
+
+| Event | Description | Properties |
+|-------|-------------|------------|
+| `mobile_landing_app_store_click` | User clicks the App Store badge | `source` (e.g. `hero`, `cta_section`) |
+| `mobile_landing_play_store_click` | User clicks the Play Store badge | `source` |
+| `mobile_landing_qr_expanded` | User clicks "Show QR" on desktop to reveal QR code | — |
+| `mobile_landing_feature_click` | User clicks a feature card | `feature` (e.g. `explore`, `shuttle_tracker`, `qr_scanner`) |
 
 ---
 

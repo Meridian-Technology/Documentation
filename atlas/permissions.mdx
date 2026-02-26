@@ -95,6 +95,22 @@ File: `Meridian/backend/middlewares/orgPermissions.js`
   </Step>
 </Steps>
 
+### Admin/root bypass
+
+Before checking org membership, the middleware checks `req.user.roles`:
+
+- If `roles.includes('admin')` or `roles.includes('root')` → **bypass** org membership
+- Load the org, attach `req.org = org` and `req.orgMember = null`
+- Proceed to the route handler
+
+This applies to:
+
+- `requireOrgPermission`
+- `requireAnyOrgPermission`
+- `requireOrgOwner`
+
+All org-scoped endpoints (roles, members, events, analytics, equipment, etc.) are accessible to site admins when the frontend uses `?adminView=true` in the club dashboard URL. The frontend passes `adminBypass` to child components (Members, Roles, Settings) so they grant full access without fetching org membership.
+
 ### Member-level override semantics
 
 In `OrgMember.hasPermissionWithOrg(permission, org)`:
@@ -146,7 +162,8 @@ Important invariants enforced in code:
 
 The club dashboard (`Meridian/frontend/src/pages/ClubDash/ClubDash.jsx`) computes permissions to show/hide UI tabs:
 
-- If org owner → all capabilities
+- If `adminView=true` and user has `admin` or `root` role → all capabilities (admin bypass)
+- Else if org owner → all capabilities
 - Else:
   - fetch `GET /org-roles/:orgId/members`
   - find current user’s member row
@@ -169,7 +186,11 @@ This is UI gating only. Backend enforcement is still required.
 </Warning>
 
 <Warning>
-**Inconsistent "admin/root" shape**: Platform routes use `authorizeRoles('admin','root')`; verify what `verifyToken` exposes (`req.user.role` vs `req.user.roles`).
+**Inconsistent "admin/root" shape**: Platform routes use `authorizeRoles('admin','root')`; verify what `verifyToken` exposes (`req.user.role` vs `req.user.roles`). The org permissions middleware uses `req.user.roles`; JWT tokens include `roles` from the user document.
 </Warning>
+
+<Info>
+**Admin bypass**: Site admins (`admin` or `root` in `req.user.roles`) bypass org membership checks in `orgPermissions.js`. See [Admin/root bypass](#adminroot-bypass) above.
+</Info>
 
 

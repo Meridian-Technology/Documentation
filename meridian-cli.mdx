@@ -1,0 +1,198 @@
+---
+title: 'Meridian CLI'
+description: 'Coordinate work across Meridian and its closed-source modules'
+---
+
+## Why the CLI Exists
+
+Meridian depends on **closed-source modules** — private repos that are cloned into the monorepo during build (e.g. `backend/events`). Events-Backend is the first; more will follow. This split creates coordination challenges:
+
+- **Branch drift** — Meridian and its modules can end up on different branches or commits, causing runtime mismatches
+- **Lockfile discipline** — Heroku builds use `private-deps.lock` to clone each module at a pinned SHA. If the lockfile points at the wrong ref (unmerged branch, wrong SHA), deploys can fail or cause downtime
+- **Manual coordination** — Without tooling, developers must remember to checkout all repos, push all branches, merge modules to main first, then update the lockfile — easy to get wrong
+
+The Meridian CLI solves this by treating Meridian + its modules as a single workflow. It keeps all repos on the same branch, enforces the correct merge order (modules → main before syncing), and updates the lockfile so builds stay deterministic.
+
+<Info>
+**Don't manually checkout across repos** unless you know what you're doing. The CLI prevents the mistakes that caused past downtime from mismatched subrepo commits.
+</Info>
+
+## Installation
+
+**Recommended:** Link the CLI globally so you can run `meridian` from anywhere. From the Meridian root:
+
+```bash
+npm link
+```
+
+After that, use the base command:
+
+```bash
+meridian status
+meridian start MER-123-Org-Forms
+meridian ship
+```
+
+**Alternative** (without linking):
+
+```bash
+npm run meridian -- <command>
+# or
+./m <command>
+./mer <command>
+```
+
+## Workspace Layout
+
+Your workspace should have Meridian and its modules as siblings:
+
+```
+<WORKSPACE>/
+  Meridian/
+  Events-Backend/    # first closed-source module; more can be added
+```
+
+If you're in Meridian-Mono, that's `Meridian-Mono/Meridian` and `Meridian-Mono/Events-Backend`. The CLI auto-detects the workspace when run from `Meridian/`. If a required module is missing, the CLI will prompt you to clone it (e.g. Events-Backend):
+
+```bash
+git clone git@github.com:Study-Compass/Events-Backend.git ../Events-Backend
+```
+
+Override workspace detection with `MERIDIAN_WORKSPACE=/path/to/parent`.
+
+## Feature Development Flow
+
+### 1. Start a feature
+
+```bash
+meridian start MER-123-Your-Feature-Name
+```
+
+Creates `MER-123-Your-Feature-Name` from `origin/main` in both repos. Both must be clean.
+
+### 2. Develop
+
+Work in both repos as usual. Commit as you go.
+
+### 3. Check status
+
+```bash
+meridian status
+```
+
+Shows branch, clean/dirty, and lockfile state for both repos.
+
+### 4. Ship
+
+```bash
+meridian ship
+```
+
+Guides you through: push module(s) → create module PR(s) → merge to main → sync lockfile → push Meridian → create Meridian PR. You merge all PRs manually.
+
+## Commands Reference
+
+### `meridian status`
+
+Shows the current state of both repos and the lockfile.
+
+- Meridian: branch, clean/dirty, short SHA
+- Each module (e.g. Events-Backend): branch, clean/dirty, short SHA
+- Lockfile: pinned SHA(s), whether they match `origin/main` and local HEAD
+
+```bash
+meridian status
+```
+
+### `meridian start <branch>`
+
+Creates a fresh feature branch in both repos from `origin/main`.
+
+**Branch name format:** `MER-<number>-<slug>` (e.g. `MER-123-Org-Forms`)
+
+```bash
+meridian start MER-123-Org-Forms
+```
+
+### `meridian switch <branch>`
+
+Switches both repos to an existing branch (or creates it if missing). When switching, Git replaces `backend/events` with the submodule checkout. If you use a symlink for local dev, run `meridian symlink` after switching to restore it.
+
+```bash
+meridian switch MER-123-Org-Forms
+```
+
+### `meridian symlink`
+
+Replaces `backend/events` with a symlink to the sibling Events-Backend repo. Use this for local development so you can edit Events-Backend in place. Git checkout (e.g. `meridian switch`) replaces the symlink with a submodule checkout — run `meridian symlink` again after switching branches.
+
+```bash
+meridian symlink
+```
+
+### `meridian sync`
+
+Syncs `private-deps.lock` to the current `origin/main` SHA of each module. Use when you've already merged module changes to main and only need to update the lockfile.
+
+```bash
+meridian sync
+meridian sync --allow-main   # override main check
+```
+
+### `meridian ship`
+
+Guided flow to ship a full-stack feature. Handles module PR(s), merge detection, lockfile sync, and Meridian PR.
+
+```bash
+meridian ship
+```
+
+## The Lockfile
+
+`private-deps.lock` pins each closed-source module by SHA. During Heroku builds, `bin/fetch_private_deps` clones each module at its pinned SHA. This ensures:
+
+- **Deterministic builds** — Every deploy uses the exact same module code
+- **No downtime** — We never pin unmerged or divergent commits
+
+Each entry in the lockfile must reference a 40-character hex SHA that exists on `origin/main` in that module's repo. Branch names, tags, or arbitrary refs are not allowed.
+
+## Troubleshooting
+
+### Dirty state
+
+**Error:** "Meridian has uncommitted changes" or a module repo has uncommitted changes
+
+**Fix:** Commit, stash, or discard changes in both repos. The CLI does not auto-stash.
+
+### Branch collision
+
+**Error:** "Branch MER-123-X already exists on remote"
+
+**Options:** Resume (checkout existing), Abort, or Force create new (requires different name).
+
+### `gh` not found
+
+**Symptom:** `meridian ship` prints URL templates instead of creating PRs.
+
+**Fix:** Install [GitHub CLI](https://cli.github.com/) and run `gh auth login`.
+
+### Module not found
+
+**Fix:** Clone the missing module into the workspace (the CLI will print the URL). Example for Events-Backend:
+
+```bash
+git clone git@github.com:Study-Compass/Events-Backend.git ../Events-Backend
+```
+
+Or set `MERIDIAN_WORKSPACE` to the parent directory containing Meridian and all modules.
+
+### Invalid branch name
+
+**Format:** `MER-<number>-<slug>` (e.g. `MER-123-Org-Forms`, `MER-456-Fix-Login`)
+
+## Windows Notes
+
+`npm link` works on Windows too — run it from Meridian root, then use `meridian <cmd>` from any directory. If you prefer not to link:
+
+- Use `npm run meridian -- <cmd>` or `node bin/meridian.js <cmd>`
+- Optional: create `m.cmd` and `mer.cmd` that call `node bin/meridian.js %*`

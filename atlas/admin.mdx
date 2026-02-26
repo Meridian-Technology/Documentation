@@ -42,7 +42,25 @@ View and search all organizations:
 
 - Filter by type, status, or activity level
 - Sort by membership size or activity
-- Quick actions: Edit, View Details, Manage Members
+- Quick actions: Edit, View Details, Manage Members, **View as Admin**
+
+### View as Admin
+
+Site administrators (`admin` or `root` roles) can open any organization's club dashboard with full permissions, even if they are not a member of that organization.
+
+**How to use:**
+
+1. Go to **Organization Management** (`/feature-admin/atlas` or `/org-management`)
+2. Find the organization in the list
+3. Click **View as Admin** on the org card
+
+This navigates to `/club-dashboard/{org_name}?adminView=true` and grants full access to:
+
+- **Events Management** — view, create, and manage events
+- **Members** — view and manage the member roster
+- **Settings** — General, Roles & Permissions, Application Process, Social Links, Danger Zone
+
+An amber banner indicates you are viewing as an administrator. The backend bypasses org membership checks for all org-scoped endpoints when the user has `admin` or `root` roles. See [Atlas Permissions & Roles](/atlas/permissions#adminroot-bypass) for technical details.
 
 ### Analytics Dashboard
 

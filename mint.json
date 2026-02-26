@@ -50,7 +50,7 @@
       "group": "Development Guides",
       "pages": [
         "development",
-        "update-local-db"
+        "update-local-db","meridian-cli","deployment"
       ]
     },
     {

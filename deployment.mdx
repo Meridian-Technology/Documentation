@@ -1,0 +1,138 @@
+---
+title: 'Deployment'
+description: 'End-to-end deployment process from feature branch to production'
+---
+
+This guide covers the full deployment pipeline for Meridian — from shipping a feature through CI, staging, and production.
+
+## Deployment Overview
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#E8EEFA', 'primaryBorderColor': '#6D8EFA', 'lineColor': '#6D8EFA', 'secondaryColor': '#F0F4FF', 'tertiaryColor': '#fff' }}}%%
+flowchart LR
+    direction LR
+    A([Feature branch]) --> B[meridian ship]
+    B --> C[Merge to main]
+    C --> D[Staging]
+    D --> E([Production promote])
+    
+    classDef startEnd fill:#E8EEFA,stroke:#6D8EFA,stroke-width:2px
+    classDef step fill:#F8FAFF,stroke:#6D8EFA,stroke-width:1.5px
+    class A,E startEnd
+    class B,C,D step
+```
+
+| Stage | What happens |
+|-------|--------------|
+| **meridian ship** | Module PRs, lockfile sync |
+| **Merge to main** | CI runs, lockfile validation |
+| **Staging** | Build + deploy, Review Apps |
+| **Production promote** | Same slug, no rebuild |
+
+The pipeline is designed for **deterministic builds**: the lockfile pins each closed-source module by SHA, so every deploy uses the exact same code. Staging and production run the same build artifact.
+
+## 1. Shipping a Feature
+
+Use the [Meridian CLI](/meridian-cli) to ship full-stack features:
+
+```bash
+meridian ship
+```
+
+This pushes module branches, creates PRs, waits for merges to main, syncs the lockfile, and creates the Meridian PR. You merge all PRs manually. Once the Meridian PR is merged to `main`, staging deploys automatically.
+
+## 2. CI Pipeline
+
+On every pull request and push to `main`, CI runs:
+
+- **Lockfile validation** — Each module ref must be a 40-character hex SHA (no branch names or tags)
+- **SSH setup** — Configures keys for cloning private modules
+- **Fetch private deps** — Clones each module at its pinned SHA
+- **Backend smoke test** — Verifies the app can start
+
+If any step fails, the build fails. No deployment occurs.
+
+## 3. Build Process
+
+When Heroku (or your deploy target) builds the app:
+
+1. **heroku-prebuild** — Runs `bin/setup_ssh` and `bin/fetch_private_deps` to clone modules at pinned SHAs
+2. **npm install** — Installs dependencies
+3. **heroku-postbuild** — Builds the frontend, installs backend deps
+
+The lockfile drives which module commits are used. If `fetch_private_deps` fails (e.g. SSH keys, invalid SHA), the build fails and no new release is deployed.
+
+## 4. Staging
+
+- **Auto-deploy** — Merging to `main` triggers a staging deploy
+- **Review Apps** — PRs can spin up ephemeral environments that build from the branch
+- **Verification** — Test features on staging before promoting to production
+
+## 5. Production Promotion
+
+Production does not auto-deploy. You promote from staging when ready.
+
+### How Promotion Works
+
+Heroku **reuses the staging slug** — it does not rebuild. The same build artifact that runs on staging is deployed to production. This means:
+
+- **Deterministic** — Production runs the exact same code as staging
+- **Fast** — No build step during promotion
+- **Safe** — If staging works, production gets the same binary
+
+### How to Promote
+
+- **Dashboard:** Pipeline → Production app → "Promote to production"
+- **CLI:** `heroku pipelines:promote -a <staging-app-name>`
+
+## 6. Safety and Downtime
+
+**Build failures = no downtime.** If config fails (SSH keys, `fetch_private_deps` can't clone a module), the build fails and production stays on the current release.
+
+<Info>
+Downtime risk is mainly when the build succeeds and a new release is deployed, but the app crashes on boot (e.g. wrong env vars, DB connection) or has runtime bugs.
+</Info>
+
+## Pre-Production Checklist
+
+Before promoting to production (especially the first time or after significant changes):
+
+### Lockfile
+
+- [ ] `private-deps.lock` has 40-character hex SHAs for each module
+- [ ] Each SHA exists on `origin/main` in its module's repo
+- [ ] CI lockfile validation passed on the merged PR
+
+### Staging
+
+- [ ] Staging app is healthy and behaving as expected
+- [ ] Features that use closed-source modules work on staging
+- [ ] No errors in staging logs
+
+### Production Config
+
+- [ ] `SSH_PRIVATE_KEY` and `SSH_PRIVATE_KEY_BASE64` are set for production
+- [ ] Production has all required env vars (DB, API keys, etc.)
+- [ ] Production can reach each module repo (SSH key has access)
+
+### Database
+
+- [ ] Schema or migration changes from modules are compatible with production
+- [ ] Migrations have been run or are handled by your deploy process
+
+### Rollback
+
+- [ ] You have a rollback plan if something fails
+
+## Quick Verification
+
+```bash
+# Lockfile format (each module ref must be 40-char hex SHA)
+cd Meridian
+node -e "const d=require('./private-deps.lock'); for(const [k,v] of Object.entries(d||{})) { const r=v?.ref; console.log(k, /^[a-f0-9]{40}$/i.test(r) ? 'OK' : 'INVALID', r); }"
+
+# SHA exists on module main (example: Events-Backend)
+cd ../Events-Backend
+git fetch origin main
+git cat-file -t <SHA-from-lockfile>   # should print "commit"
+```
