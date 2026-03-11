@@ -179,6 +179,29 @@ Index creation is done by a backend script (e.g. `createAnalyticsIndexes.js`); r
 
 ---
 
+## Event views and referrer sources
+
+Event organizers can see **how many people viewed an event** and **where those views came from** (e.g. direct, explore, org page, QR codes, **email**). This is powered by the `event_view` event and optional `properties.source`.
+
+### `event_view`
+
+When a user lands on an event page, the client sends an `event_view` event with at least:
+
+- `properties.event_id` — the event being viewed.
+
+Optional referrer attribution:
+
+- `properties.source` — one of `direct`, `explore`, `org_page`, `qr`, or **`email`**.
+- For QR: `properties.qr_id` — the QR short id that was scanned.
+
+If `source` is omitted, the backend infers it from `context.referrer` (e.g. URLs containing `org/` or `club-dashboard` → `org_page`, `events-dashboard` → `explore`, otherwise `direct`).
+
+### Views from announcement emails
+
+When organizers send **event announcement emails**, the “View Event” and event-name links in the email include `?source=email`. When a recipient clicks through, the event page sends `event_view` with `properties.source: 'email'`. The event analytics API aggregates these and exposes them as **Sources → Email** in the Event Dashboard **Analytics** tab, so organizers can see how many people viewed the event after clicking from an announcement email.
+
+---
+
 ## Summary
 
 - **New system only:** `POST /v1/events` and `analytics_events`. Legacy Visit/RepeatedVisit/Search and old analytics routes are separate and not covered here.

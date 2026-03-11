@@ -7,6 +7,8 @@ description: 'Multi-device session management for concurrent logins across devic
 
 Meridian supports multi-device session management, allowing users to be logged in from multiple devices simultaneously. Each device maintains its own session with independent refresh tokens. This replaces the previous single-session model where only one device could be logged in at a time.
 
+When [multi-tenant identity](/backend/multi-tenant-identity) is enabled, sessions are stored in the **global database** and keyed by `globalUserId`, so token refresh works across all tenant subdomains (SSO). Otherwise, sessions may be stored per-tenant. The refresh flow validates the session and resolves the tenant user for the current `req.school` when issuing a new access token.
+
 ### Key Features
 
 - **Multi-Device Support**: Users can be logged in from multiple devices simultaneously without invalidating other sessions

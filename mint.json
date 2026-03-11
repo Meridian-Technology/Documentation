@@ -94,6 +94,7 @@
       "pages": [
         "backend/auth/SAML",
         "backend/auth/sessions",
+        "backend/multi-tenant-identity",
         "backend/analytics-platform",
         "backend/analytics-collected-events",
         "backend/analytics-referrer-sources",

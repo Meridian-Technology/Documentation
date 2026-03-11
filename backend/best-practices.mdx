@@ -12,9 +12,10 @@ description: 'Best practices for working in the Meridian backend — multi-tenan
 - **Stack**: Express, Mongoose, JWT (cookies + Bearer), optional Passport/SAML.
 - **Multi-tenant DB**: Tenant is derived from **subdomain** (e.g. `rpi` from `rpi.meridian.study`). In development, `localhost` and IP hosts default to `rpi`.
 - **Per-request DB**: Every request gets `req.db` (a Mongoose connection) and `req.school` (subdomain string) from a global middleware in `app.js`.
+- **Global DB**: Every request also gets `req.globalDb` for cross-tenant data (GlobalUser, PlatformRole, TenantMembership, Session). Use only via `getGlobalModelService(req, ...)` in auth and platform-admin logic. See [Multi-Tenant Identity & SSO](/backend/multi-tenant-identity) for full architecture.
 
 <Warning>
-  **Never** use a default `mongoose` connection or `mongoose.model()` directly for app data. Always use the request-scoped connection and `getModelService` (see below).
+  **Never** use a default `mongoose` connection or `mongoose.model()` directly for app data. Always use the request-scoped connection and `getModelService` (see below); use `getGlobalModelService` only for global identity data.
 </Warning>
 
 ## Database and models
@@ -196,6 +197,9 @@ When adding event features: add schemas under `events/schemas/`, register in `ge
 ## Related docs
 
 <CardGroup cols={2}>
+  <Card title="Multi-Tenant Identity & SSO" icon="users" href="/backend/multi-tenant-identity">
+    Global identity, platform admins, cross-tenant events, SSO, and migration
+  </Card>
   <Card title="Atlas Backend" icon="route" href="/atlas/backend">
     Endpoint map, auth, and request/response shapes for org routes
   </Card>
