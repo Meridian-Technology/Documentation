@@ -50,6 +50,7 @@
       "group": "Development Guides",
       "pages": [
         "development",
+        "testing-framework",
         "update-local-db","meridian-cli","deployment"
       ]
     },

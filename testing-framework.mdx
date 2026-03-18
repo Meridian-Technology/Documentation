@@ -1,0 +1,72 @@
+---
+title: "Testing Framework"
+description: "Backend + frontend automated testing strategy for Meridian."
+---
+
+## Overview
+
+Meridian uses an automated test framework for both packages:
+
+- Backend: Jest + Supertest
+- Frontend: Jest + React Testing Library
+
+CI runs both suites on pull requests and pushes to main.
+
+## Repository Commands
+
+From the Meridian root repository:
+
+bash
+npm run test:backend
+npm run test:frontend
+npm run test:ci
+
+## Backend Testing
+
+Run from repository root:
+
+bash
+npm --prefix backend run test:unit
+npm --prefix backend run test:integration
+npm --prefix backend run test:coverage
+
+Backend tests are organized as:
+- backend/tests/unit/**
+- backend/tests/integration/**
+
+Coverage output is written to:
+- backend/coverage/lcov.info
+
+## Frontend Testing
+
+Run from repository root:
+
+bash
+npm --prefix frontend run test
+npm --prefix frontend run test:ci
+npm --prefix frontend run test:coverage
+
+Frontend tests should live near features in:
+- frontend/src/**/__tests__/**
+
+Coverage output is written to:
+- frontend/coverage/lcov.info
+
+## GitHub Actions
+
+The CI workflow (.github/workflows/ci.yml) executes:
+
+1. backend dependency installation
+2. frontend dependency installation
+3. backend coverage test command
+4. frontend coverage test command
+5. upload of backend/frontend lcov.info artifacts
+
+This keeps backend and frontend regressions gated before merge.
+
+## Authoring Guidance
+
+- Prefer deterministic tests over broad snapshot tests.
+- Mock network-heavy dependencies in frontend tests.
+- Use backend integration tests for route contracts and HTTP status/response validation.
+- Keep each test file focused on one module or route surface.
