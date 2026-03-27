@@ -71,6 +71,7 @@
         "atlas/frontend",
         "atlas/permissions",
         "atlas/membership",
+        "atlas/cms-parity-modernization",
         "atlas/verification",
         "atlas/configuration",
         "atlas/analytics",

@@ -1,0 +1,188 @@
+---
+title: "CMS Parity Modernization"
+description: "How Meridian should replace CMS functionality with a modern, multi-campus design"
+---
+
+## Goal
+
+Meridian should cover the **intention and outcomes** of CMS, not copy legacy implementation details. The target is full operational parity for campus organization management while preserving Meridian's strengths in UX, engagement, events, and configurability.
+
+## Product Principles
+
+1. **Port outcomes, not workflows**  
+   Example: port "financial accountability" instead of porting CMS-specific table shapes and review screens.
+2. **Policy-driven, tenant-configurable architecture**  
+   Campus-specific rules must be configuration, not hardcoded logic.
+3. **Composable platform services**  
+   Reuse common services (forms, workflows, notifications, analytics, search) across modules.
+4. **Progressive complexity**  
+   Small campuses get simple defaults; large campuses can enable advanced controls.
+5. **Modern UX-first execution**  
+   Keep core workflows fast, mobile-friendly, and role-aware.
+
+## Capability Decisions (Bring Over / Rework / Leave Behind)
+
+### Bring Over and Modernize
+
+#### 1) Organization Governance
+
+Bring over from CMS:
+- Organization lifecycle (active/sunset/inactive)
+- Officer/member structure and role governance
+- Constitution/charter management
+- Membership history/audit trail
+
+Modern Meridian design:
+- Tenant-configurable lifecycle policies (renewal, sunset, inactivity)
+- Versioned governance docs with optional approval flow
+- Role term windows (start/end), handoff support, delegated responsibilities
+
+Cross-campus model:
+- Renameable terminology (`constitution`, `charter`, `bylaws`)
+- Required artifacts by org type (club, student government, greek, etc.)
+
+---
+
+#### 2) Membership and Access Control
+
+Bring over from CMS:
+- Formal membership operations, officer constraints, historical accountability
+- Group/team style segmentation
+
+Modern Meridian design:
+- Keep `OrgMember` as canonical membership object
+- Add first-class **sub-teams/committees** under orgs
+- Time-bound role assignments and transition workflows
+- Reusable permission bundles for events, finance, messaging, and docs
+
+Cross-campus model:
+- Campus-selectable member statuses (active, advisor, alumni, external)
+- Optional compliance gates for sensitive roles
+
+---
+
+#### 3) Budgeting and Finance (largest parity gap)
+
+Bring over from CMS:
+- Budget creation and annual cycle
+- Structured line-item planning
+- Reviewer workflow with comments and revisions
+- State transitions and finalization
+- Operational reporting and exports
+
+Modern Meridian design:
+- **Budget templates** per tenant and org type (categories, required fields, attachments)
+- **Workflow engine** for multi-stage approvals and appeals
+- Revision diffing, inline comments, mention-triggered notifications
+- Spreadsheet import/export and API-ready export payloads
+
+Cross-campus model:
+- Small campus: single-stage approvals
+- Large campus: multi-stage chains (student gov -> finance -> final approver)
+- Tenant fiscal calendar and terminology controls
+
+Integration points:
+- Existing notifications
+- Existing org role permissions
+- Existing analytics dashboards
+- Event impact data as budget context
+
+---
+
+#### 4) FOAPAL Intent -> Accounting Dimensions
+
+Bring over from CMS:
+- Structured financial coding and validation
+
+Modern Meridian design:
+- Replace FOAPAL-specific assumptions with configurable **Accounting Dimensions**
+- Tenant-defined code schema (fund, account, cost center, program, class, grant, etc.)
+- Validation rules and external system sync adapters
+
+Cross-campus model:
+- ERP adapter strategy (Banner, Workday, PeopleSoft, custom CSV)
+- No-integration campuses can run local code tables with export
+
+---
+
+#### 5) Inventory and Asset Operations
+
+Bring over from CMS:
+- Inventory records and condition tracking
+
+Modern Meridian design:
+- Asset module with check-in/out, assignments, incidents, maintenance cycles
+- QR-tag support for scan-first mobile operations
+- Asset-level permissions and audit logs
+
+Cross-campus model:
+- Optional module per tenant
+- Asset templates by category (AV, sports, production, etc.)
+
+---
+
+#### 6) Search, Reporting, and Admin Operations
+
+Bring over from CMS:
+- Cross-entity search and report capabilities
+- Staff/admin controls for operations
+
+Modern Meridian design:
+- Unified search index across orgs, members, events, budgets, assets, forms, messages
+- Saved reports, subscriptions, scheduled exports
+- Role-aware dashboards by admin persona (activities, finance, risk)
+
+Cross-campus model:
+- Tenant report packs and retention policies
+- Permission-scoped access to sensitive data
+
+### Legacy Patterns to Leave Behind
+
+Do not carry these directly into Meridian:
+- Campus-specific role logic hardcoded in application code
+- Rigid hierarchy assumptions that block local campus variants
+- Legacy DB import constraints and old schema artifacts
+- Duplicated admin experiences with inconsistent UX
+- Form-heavy screens without contextual guidance or collaboration features
+
+## Meridian Expansion Plan (recommended)
+
+### Phase 1: Platform Foundation
+
+- Policy engine for tenant and org-type configuration
+- Lifecycle statuses and governance doc versioning
+- Membership history and role-term support
+
+### Phase 2: Finance MVP
+
+- Budget templates
+- Multi-stage review workflow + comments + revisions
+- Basic exports and finance dashboards
+
+### Phase 3: Operations Depth
+
+- Accounting dimensions and external adapter framework
+- Inventory/assets module
+- Scheduled reporting and subscriptions
+
+### Phase 4: UX and Scale Enhancements
+
+- Mobile-first finance/admin actions
+- Intelligent suggestions (classification and anomaly detection)
+- Guided onboarding by campus policy profile
+
+## Decision Framework for New Parity Features
+
+Before implementing a CMS-derived feature, require all five checks:
+
+1. **Outcome clarity**: clear institutional value
+2. **Cross-campus applicability**: works for multiple campus archetypes
+3. **Operational ROI**: measurable reduction in admin burden or risk
+4. **UX viability**: can be delivered with a modern low-friction flow
+5. **Composability**: leverages shared platform services
+
+If a feature fails multiple checks, it should be optional plugin scope or explicitly deferred.
+
+## Final Recommendation
+
+Treat CMS parity as a **capability migration**, not a screen-by-screen rewrite. Meridian should absorb CMS's operational intent (governance, budgeting, inventory, admin reporting) while preserving Meridian-native strengths (events, messaging, mobile, configurable org RBAC, multi-tenant architecture).
