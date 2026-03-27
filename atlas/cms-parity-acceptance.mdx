@@ -1,0 +1,41 @@
+---
+title: "CMS Parity Acceptance Matrix"
+description: "Testable completion criteria for CMS intent parity in Atlas"
+---
+
+## Completion standard
+
+A parity area is complete when:
+
+1. The operational outcome is supported in Atlas.
+2. Behavior is tenant-configurable where campus policy can differ.
+3. Permissions are enforced server-side using org permission middleware.
+4. The flow has API coverage and UI coverage.
+
+## Matrix
+
+| Area | Required outcomes | Edge cases | Verification |
+|---|---|---|---|
+| Governance lifecycle | org status policy (`pending/approved/active/sunset/archived`) and updates audited | invalid transitions, missing policy, archived edit attempts | route tests + admin summary |
+| Governance docs | draft/review/publish/archive with version history | duplicate publish, stale version edits | document route tests |
+| Membership and officer terms | role history, term windows, membership audit timeline | term overlap, null terms, role downgrade after term expiry | schema/model + route tests |
+| Budgeting workflow | configurable state machine and reviewer actions | invalid state transitions, appeal loops, concurrent edits | workflow event tests |
+| Budget accounting dimensions | tenant-defined accounting keys required/optional validation | missing required dimensions, invalid values | API validation tests |
+| Inventory lifecycle | collection/item CRUD, checkout/checkin, condition enforcement | checkout while unavailable, checkin without condition | inventory route tests |
+| Reporting and search | parity entities included in admin/report/search surfaces | empty data, role-restricted results, bad export params | integration tests |
+| Migration and reconciliation | import org/member/budget/inventory/governance data and compare parity metrics | duplicate mappings, missing references, amount/count mismatches | migration dry-run + reconciliation output |
+
+## Test coverage requirements
+
+- Backend:
+  - route outcome tests for new parity endpoints
+  - schema/model tests for lifecycle and state-machine guardrails
+- Frontend:
+  - component render tests for budget/inventory/admin parity panels
+  - smoke tests that enforce component-scoped styles and route availability
+
+## Exit gate
+
+- All matrix rows pass.
+- `cmsParity.jsonc` can model strict CMS behavior for targeted tenant.
+- Admin parity summary counts and reconciliation output match expected source data.

@@ -1,0 +1,45 @@
+---
+title: "CMS Cutover Runbook"
+description: "Direct-completion migration and reconciliation checklist for CMS-to-Meridian parity"
+---
+
+## Preconditions
+
+- Tenant parity config exists (`backend/config/tenants/<tenant>/cmsParity.jsonc`).
+- Parity modules are enabled for pilot tenant.
+- Admin users are trained on Atlas parity dashboards and workflows.
+
+## Completion flow
+
+1. **Dry-run migration**
+   - Run `importCmsParityData.js --dry-run`
+   - Validate source readability and mapping assumptions
+2. **Direct import**
+   - Run import for the target tenant
+   - Script emits deterministic id mapping file (`cms-parity-id-map.<tenant>.json`)
+3. **Reconciliation**
+   - Run `reconcileCmsParity.js`
+   - Script emits report (`cms-parity-reconciliation.<tenant>.json`) with count and amount mismatches
+4. **Finalize parity mode**
+   - Enable parity modules for admin usage
+   - Verify admin parity summary and exports
+
+## Verification checklist
+
+- Governance:
+  - lifecycle statuses migrated correctly
+  - membership histories present
+  - governance docs available with correct versions
+- Finance:
+  - budgets and workflow states imported
+  - accounting dimensions match tenant policy
+- Inventory:
+  - inventory collections and item counts match source
+- Reporting/admin:
+  - parity summary endpoint returns expected counts
+  - unified search includes parity entities
+
+## Post-completion
+
+- Capture missing edge cases and add to tenant policy templates.
+- Remove strict CMS-mode policy once tenant approves modernization changes.

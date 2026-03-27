@@ -1,0 +1,58 @@
+---
+title: "CMS Parity Spec"
+description: "Capability contracts and module boundaries for replacing legacy CMS with Atlas"
+---
+
+## Intent
+
+This spec defines the **capability contract** for CMS-to-Meridian replacement:
+
+- Preserve CMS operational intent (governance, budgeting, inventory, reporting)
+- Avoid legacy coupling and hardcoded single-campus assumptions
+- Implement everything through tenant policy and configurable workflows
+
+## Capability boundaries
+
+| Capability | Atlas module | Notes |
+|---|---|---|
+| Org governance | Org Core + Governance Docs | Lifecycle states, constitution/charter versioning, officer terms, membership history |
+| Budgeting and review | Finance Suite | Budget templates, line items, reviewer workflow, comments, revision rounds |
+| Accounting mapping | Finance Suite | Campus-specific dimensions (generalized FOAPAL model) |
+| Inventory and assets | Asset Suite | Inventory, item lifecycle, checkout/checkin, maintenance |
+| Search/reporting/admin | Admin + Search + Analytics | Cross-entity search, exports, operational dashboards |
+
+## Multi-campus contract
+
+Every parity feature must be:
+
+1. **Configurable per tenant** (module toggles, labels, policy settings)
+2. **Permissioned through org roles** (no hardcoded role names in business logic)
+3. **Backed by request-scoped models** (`getModels(req, ...)`)
+4. **Compatible with partial rollout** (feature flags + migration status)
+
+## API contract requirements
+
+- Route protection:
+  - `verifyToken` for protected endpoints
+  - Org-specific actions guarded by `requireOrgPermission(...)`
+- Response shape:
+  - success: `{ success: true, data?, message? }`
+  - error: `{ success: false, message, code? }`
+- Tenant-aware config:
+  - policy resolution by `req.school`
+  - safe fallback behavior if tenant config is missing
+
+## UX contract requirements
+
+- New Atlas UI modules use local component-scoped SCSS.
+- Each feature root uses a parent class (for example `.club-budgets`, `.club-inventory`).
+- Child selectors are nested under the feature root to prevent style leakage.
+- Existing design language components/tokens are reused over custom one-off styles.
+
+## Related docs
+
+- `/atlas/architecture`
+- `/atlas/data-model`
+- `/atlas/backend`
+- `/backend/best-practices`
+- `/atlas/cms-parity-acceptance`

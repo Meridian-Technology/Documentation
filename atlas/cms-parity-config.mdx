@@ -1,0 +1,46 @@
+---
+title: "CMS Parity Config"
+description: "Tenant JSONC configuration for CMS parity behavior in Atlas"
+---
+
+## Overview
+
+CMS parity behavior is controlled via tenant-level JSONC files:
+
+- `Meridian/backend/config/tenants/default/cmsParity.jsonc`
+- `Meridian/backend/config/tenants/<tenant>/cmsParity.jsonc`
+
+The backend resolves config by `req.school` and falls back to `default`.
+
+## Why JSONC
+
+- Human-readable comments for migration teams
+- Safe defaults for parity-first rollout
+- Decouples tenant policy from code-level constants
+
+## Runtime access
+
+- Endpoint: `GET /org-management/cms-parity-config`
+- Auth: `verifyToken`
+- Source: `tenantConfigService.getTenantParityConfig(req)`
+
+## Validation
+
+The loader validates:
+
+- module toggles
+- org lifecycle shape
+- governance statuses and publish policy
+- finance workflow states, transitions, review actions, and accounting dimensions
+- inventory lifecycle/checkout policy controls
+- reporting export/search/admin-summary definitions
+
+Invalid configs fail fast and return a stable error code (`PARITY_CONFIG_LOAD_FAILED`).
+
+## Policy keys in active use
+
+- `orgLifecycle.allowedStatuses`, `orgLifecycle.transitions`
+- `governance.documentStatuses`, `governance.requireApprovalForDocumentPublish`
+- `finance.workflowStates`, `finance.transitions`, `finance.reviewActions`, `finance.accountingDimensions`
+- `inventory.allowCheckout`, `inventory.requireConditionOnReturn`, `inventory.lifecycleStatuses`
+- `reporting.defaultExports`, `reporting.searchEntities`, `reporting.adminSummaryCards`
