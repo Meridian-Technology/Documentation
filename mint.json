@@ -17,13 +17,13 @@
   },
   "topbarLinks": [
     {
-      "name": "Support",
-      "url": "mailto:hi@mintlify.com"
+      "name": "Meridian",
+      "url": "https://meridian.study"
     }
   ],
   "topbarCtaButton": {
-    "name": "Dashboard",
-    "url": "https://dashboard.mintlify.com"
+    "name": "Meridian",
+    "url": "https://meridian.study"
   },
   "tabs": [
     {
@@ -38,85 +38,135 @@
       "url": "https://meridian.study"
     }
   ],
+  "redirects": [
+    {
+      "source": "/quickstart",
+      "destination": "/getting-started"
+    },
+    {
+      "source": "/backend/ShuttleTracker",
+      "destination": "/mobile/shuttle-tracker"
+    },
+    {
+      "source": "/navigatingthefrontend",
+      "destination": "/frontend/best-practices"
+    }
+  ],
   "navigation": [
     {
-      "group": "Get Started",
-      "pages": [
-        "introduction",
-        "quickstart"
-      ]
+      "group": "Overview",
+      "pages": ["introduction", "getting-started"]
     },
     {
-      "group": "Development Guides",
+      "group": "Engineering",
       "pages": [
         "development",
-        "update-local-db","meridian-cli","deployment"
+        "testing",
+        "meridian-cli",
+        "deployment",
+        "update-local-db"
       ]
     },
     {
-      "group": "Compass",
+      "group": "Server platform",
       "pages": [
-        "compass/overview",
-        "compass/frontend",
-        "navigatingthefrontend"
-      ]
-    },
-    {
-      "group": "Atlas",
-      "pages": [
-        "atlas/overview",
-        "atlas/architecture",
-        "atlas/data-model",
-        "atlas/backend",
-        "atlas/frontend",
-        "atlas/permissions",
-        "atlas/membership",
-        "atlas/cms-parity-modernization",
-        "atlas/verification",
-        "atlas/configuration",
-        "atlas/analytics",
-        "atlas/event-analytics",
-        "atlas/event-dashboard",
-        "atlas/messaging",
-        "atlas/integrations",
-        "atlas/admin",
-        "atlas/troubleshooting"
-      ]
-    },
-    {
-      "group": "Beacon",
-      "pages": [
-        "beacon/overview",
-        "beacon/events"
-      ]
-    },
-    {
-      "group": "Platform",
-      "pages": [
-        "backend/auth/SAML",
-        "backend/auth/sessions",
-        "backend/multi-tenant-identity",
-        "backend/analytics-platform",
-        "backend/analytics-collected-events",
-        "backend/analytics-referrer-sources",
         "backend/best-practices",
+        "backend/multi-tenant-identity",
+        "backend/multi-tenant-test-scenarios",
+        "backend/ai-agent-guide",
+        {
+          "group": "Authentication",
+          "pages": [
+            "backend/auth/overview",
+            "backend/auth/SAML",
+            "backend/auth/sessions"
+          ]
+        },
+        {
+          "group": "Analytics",
+          "pages": [
+            "backend/analytics-platform",
+            "backend/analytics-collected-events",
+            "backend/analytics-referrer-sources"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "HTTP API",
+      "pages": [
         "api-reference/introduction",
         "api-reference/event-management",
-        "api-reference/endpoint/get",
-        "api-reference/endpoint/create",
-        "api-reference/endpoint/delete",
-        "api-reference/endpoint/publish-agenda",
-        "api-reference/endpoint/delete-assignment",
-        "api-reference/endpoint/get-rsvp-growth"
+        {
+          "group": "Endpoints",
+          "pages": [
+            "api-reference/endpoint/get",
+            "api-reference/endpoint/create",
+            "api-reference/endpoint/delete",
+            "api-reference/endpoint/publish-agenda",
+            "api-reference/endpoint/delete-assignment",
+            "api-reference/endpoint/get-rsvp-growth"
+          ]
+        }
       ]
     },
     {
-      "group": "Mobile",
+      "group": "Clients",
       "pages": [
-        "mobile/deep-links",
-        "mobile/analytics",
-        "mobile/development-build-setup",
-        "mobile/responsive-design"
+        "frontend/best-practices",
+        {
+          "group": "Compass (utilization & scheduling)",
+          "pages": ["compass/overview", "compass/frontend"]
+        },
+        {
+          "group": "Atlas (clubs & organizations)",
+          "pages": [
+            {
+              "group": "Foundations & implementation",
+              "pages": [
+                "atlas/overview",
+                "atlas/architecture",
+                "atlas/data-model",
+                "atlas/finance-budgets",
+                "atlas/backend",
+                "atlas/frontend"
+              ]
+            },
+            {
+              "group": "Features, integrations & programs",
+              "pages": [
+                "atlas/configuration",
+                "atlas/permissions",
+                "atlas/membership",
+                "atlas/analytics",
+                "atlas/event-analytics",
+                "atlas/event-dashboard",
+                "atlas/event-checkin",
+                "atlas/messaging",
+                "atlas/integrations",
+                "atlas/admin",
+                "atlas/troubleshooting",
+                "atlas/cms-parity-modernization",
+                "atlas/ems-parity-modernization"
+              ]
+            }
+          ]
+        },
+        {
+          "group": "Beacon (events & approvals)",
+          "pages": ["beacon/overview", "beacon/events"]
+        },
+        {
+          "group": "Mobile",
+          "pages": [
+            "mobile/development-build-setup",
+            "mobile/shuttle-tracker",
+            "mobile/deep-links",
+            "mobile/ota-updates",
+            "mobile/analytics",
+            "mobile/responsive-design"
+          ]
+        }
       ]
     }
   ],
