@@ -1,0 +1,254 @@
+---
+title: 'Event Check-in & Anonymous Identifiers'
+description: 'Check-in system, anonymous registration, and identifier handling for events'
+---
+
+# Event Check-in & Anonymous Identifiers
+
+This document describes the event check-in system, anonymous registration flows, and how anonymous identifiers are used across the platform.
+
+## Check-in System Overview
+
+The check-in system supports three primary flows:
+
+<CardGroup cols={3}>
+  <Card title="Logged-in self check-in" icon="user-check">
+    Users with accounts check in from the event page or via token link
+  </Card>
+  <Card title="Token-based check-in" icon="key">
+    Anyone with a valid check-in token (QR code or link) can access check-in
+  </Card>
+  <Card title="Anonymous pick-your-registration" icon="user-circle">
+    Unauthenticated users with a token search and select their registration to check in
+  </Card>
+</CardGroup>
+
+### Check-in Settings
+
+Events can configure check-in behavior via `checkInSettings`:
+
+| Setting | Description |
+|---------|-------------|
+| `allowEarlyCheckIn` | Allow check-in before event start time |
+| `allowAnonymousCheckIn` | Enable anonymous (FormResponse) registrations in check-in list |
+| `allowOnPageCheckIn` | Allow check-in from the event page (vs. token link only) |
+| `requireRegistration` | Require registration before check-in (logged-in users) |
+| `autoCheckIn` | Automatically check in when conditions are met |
+
+### Check-in Token
+
+Each event with check-in enabled has a `checkInToken` — a secret hex string used to gate check-in access. The token is:
+
+- **Included in QR codes and check-in links** (e.g. `/check-in/:eventId/:token`)
+- **Required for anonymous flows** — self-registrations and anonymous check-in endpoints validate the token
+- **Not exposed** to unauthenticated users except via the check-in URL (e.g. from QR scan)
+
+---
+
+## Check-in Flows
+
+### 1. Logged-in Self Check-in (no token)
+
+**Route:** Event page → Check In button  
+**Endpoint:** `POST /events/:eventId/check-in/self`  
+**Auth:** Required (`verifyToken`)
+
+- User must be logged in
+- No token needed
+- Uses `req.user.userId` to find/create attendee
+- Validates event time and `requireRegistration` if set
+
+### 2. Logged-in Token Check-in
+
+**Route:** `/check-in/:eventId/:token`  
+**Endpoint:** `POST /events/:eventId/check-in`  
+**Body:** `{ token }`  
+**Auth:** Optional (`verifyTokenOptional`)
+
+- User is logged in and has the token in the URL
+- Token validates access
+- Same logic as self check-in but with token validation
+
+### 3. Anonymous Pick-Your-Registration
+
+**Route:** `/check-in/:eventId/:token` (user not logged in)  
+**Endpoints:**
+- `GET /events/:eventId/check-in/self-registrations?token=xxx` — list registrations
+- `GET /events/:eventId/check-in/registration/:formResponseId?token=xxx` — form details
+- `POST /events/:eventId/check-in/anonymous` — check in by `userId` or `formResponseId`  
+**Auth:** None (token validates)
+
+Flow:
+
+1. User opens check-in link (from QR or event page) with token
+2. Frontend fetches registrations via `self-registrations`
+3. User searches by name/email and selects their registration
+4. User can "View details" to see their full registration form (anonymous only)
+5. User clicks "Check In" → `POST /events/:eventId/check-in/anonymous` with `{ token, formResponseId }` or `{ token, userId }`
+
+<Note>
+Anonymous check-in is **not** locked to the browser. Users can register on one device and check in on another — they only need the token and to find their name in the list.
+</Note>
+
+### 4. Manual Check-in (Organizer)
+
+**Endpoints:**
+- `POST /events/:eventId/check-in/:userId` — check in logged-in attendee
+- `POST /events/:eventId/check-in/by-form-response/:responseId` — check in anonymous attendee
+
+**Auth:** Required (`verifyToken`) + event management permission
+
+Organizers use the Event Dashboard Check-in tab to search and manually check in attendees.
+
+---
+
+## Anonymous Registration
+
+### FormResponse Model
+
+Anonymous registrations are stored as `FormResponse` documents with `submittedBy: null`:
+
+```javascript
+{
+  form: ObjectId,
+  event: ObjectId,
+  formSnapshot: Object,  // Form as it was when submitted
+  submittedBy: null,    // null = anonymous
+  guestName: String,
+  guestEmail: String,
+  answers: [ ... ],
+  submittedAt: Date
+}
+```
+
+### Browser localStorage (anonymousRegistrationStorage)
+
+The frontend uses `meridian-anonymous-registrations` in localStorage to track when the **current browser** has registered for an event without an account.
+
+**Purpose:**
+- Show "You are registered" on the event page
+- Verify with server that registration still exists (`GET /events/:eventId/check-anonymous-registration?guestEmail=...`)
+- Support "Add another registration" — allow multiple anonymous registrations per event from the same browser
+
+**Storage shape:**
+```javascript
+{
+  [eventId]: {
+    guestName: string,
+    guestEmail: string,  // normalized (trim + lowercase)
+    registeredAt: string,  // ISO date
+    _v: number
+  }
+}
+```
+
+**Key functions:**
+- `hasAnonymousRegistration(eventId)` — whether this browser has a stored registration
+- `getAnonymousRegistration(eventId)` — get stored details
+- `saveAnonymousRegistration(eventId, { guestName, guestEmail })` — save after successful registration
+- `removeAnonymousRegistration(eventId)` — clear when server says registration no longer exists
+- `getAllAnonymousRegistrations()` — for claim API
+
+<Warning>
+localStorage is **browser-scoped**. It does not gate check-in. Users can check in from any device with the token — the list comes from the server, not localStorage.
+</Warning>
+
+### Claim Anonymous Registrations
+
+When a user signs up or logs in, the frontend calls `POST /claim-anonymous-registrations` with `{ registrations: [ { eventId, guestEmail } ] }`. For each matching anonymous FormResponse (same event, `submittedBy: null`, email match), the backend:
+
+1. Sets `submittedBy` to the user's ID
+2. Updates `guestName`/`guestEmail` from the user account if the form collects them
+3. Adds the user to `event.attendees` if not already present
+
+This links previously anonymous registrations to the new account.
+
+---
+
+## Anonymous Identifiers (Analytics)
+
+Separate from event registration, the **analytics platform** uses an `anonymous_id` for tracking events before and after login:
+
+| Concept | Purpose | Storage |
+|---------|---------|---------|
+| **Analytics `anonymous_id`** | Device-scoped persistent ID for analytics events (no PII) | Client (e.g. AsyncStorage, localStorage) |
+| **Anonymous FormResponse** | Event registration without account (`submittedBy: null`) | Server (MongoDB) |
+| **localStorage registration** | "This browser registered for this event" | Client (localStorage) |
+
+See [Analytics Platform](/backend/analytics-platform) for the analytics envelope and `anonymous_id` usage.
+
+---
+
+## API Reference
+
+### Public Check-in (token required, no auth)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/events/:eventId/check-in/self-registrations?token=xxx` | List registrations (logged-in + anonymous) for pick-your-registration |
+| GET | `/events/:eventId/check-in/registration/:formResponseId?token=xxx` | Get form snapshot + answers for an anonymous registration |
+| POST | `/events/:eventId/check-in/anonymous` | Check in by `{ token, formResponseId }` or `{ token, userId }` |
+
+### Authenticated Check-in
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/events/:eventId/check-in/self` | Self check-in (logged-in, no token) |
+| POST | `/events/:eventId/check-in` | Token check-in (body: `{ token }`) |
+| POST | `/events/:eventId/check-out` | Remove own check-in |
+
+### Organizer / Management
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/events/:eventId/check-in/enable` | Enable check-in |
+| POST | `/events/:eventId/check-in/disable` | Disable check-in |
+| PUT | `/events/:eventId/check-in/settings` | Update check-in settings |
+| GET | `/events/:eventId/check-in/qr` | Get QR code for check-in |
+| GET | `/events/:eventId/check-in/link` | Get check-in URL |
+| GET | `/events/:eventId/check-in/attendees` | List checked-in attendees |
+| POST | `/events/:eventId/check-in/:userId` | Manual check-in (logged-in) |
+| POST | `/events/:eventId/check-in/by-form-response/:responseId` | Manual check-in (anonymous) |
+
+### Anonymous Registration Verification
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/events/:eventId/check-anonymous-registration?guestEmail=xxx` | Check if anonymous registration exists (for localStorage sync) |
+| POST | `/claim-anonymous-registrations` | Claim anonymous registrations after sign-up (body: `{ registrations: [ { eventId, guestEmail } ] }`) |
+
+---
+
+## Frontend Components
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `EventCheckInButton` | `Meridian/frontend/src/components/EventCheckInButton` | Check-in button on event page; navigates with token for anonymous |
+| `CheckInConfirmation` | `Meridian/frontend/src/pages/CheckIn` | Check-in page; handles token validation, anonymous pick UI, form details modal |
+| `ManualCheckInModal` | `Meridian/frontend/.../EventCheckInTab` | Organizer manual check-in (search + select) |
+| `RSVPButton` / `RSVPSection` | `Meridian/frontend/src/components` | Registration; uses `anonymousRegistrationStorage` for "registered" state and "Add another" |
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Event dashboard" icon="table-columns" href="/atlas/event-dashboard">
+    Event management, readiness, and organizer tooling around the same events.
+  </Card>
+  <Card title="Event management API" icon="calendar" href="/api-reference/event-management">
+    REST paths for RSVPs, agendas, and org-event operations used by check-in flows.
+  </Card>
+  <Card title="Beacon events" icon="calendar" href="/beacon/events">
+    Event lifecycle, approvals, and RSVP from the Beacon product lens.
+  </Card>
+  <Card title="Platform analytics" icon="chart-column" href="/backend/analytics-platform">
+    Event pipeline, envelope schema, and `anonymous_id`–friendly tracking.
+  </Card>
+  <Card title="Analytics collected events" icon="list" href="/backend/analytics-collected-events">
+    Named events and properties emitted by web and mobile clients.
+  </Card>
+  <Card title="Atlas messaging" icon="mail" href="/atlas/messaging">
+    Announcements and anonymous recipients tied to event outreach.
+  </Card>
+</CardGroup>

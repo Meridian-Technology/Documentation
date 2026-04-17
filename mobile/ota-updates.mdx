@@ -1,0 +1,108 @@
+---
+title: OTA updates (Android & iOS)
+description: Publish JavaScript and asset updates to Meridian-Mobile with EAS Update, without a full store release.
+---
+
+Meridian-Mobile uses **Expo EAS Update** with [`expo-updates`](https://docs.expo.dev/versions/latest/sdk/updates/). One publish can target **both** Android and iOS; you do not run separate OTA pipelines per platform unless you choose a single platform on purpose.
+
+Configuration lives in the `Meridian-Mobile` app:
+
+- **`app.config.js`**: `updates.url`, `expo.extra.eas.projectId`, `runtimeVersion` (see below), and the `expo-updates` plugin.
+- **`eas.json`**: each build profile sets a **`channel`** (for example `production`, `testflight`, `preview`). Installed binaries only receive updates published to **their** channel.
+
+## Runtime version and `expo.version`
+
+`runtimeVersion` uses the **`appVersion` policy**: the runtime is tied to the **`version`** field under `expo` in `app.config.js` at **publish** time, and it must **match** the runtime baked into the binary when that build was produced.
+
+- For **JS/asset-only** fixes aimed at **existing** App Store / Play installs: **do not bump** `expo.version` in `app.config.js` unless you also ship **new native builds** with that version. If you bump `version` and only run `eas update`, devices on the old native build will not match the new runtime and will **not** apply the update.
+- When you **do** ship a new native release, align `version` (and native versioning as needed), then future OTAs target that runtime.
+
+## Prerequisites
+
+1. [EAS CLI](https://docs.expo.dev/build/setup/) available (for example `npx eas-cli`).
+2. Logged into the correct Expo account: `npx eas-cli login`.
+3. Working directory: **`Meridian-Mobile`** (repository root for the mobile app).
+
+## Match the channel to the installed binary
+
+Publish updates to the **same channel** as the EAS build profile used to produce the installed app. Examples from `eas.json`:
+
+| Typical use | Channel (profile) |
+|-------------|---------------------|
+| Production store builds | `production` |
+| TestFlight | `testflight` |
+| Internal / preview | `preview`, `preview-android`, `apk`, `ad-hoc`, `development`, etc. |
+
+If the channel does not match, installed apps will not receive the OTA payload.
+
+## Publish an update
+
+From `Meridian-Mobile`:
+
+```bash
+npx eas-cli update --channel production --message "Short description of the change"
+```
+
+- **Both platforms (default):** omit `--platform` or pass `--platform all`.
+- **One platform only:** `--platform android` or `--platform ios` (unusual; use when intentional).
+
+Other useful patterns:
+
+```bash
+# Non-interactive (e.g. CI)
+npx eas-cli update --channel production --message "Fix checkout flow" --non-interactive
+
+# Use current git branch + commit message for EAS branch/message
+npx eas-cli update --auto
+
+# Clear Metro bundler cache before publishing
+npx eas-cli update --channel production --message "…" --clear-cache
+```
+
+Branch-based workflows: you can publish with `--branch <name>` when your Expo project maps channels to branches in the [Expo dashboard](https://expo.dev). See [EAS Update](https://docs.expo.dev/eas-update/introduction/) for branch vs channel behavior.
+
+## Verify
+
+- **CLI:** `npx eas-cli update:list` (and related `eas update:*` commands).
+- **On device:** use a **release** build (not the dev client / not `__DEV__`). In the app, **Settings** includes app info such as channel, runtime, and update id when OTA is active.
+
+## What OTA cannot replace
+
+These still require a **new EAS build** and store submission (or internal distribution):
+
+- Native code or dependency changes
+- New permissions or entitlements
+- Changes that require editing native projects or config plugins in a way that is not JS-only
+
+## Quick reference
+
+| Goal | Command |
+|------|---------|
+| Production OTA (Android + iOS) | `npx eas-cli update --channel production -m "…"` |
+| TestFlight channel | `npx eas-cli update --channel testflight -m "…"` |
+| List recent updates | `npx eas-cli update:list` |
+
+Full store builds are documented separately (see `package.json` scripts such as `build:ios:production` and `build:android:production` in `Meridian-Mobile`).
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Mobile development builds" icon="smartphone" href="/mobile/development-build-setup">
+    EAS dev-client installs and native debugging before you ship OTAs.
+  </Card>
+  <Card title="Mobile analytics" icon="chart-column" href="/mobile/analytics">
+    Client event taxonomy and how mobile telemetry aligns with the platform pipeline.
+  </Card>
+  <Card title="Getting started" icon="rocket" href="/getting-started">
+    Local setup when you work across the **Meridian** and **Meridian-Mobile** clones (sibling folders on disk).
+  </Card>
+  <Card title="EAS Update (Expo docs)" icon="book-open" href="https://docs.expo.dev/eas-update/introduction/">
+    Official overview of EAS Update channels and runtime behavior.
+  </Card>
+  <Card title="Runtime versions (Expo)" icon="tag" href="https://docs.expo.dev/eas-update/runtime-versions/">
+    How Expo matches updates to native binaries.
+  </Card>
+  <Card title="Publishing an update (Expo)" icon="upload" href="https://docs.expo.dev/eas-update/getting-started/">
+    Step-by-step publishing flow from Expo’s guide.
+  </Card>
+</CardGroup>

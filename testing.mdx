@@ -1,0 +1,309 @@
+---
+title: "Testing"
+description: "How to run tests, what we expect when you add code, and how CI enforces it"
+---
+
+Meridian uses **Jest** on the backend and frontend. Treat tests as part of the feature: **new behavior should come with tests** (or a deliberate, rare exception called out in the PR). CI runs on **every pull request** and on **pushes to `main`**.
+
+## Run from `Meridian/`
+
+These scripts match what you should run locally before opening or updating a PR:
+
+```bash
+npm run test:ci          # backend coverage + frontend coverage (full suites, closest one-liner to “green merge”)
+npm run test:backend     # backend only (coverage: unit + integration + route outcomes)
+npm run test:frontend    # frontend only (coverage)
+npm run test:backend:routes   # backend route-outcome tests only (fast feedback on API tests)
+```
+
+Commands assume the **Meridian** app root (`Meridian/` in the monorepo) and installed dependencies in `Meridian/`, `Meridian/backend/`, and `Meridian/frontend/`.
+
+## Expectations when writing new code
+
+### General
+
+- **Deterministic**: no real network, no wall-clock races, no dependence on “today’s” date unless frozen or injected. Use in-memory Mongo for backend route tests, not a shared dev DB.
+- **Readable failures**: assertion messages or test names should make regressions obvious in CI logs.
+- **Colocate with the change**: tests live next to the layer they protect (see layout sections below). Avoid giant catch-all files unless that pattern already exists for the area you are editing.
+
+### Backend
+
+| You change… | Prefer… |
+|---------------|---------|
+| Pure helpers, parsers, small services with no HTTP | **`tests/unit/`** — fast, no I/O. |
+| Middleware wiring, app boot, shallow HTTP | **`tests/integration/`** — Supertest against the app. |
+| **Routes that read/write Mongo**, permissions, status codes, multi-step API behavior | **`tests/route-outcomes/`** — this is the **default choice for “did the API do the right thing?”** |
+
+**Route-outcome tests** run real handlers against **mongodb-memory-server**. They are the preferred way to lock API behavior because they exercise persistence and response shape the way production does, without flaking on a shared database.
+
+**Multi-tenant**: handlers expect `req.db`, `req.school`, and sometimes `req.globalDb`. Route-outcome tests must set that context the same way production middleware does. If a route uses global identity (`authGlobalService`, etc.), use `createMongoMemoryConnection({ withGlobalDb: true })` and assign `req.globalDb` per `docs/TESTING_FRAMEWORK.md` and `backend/tests/helpers/mongoMemory.js`.
+
+### Frontend
+
+| You change… | Prefer… |
+|---------------|---------|
+| Components, hooks, small UI logic | Tests under **`frontend/src/**/__tests__/`** (or colocated `*.test.js` where the repo already does that). |
+| **`postRequest`**, **`useFetch`**, refresh-token retry, error mapping | Tests under **`frontend/src/utils/__tests__/`** (or equivalent) so network/auth behavior stays covered without axios scattered in components. |
+
+Use **React Testing Library** the way the existing suite does: assert on what users see, not implementation details unless unavoidable. **Mock** `window`, cookies, or browser-only APIs deterministically.
+
+### Before you open a PR
+
+1. Run **`npm run test:ci`** from `Meridian/` (or at minimum the package you touched: `npm run test:backend` / `npm run test:frontend`).
+2. If you only changed backend HTTP behavior, **`npm run test:backend:routes`** is a quick gate before the full coverage run.
+3. If CI fails on **coverage** or **unit-tests**, reproduce locally with the same npm scripts as in the workflow (below).
+
+## Backend (`Meridian/backend/`)
+
+Stack: **Jest**, **Supertest**, **mongodb-memory-server** for route outcomes.
+
+| Command | Purpose |
+|--------|---------|
+| `npm run test:backend` | Full backend coverage (unit + integration + route outcomes) |
+| `npm --prefix backend run test:unit` | `tests/unit` |
+| `npm --prefix backend run test:integration` | `tests/integration` |
+| `npm --prefix backend run test:routes` | `tests/route-outcomes` |
+| `npm --prefix backend run test:coverage` | Full suite with coverage (used in CI coverage job) |
+
+### Layout
+
+- **`backend/tests/unit/`** — isolated logic and utilities.
+- **`backend/tests/integration/`** — HTTP behavior against the app.
+- **`backend/tests/route-outcomes/`** — end-to-end request/response + Mongoose on in-memory DB.
+
+Config: **`backend/jest.config.js`**. Helpers: **`backend/tests/helpers/mongoMemory.js`**.
+
+## Frontend (`Meridian/frontend/`)
+
+Stack: **Jest** + **React Testing Library** (runner via `scripts/test.js`).
+
+```bash
+npm --prefix frontend run test           # local watch / interactive
+npm --prefix frontend run test:ci        # CI-style: no watch, in band (used in CI unit-tests job)
+npm --prefix frontend run test:coverage  # coverage + reporters (used in CI coverage job)
+```
+
+Tests: **`frontend/src/**/__tests__/**/*.test.js`** and targeted **`utils`** tests for request helpers.
+
+## Jest basics (if this stack is new)
+
+Meridian uses the same **Jest** runner everywhere:
+
+- **`describe('…', () => { … })`** — groups related specs (often one file per module or route file).
+- **`test('…', () => { … })`** or **`it('…', …)`** — a single example; use **`async`** when the body awaits promises.
+- **`expect(value).toBe(…)`**, **`.toEqual(…)`**, **`.toContain(…)`**, **`expect(fn).toHaveBeenCalled()`** — assertions; Jest fails the test when any assertion fails.
+- **`beforeEach` / `afterEach` / `beforeAll` / `afterAll`** — setup and teardown (open DB, reset mocks, close connections).
+- **`jest.mock('modulePath', factory)`** — replace a module with a fake for the current test file (common in route and integration tests).
+
+Backend HTTP tests use **Supertest**: `request(app).get('/path')` returns a response object with **`statusCode`**, **`body`**, **`headers`**, etc.
+
+---
+
+## Minimal patterns (Meridian-shaped)
+
+The snippets below are **small teaching sketches**—valid Jest/Supertest style, heavily commented, focused on **syntax and Meridian conventions**. They are not copy-pasted production tests. For full imports, schemas, and `beforeEach` seed data, open `Meridian/backend/tests/**` and `Meridian/frontend/src/**/__tests__`.
+
+### 1) Backend unit — no `req`, no Mongo
+
+```javascript
+// backend/tests/unit — exercise pure helpers: fixed input → expected output.
+function clampRating(n) {
+  return Math.min(5, Math.max(1, n));
+}
+
+describe('clampRating', () => {
+  test('bounds values', () => {
+    expect(clampRating(10)).toBe(5);
+    expect(clampRating(-3)).toBe(1);
+  });
+});
+```
+
+### 2) Backend HTTP — Supertest + mocked infra
+
+```javascript
+// backend/tests/integration — drive HTTP without starting real Mongo.
+const express = require('express');
+const request = require('supertest');
+
+jest.mock('../../connectionsManager', () => ({
+  connectToDatabase: jest.fn(), // Meridian resolves tenant DB by school; tests stub it.
+}));
+
+const { connectToDatabase } = require('../../connectionsManager');
+const adminRoutes = require('../../routes/adminRoutes'); // example: routes that call connectToDatabase('rpi')
+
+test('GET /health when DB ping succeeds', async () => {
+  connectToDatabase.mockResolvedValue({
+    db: { admin: () => ({ ping: jest.fn().mockResolvedValue({ ok: 1 }) }) },
+  });
+
+  const app = express();
+  app.use((req, _res, next) => {
+    req.school = 'rpi'; // same string app.js derives from host / tenant routing
+    next();
+  });
+  app.use(adminRoutes);
+
+  const res = await request(app).get('/health');
+  expect(res.statusCode).toBe(200);
+});
+```
+
+### 3) Backend route outcomes — **`req.db`**, **`getModelService`**, in-memory Mongo
+
+Meridian handlers use **`getModels(req, 'User', 'Event', …)`** (through `getModelService`) so every query runs on the **tenant** Mongoose connection attached as **`req.db`**. Route-outcome tests reproduce that with **`mongodb-memory-server`** (`createMongoMemoryConnection` in `backend/tests/helpers/mongoMemory.js`) and a **`jest.mock('../../services/getModelService', …)`** factory that binds schemas with **`getOrCreateModel(req.db, …)`**—never `mongoose.model()` on the global connection for tenant data.
+
+
+```javascript
+const express = require('express');
+const request = require('supertest');
+
+test('tenant context is visible inside a route (illustrative)', async () => {
+  const app = express();
+  app.use(express.json());
+
+  // Same responsibility as app.js middleware: attach tenant connection + school key.
+  app.use((req, _res, next) => {
+    req.db = { kind: 'mongoose-connection-for-this-school' }; // tests: real connection from createMongoMemoryConnection
+    req.school = 'rpi';
+    next();
+  });
+
+  app.post('/_echo', (req, res) => {
+    // Real handlers: const { User } = getModels(req, 'User'); await User.find(...)
+    res.status(200).json({ school: req.school, db: req.db.kind });
+  });
+
+  const res = await request(app).post('/_echo').send({});
+  expect(res.body.school).toBe('rpi');
+  expect(res.body.db).toBe('mongoose-connection-for-this-school');
+});
+```
+
+In production tests you then: **`jest.mock('../../services/getModelService', …)`** returning **`getOrCreateModel(req.db, …)`** per schema, mount the real router, and assert both **HTTP** and **documents** in the in-memory DB. **`Meridian/backend/tests/route-outcomes/`** has full examples (including **`withGlobalDb`** when routes need **`req.globalDb`**).
+
+**Meridian-specific checklist**
+
+- Attach **`req.db`** (and **`req.globalDb`** when the route uses global identity) before handlers run.
+- Mock **`getModelService`** so `getModels(req, …)` matches production binding.
+- Reset the in-memory database between tests (`mongo.reset()`).
+- Assert **HTTP** and, when it matters, **documents in Mongo** via the same models the route used.
+
+### 4) Frontend — **`postRequest`** and axios mocks (no browser network)
+
+```javascript
+// frontend/src/utils/__tests__ — axios is an implementation detail; tests mock it.
+jest.mock('axios', () => {
+  const fn = jest.fn();
+  fn.post = jest.fn(); // postRequest triggers POST /refresh-token on 401 retry path
+  return fn;
+});
+
+import axios from 'axios';
+import postRequest from '../postRequest';
+
+test('POST returns JSON body on success', async () => {
+  axios.mockResolvedValueOnce({ data: { id: '1' } });
+
+  const body = await postRequest('/api/widgets', { name: 'Tab' });
+
+  expect(body).toEqual({ id: '1' });
+  expect(axios).toHaveBeenCalledWith(
+    expect.objectContaining({
+      method: 'POST',
+      url: '/api/widgets',
+      withCredentials: true, // Meridian relies on cookies for auth in the browser
+    })
+  );
+});
+```
+
+### 5) Frontend — components (React Testing Library)
+
+```javascript
+// Colocate under frontend/src/**/__tests__ — assert what the user sees.
+import { render, screen } from '@testing-library/react';
+
+test('shows title', () => {
+  render(<h1>Meridian</h1>);
+  expect(screen.getByRole('heading', { name: /meridian/i })).toBeInTheDocument();
+});
+```
+
+For data-loading components, **mock `useFetch` or the module** that wraps `postRequest` so tests never hit `localhost:5001` accidentally.
+
+---
+
+## CI integration (`Meridian/.github/workflows/ci.yml`)
+
+Workflow file: **`.github/workflows/ci.yml`**. Triggers: **`pull_request`** and **`push`** to **`main`**.
+
+Meridian CI is **not** a single “test” step: it uses **three jobs** so build, fast test signal, and coverage artifacts stay separated.
+
+### 1. `build`
+
+- Validates **`private-deps.lock`** (`events.ref` must be a 40-character hex SHA).
+- Sets up **SSH**, runs **`bin/fetch_private_deps`** (Events-Backend and other private deps for a faithful tree).
+- **`npm install`** in `backend/` and `frontend/`.
+- Runs **`npm --prefix frontend run build`** (with `CI=false` for that step as defined in the workflow).
+
+Failing here means the app does not compile or lockfile/deps are invalid—fix before expecting tests to pass.
+
+### 2. `unit-tests`
+
+Same lockfile + SSH + **`fetch_private_deps`** + installs, then:
+
+- **`npm --prefix backend run test:unit`**
+- **`npm --prefix backend run test:integration`**
+- **`npm --prefix backend run test:routes`**
+- **`npm --prefix frontend run test:ci`**
+
+This job runs **backend suites separately** (no coverage gate in these steps) and the **frontend CI test script**. Failures here are usually a specific Jest file or suite.
+
+### 3. `coverage`
+
+Same bootstrap, then:
+
+- **Backend**: `npm --prefix backend run test:coverage` with JSON test output under `backend/coverage/`.
+- **Frontend**: `npm --prefix frontend run test:coverage` with **lcov**, **clover**, **json-summary**, and JSON test results under `frontend/coverage/`.
+
+Afterwards:
+
+- A **step summary** is appended to the GitHub Actions run (tables built from `coverage/test-results.json` and `coverage-summary.json` where present).
+- **Artifacts** are uploaded: backend and frontend **lcov**, summaries, HTML lcov reports, and related files for download from the run.
+
+So: **`npm run test:ci` locally** aligns with running the **full coverage-style** backend + frontend commands you rely on for merge confidence; CI additionally splits **unit / integration / routes** in the **`unit-tests`** job and runs a **production build** in **`build`**.
+
+## Going deeper
+
+In the Meridian repo, **`docs/TESTING_FRAMEWORK.md`** is the canonical in-tree reference for layout, multi-tenant route tests, and “adding new tests” checklists.
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Getting started" icon="rocket" href="/getting-started">
+    Stack, `meridian setup`, and commands to run before `npm run test:*`.
+  </Card>
+  <Card title="Development" icon="wrench" href="/development">
+    Day-to-day workflow, debugging, and troubleshooting.
+  </Card>
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    `req.db`, auth middleware, and patterns you assert on in route tests.
+  </Card>
+  <Card title="Multi-tenant test scenarios" icon="list" href="/backend/multi-tenant-test-scenarios">
+    Tenant isolation and membership cases worth mirroring in new tests.
+  </Card>
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    How login and tokens work when testing auth and refresh flows.
+  </Card>
+  <Card title="Web client best practices" icon="browser" href="/frontend/best-practices">
+    `useFetch` / `postRequest` patterns to reflect in frontend tests.
+  </Card>
+  <Card title="Meridian CLI" icon="terminal" href="/meridian-cli">
+    Branch helpers and local workflow around the same repo you test.
+  </Card>
+  <Card title="Deployment" icon="cloud" href="/deployment">
+    CI jobs, coverage artifacts, and how merge gates align with local `test:ci`.
+  </Card>
+</CardGroup>

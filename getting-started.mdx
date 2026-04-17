@@ -1,0 +1,509 @@
+---
+title: "Getting Started"
+description: "Set up Meridian local development on macOS or Windows"
+---
+
+## Prerequisites
+
+Install the tooling below **before** cloning the repo or running `npm run setup`. Meridian’s `Meridian/package.json` declares **`engines.node`: `20.x`**—use Node 20, not 18 or 22, unless you intentionally align the whole team on a different major.
+
+You will also need **Git** (for clone and normal development). **npm** ships with Node.
+
+### Node.js 20.x and npm
+
+<Tabs>
+  <Tab title="macOS">
+    Pick one approach:
+
+    **Option A — Homebrew**
+
+    ```bash
+    brew install node@20
+    brew link node@20 --force --overwrite
+    ```
+
+    **Option B — nvm (recommended if you switch Node versions often)**
+
+    ```bash
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+    # restart the terminal, then:
+    nvm install 20
+    nvm use 20
+    ```
+
+    **Option C — Official installer**
+
+    Download the **20.x LTS** macOS installer from [https://nodejs.org/](https://nodejs.org/) and run it.
+
+    Verify:
+
+    ```bash
+    node -v   # should print v20.x.x
+    npm -v
+    ```
+  </Tab>
+  <Tab title="Windows">
+    **Option A — Official installer (simplest)**
+
+    1. Open [https://nodejs.org/](https://nodejs.org/) and download the **20.x LTS** Windows installer (`.msi`).
+    2. Run the installer and accept the defaults that add Node and npm to **PATH**.
+    3. Open a **new** PowerShell or Command Prompt.
+
+    **Option B — nvm for Windows**
+
+    If you already use [nvm-windows](https://github.com/coreybutler/nvm-windows), install and select 20.x:
+
+    ```powershell
+    nvm install 20.18.0
+    nvm use 20.18.0
+    ```
+
+    Verify:
+
+    ```powershell
+    node -v
+    npm -v
+    ```
+  </Tab>
+</Tabs>
+
+### MongoDB Community Server
+
+Meridian’s backend expects a **MongoDB** instance you can reach from `Meridian/backend/.env` (for example `mongodb://127.0.0.1:27017/...`). The steps below install **MongoDB Community Server** locally—not Atlas.
+
+<Tabs>
+  <Tab title="macOS">
+    **Install (Homebrew — MongoDB tap)**
+
+    ```bash
+    brew tap mongodb/brew
+    brew update
+    brew install mongodb-community
+    ```
+
+    **Start the database**
+
+    Run `mongod` in the foreground when debugging, or register a background service:
+
+    ```bash
+    brew services start mongodb-community
+    ```
+
+    **Check it is listening**
+
+    ```bash
+    mongosh --eval "db.runCommand({ ping: 1 })"
+    ```
+
+    To stop the background service later: `brew services stop mongodb-community`.
+
+    <Note>
+      Homebrew’s formula name and data directory can change over time; if `brew install mongodb-community` fails, run `brew search mongodb` and follow the current [MongoDB Server install on macOS](https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-os-x/) docs.
+    </Note>
+  </Tab>
+  <Tab title="Windows">
+    **Install**
+
+    1. Download **MongoDB Community Server** for Windows from [MongoDB Download Center](https://www.mongodb.com/try/download/community) (MSI).
+    2. Run the installer. Typical choices:
+       - **Complete** setup type
+       - Install **MongoDB as a Service** (recommended)
+       - Install **MongoDB Compass** if you want a GUI (optional)
+
+    **Start the service**
+
+    - Open **Services** (`Win + R` → `services.msc`), find **MongoDB Server** (name may vary slightly), and **Start** it if it is not running, **or**
+    - In an **Administrator** PowerShell or Command Prompt:
+
+    ```powershell
+    net start MongoDB
+    ```
+
+    If `net start` reports the service name is wrong, check the exact name in `services.msc` and use that name instead of `MongoDB`.
+
+    **Check it is listening**
+
+    If `mongosh` is on your PATH after install:
+
+    ```powershell
+    mongosh --eval "db.runCommand({ ping: 1 })"
+    ```
+
+    <Tip>
+      If `mongod` / `mongosh` are not found, add MongoDB’s `bin` directory (often under `C:\Program Files\MongoDB\Server\<version>\bin`) to your user **PATH**, then open a new terminal.
+    </Tip>
+  </Tab>
+</Tabs>
+
+### GitHub CLI (`gh`)
+
+The Meridian CLI uses **`gh`** for pull requests and merges when you run flows like `meridian ship`. Install it even if you use another Git UI day to day.
+
+<Tabs>
+  <Tab title="macOS">
+    ```bash
+    brew install gh
+    gh auth login
+    ```
+
+    Follow the prompts (HTTPS or SSH, GitHub.com, login via browser). Confirm with `gh auth status`.
+  </Tab>
+  <Tab title="Windows">
+    **winget (recommended if available)**
+
+    ```powershell
+    winget install --id GitHub.cli
+    ```
+
+    Then open a **new** terminal and run:
+
+    ```powershell
+    gh auth login
+    ```
+
+    **MSI:** alternatively download **GitHub CLI** from [https://cli.github.com/](https://cli.github.com/) and run the installer, then `gh auth login`.
+
+    Confirm with `gh auth status`.
+  </Tab>
+</Tabs>
+
+## Verify installs
+
+<Tabs>
+  <Tab title="macOS">
+    ```bash
+    node -v
+    npm -v
+    git --version
+    mongod --version
+    gh --version
+    ```
+  </Tab>
+  <Tab title="Windows">
+    In **PowerShell** or **Command Prompt**:
+
+    ```powershell
+    node -v
+    npm -v
+    git --version
+    mongod --version
+    gh --version
+    ```
+
+    If `mongod` or `gh` are not found, ensure their install folders are on your **PATH**, or use the full path to each executable.
+
+    <Tip>
+      **WSL2** is a practical option on Windows: run the same shell-oriented steps as macOS/Linux inside WSL and keep the **Meridian** checkout on a Linux filesystem (for example `~/dev/Meridian`) to reduce symlink and line-ending friction.
+    </Tip>
+  </Tab>
+</Tabs>
+
+## Clone Meridian
+
+Clone the **Meridian** Git repository (the web + API app)—not a parent “monorepo” meta-repo. You only need **`Meridian/`** on disk to start; other repos are added next to it with **`npm run setup` / `meridian setup`** or manually.
+
+```bash
+git clone git@github.com:Study-Compass/Meridian.git
+cd Meridian
+```
+
+Use the **clone URL from GitHub** for *Meridian* if yours differs (fork, HTTPS, enterprise host).
+
+<Note>
+  **“Meridian-Mono”** in conversation or older notes usually means a **suggested local folder layout**: one parent directory whose **children** include **`Meridian/`**, **`Events-Backend/`**, and optionally **`Meridian-Mobile/`**. That parent folder is **not** a single git repository you clone—it's just the recommended development repo structure.
+</Note>
+
+From here on, **`Meridian/`** means the root of the **Meridian** repo you cloned (where `package.json` with `meridian` / `dev` scripts lives).
+
+## Bootstrap with the Meridian CLI
+
+From **`Meridian/`**, the recommended first step is:
+
+```bash
+npm run setup
+```
+
+That runs `meridian setup`, which installs dependencies, can clone **Events-Backend** if it is missing, and can link **`backend/events`** to the sibling **Events-Backend** checkout (see platform tabs below).
+
+If the `meridian` command is already on your PATH, you can run `meridian setup` instead of `npm run setup`.
+
+## Platform-specific setup
+
+<Tabs>
+  <Tab title="macOS">
+    ### Put `meridian` on your PATH
+
+    From `Meridian/`:
+
+    ```bash
+    npm link
+    ```
+
+    After that, `meridian` should resolve in any terminal. If it does not, confirm your global npm bin is on PATH (often `npm prefix -g` plus `/bin`).
+
+    ### Events-Backend and `backend/events`
+
+    Layout should be:
+
+    ```text
+    workspace/              # any parent folder you choose (not a git repo)
+      Meridian/             # this Meridian clone
+      Events-Backend/       # sibling; added by setup/CLI or cloned manually
+    ```
+
+    After `npm run setup`, accept the prompt to symlink, or run:
+
+    ```bash
+    meridian symlink
+    ```
+
+    Node creates a normal symlink here; no extra Windows-style steps.
+
+    ### MongoDB
+
+    If you installed **MongoDB Community** in [Prerequisites](#mongodb-community-server), ensure it is running:
+
+    ```bash
+    brew services start mongodb-community
+    ```
+
+    ### Free a port (3000 / 5001)
+
+    ```bash
+    lsof -ti:3000 | xargs kill
+    lsof -ti:5001 | xargs kill
+    ```
+
+    ### Health check
+
+    ```bash
+    curl http://localhost:5001/health
+    ```
+  </Tab>
+  <Tab title="Windows">
+    ### Put `meridian` on your PATH (manual)
+
+    `npm link` on Windows still registers a global shim, but **`meridian` may not be on your PATH`** depending on how Node was installed.
+
+    1. From `Meridian/`, run: `npm link`
+    2. Find the global npm prefix: `npm prefix -g`
+    3. The `meridian.cmd` (and related shims) usually live under that folder, often alongside `node.exe` paths such as:
+       - `%AppData%\npm`
+       - or `C:\Program Files\nodejs\`
+
+    Add the folder that contains `meridian.cmd` to your **user** PATH:
+
+    **Settings → System → About → Advanced system settings → Environment Variables → User variables → Path → Edit → New** → paste the folder path → OK out.
+
+    Open a **new** terminal and run `where meridian`. If it still fails, you can always run the CLI without PATH changes:
+
+    ```powershell
+    cd path\to\Meridian
+    npm run meridian -- setup
+    npm run meridian -- status
+    ```
+
+    ### Events-Backend and `backend/events` (symlinks / junctions)
+
+    Layout should still be:
+
+    ```text
+    workspace\
+      Meridian\
+      Events-Backend\
+    ```
+
+    **`meridian symlink` uses a filesystem symlink.** On Windows, creating symlinks often requires one of:
+
+    - **Developer Mode** enabled (*Settings → System → For developers → Developer Mode*), then run `meridian symlink` again, or
+    - Running your terminal **as Administrator** when creating the link, or
+    - Skipping the CLI symlink step and creating a **directory junction** yourself (no symlink privilege in many setups):
+
+    In **Command Prompt** from your **`Meridian`** repo root (same folder that contains `package.json` and `backend\`), with `backend\events` removed or renamed first if it already exists as a real folder:
+
+    ```bat
+    mklink /J backend\events ..\Events-Backend
+    ```
+
+    Junctions only work when `Events-Backend` lives **next to** `Meridian` as shown above. The app should still be started with `npm run server` / `npm run dev` from `Meridian/` so Node can follow the link with `--preserve-symlinks`.
+
+    ### MongoDB
+
+    If you installed **MongoDB Community** in [Prerequisites](#mongodb-community-server), start the Windows service from **Services** (`services.msc`) or, in an **Administrator** prompt:
+
+    ```powershell
+    net start MongoDB
+    ```
+
+    The exact service name depends on the installer (often `MongoDB`).
+
+    ### Free a port (3000 / 5001)
+
+    ```powershell
+    netstat -ano | findstr :3000
+    netstat -ano | findstr :5001
+    ```
+
+    Note the **PID** in the last column, then:
+
+    ```powershell
+    taskkill /PID <pid> /F
+    ```
+
+    ### Health check
+
+    ```powershell
+    curl http://localhost:5001/health
+    ```
+
+    Or in PowerShell:
+
+    ```powershell
+    Invoke-RestMethod http://localhost:5001/health
+    ```
+  </Tab>
+</Tabs>
+
+## Workspace layout
+
+**Meridian** and **Events-Backend** should be **sibling** directories under whatever parent folder you use (again: the parent is **not** a repo—only **Meridian** and **Events-Backend** are separate clones):
+
+```text
+workspace/
+  Meridian/
+  Events-Backend/
+```
+
+Optional: add **`Meridian-Mobile/`** as another sibling if you work on the Expo app; it is its own clone, not inside **Meridian**.
+
+## Environment variables
+
+Create both:
+
+- `Meridian/.env`
+- `Meridian/backend/.env`
+
+At minimum:
+
+```bash
+JWT_SECRET=replace-me
+MONGO_URI_RPI=mongodb://127.0.0.1:27017/meridian
+NODE_ENV=development
+```
+
+Use `MONGODB_URI` when the backend is configured to read that variable instead of `MONGO_URI_RPI`.
+
+## Run the app
+
+From `Meridian/`:
+
+```bash
+npm run dev
+```
+
+- **Frontend:** `http://localhost:3000`
+- **Backend:** `http://localhost:5001`
+
+### Run services separately
+
+**Backend (preserves `backend/events` links):**
+
+```bash
+npm run server
+```
+
+**Frontend only:**
+
+```bash
+npm run client
+```
+
+## Verify
+
+1. Open `http://localhost:3000`
+2. Hit the backend health endpoint (see macOS vs Windows tabs above for `curl` vs PowerShell).
+
+## Development workflow
+
+<AccordionGroup>
+  <Accordion title="Making changes" icon="code">
+    - Frontend hot-reloads via the webpack dev server
+    - Backend runs under nodemon when using `npm run dev`
+  </Accordion>
+
+  <Accordion title="Testing" icon="flask">
+    From `Meridian/`:
+
+    ```bash
+    npm run test:backend
+    npm run test:frontend
+    npm run test:ci
+    ```
+
+    See **[Testing](/testing)** for suites, folders, and CI.
+  </Accordion>
+
+  <Accordion title="Meridian CLI branch flow" icon="shuffle">
+    ```bash
+    meridian start MER-123-Your-Feature
+    meridian status
+    meridian ship
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Development" icon="wrench" href="/development">
+    Day-to-day workflow, debugging, and troubleshooting after the stack is up.
+  </Card>
+  <Card title="Web client best practices" icon="code" href="/frontend/best-practices">
+    React conventions, routing, state, and `useFetch` / `postRequest` API access.
+  </Card>
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    `req.db`, routes, auth middleware, and multi-tenant patterns in `Meridian/backend`.
+  </Card>
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    Login methods, JWT cookies vs mobile tokens, and links to SAML and sessions.
+  </Card>
+  <Card title="Multi-tenant identity" icon="users" href="/backend/multi-tenant-identity">
+    Global users, memberships, and SSO across school subdomains.
+  </Card>
+  <Card title="SAML" icon="key" href="/backend/auth/SAML">
+    University IdP integration when a tenant enables institutional SSO.
+  </Card>
+  <Card title="Testing" icon="flask" href="/testing">
+    `npm run test:*`, folder layout, and CI parity.
+  </Card>
+  <Card title="API reference" icon="book" href="/api-reference/introduction">
+    REST surfaces and how the web and mobile clients call them.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Module not found after clone / setup">
+    From `Meridian/`:
+
+    ```bash
+    npm run setup
+    ```
+  </Accordion>
+
+  <Accordion title="Database connection issues">
+    <Tabs>
+      <Tab title="macOS">
+        ```bash
+        brew services start mongodb-community
+        ```
+      </Tab>
+      <Tab title="Windows">
+        Start the MongoDB Windows service (name varies by installer), or run `net start <MongoDBServiceName>` from an elevated prompt if you use a service install.
+      </Tab>
+    </Tabs>
+  </Accordion>
+</AccordionGroup>
+
+Need more detail on the CLI? See [Meridian CLI](/meridian-cli). For general workflow help, see the [Development guide](/development).

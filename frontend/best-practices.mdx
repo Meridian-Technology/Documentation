@@ -1,0 +1,141 @@
+---
+title: 'Web client best practices'
+description: 'Platform-level conventions for Meridian/frontend — API access via useFetch and postRequest, not direct axios'
+---
+
+<Info>
+  **Audience**: Anyone working in **`Meridian/frontend/`** across Compass, Atlas, Beacon, and admin surfaces. This is **platform web client** guidance, not Compass-specific UI.
+</Info>
+
+## Stack and layout
+
+- **App**: Ejected Create React App + **webpack 5**, **React**, **SASS/SCSS**, **Tailwind** where used.
+- **Entry**: `src/App.js`, routes and providers composed there and in nested layout components.
+- **Proxy**: Local dev proxies API calls to `http://localhost:5001/` (`package.json` `proxy`). Prefer **relative** URLs (for example `/api/...` or `/org-management/...`) so the dev proxy and cookies behave consistently.
+
+## Backend interaction: do not use axios directly
+
+Feature code should **not** call `import axios from 'axios'` and hit endpoints ad hoc. Central helpers already enforce **`withCredentials: true`**, **401 handling**, **`/refresh-token` retry**, and consistent error shapes.
+
+Use these instead:
+
+| Need | Use | Module |
+|------|-----|--------|
+| **GET (and similar) data for UI** with loading/error lifecycle | **`useFetch(url, options)`** | `src/hooks/useFetch.js` |
+| **POST / PUT / PATCH / DELETE** (mutations, forms, actions) | **`postRequest`** (default export; often imported as `apiRequest` or `postRequest`) | `src/utils/postRequest.js` |
+| **One-off authenticated request** (imperative, not a hook) | **`authenticatedRequest(url, options)`** | `src/hooks/useFetch.js` |
+
+Axios remains an **implementation detail inside** those modules only.
+
+### `useFetch` — reads and reactive refetch
+
+- **Signature**: `useFetch(url, options)` where `options` can include `method`, `data`, `headers`, `params` (see `useFetch.js`).
+- **Skip fetching**: pass **`url` as `null` or `undefined`** until you have an id (conditional requests).
+- **`params` stability**: `options.params` is part of the hook’s memo dependencies. **Do not pass a fresh inline object every render** (for example `useFetch('/x', { params: { a: 1 } })` recreated each render) or you can trigger a **refetch loop**. Stabilize with `useMemo` when params are objects (see comment in `NewDomain.jsx` in-repo).
+- **Returns**: `{ data, loading, error, refetch }`. Call **`refetch()`** after a successful mutation to align UI with the server.
+- **401 / refresh**: handled inside the hook (refresh then retry; hard redirect to `/login` only when refresh failure indicates invalid refresh token).
+
+Example shape:
+
+```javascript
+import { useFetch } from '../../hooks/useFetch';
+
+const { data, loading, error, refetch } = useFetch('/org-management/config');
+```
+
+### `postRequest` (`src/utils/postRequest.js`) — mutations
+
+- **Default export** is the function (file comment names it `apiRequest`; many call sites import it as `postRequest` or `apiRequest`).
+- **Signature**: `postRequest(url, body, options)` — `body` is the JSON payload (or `FormData`); **`options.method`** defaults to **`POST`** but set **`PUT`**, **`PATCH`**, **`DELETE`** as needed.
+- **Cookies**: `withCredentials: true` is set for you.
+- **401 / refresh**: same pattern as `useFetch` — attempts `/refresh-token`, retries once; **FormData** is rebuilt on retry so the body is not consumed empty.
+- **Return value**: on HTTP success, returns **`response.data`** (the server JSON). On failure, returns **`{ error, code }`** objects rather than throwing — **check the shape** in the caller (`if (result.error) …`).
+
+Example:
+
+```javascript
+import postRequest from '../../utils/postRequest';
+
+const res = await postRequest('/api/stakeholder-role', payload);
+if (res?.error) {
+  // handle res.error, res.code
+  return;
+}
+// use res as success payload
+```
+
+For **`PUT`** with no body, call sites sometimes pass **`null`** as body and set `{ method: 'PUT' }` in options — follow existing patterns in the same feature area.
+
+### `authenticatedRequest` — imperative GET-style or custom calls
+
+Exported from **`useFetch.js`**. Use when you need the same auth/refresh behavior **outside** of `useEffect`-driven fetch (for example a one-off `GET` inside a callback). It returns **`{ data }`** or **`{ error, code }`**, not thrown errors for the refresh path.
+
+### Why this matters
+
+- **One place** to adjust refresh behavior, logging, or error mapping.
+- **Tests** can target `postRequest` / `useFetch` contracts (see **[Testing](/testing)**).
+- Avoids subtle bugs from **`withCredentials: false`**, missing retries, or duplicate `/refresh-token` logic.
+
+## State and context
+
+- Use **Context** for cross-cutting concerns already modeled (`AuthContext`, `WebSocketContext`, `NotificationContext`, etc.). Avoid new global context for data that is local to one route.
+- Prefer **colocated state** (`useState` / `useReducer`) for UI-only concerns (modals, filters).
+
+## Routing and URLs
+
+- Use **`react-router-dom`** consistently with the rest of the app. Use **lazy loading** for heavy, rare routes when appropriate.
+- Prefer **bookmarkable URLs** for primary workflows when product expects refresh-safe pages.
+
+## Components and styling
+
+- **Colocate** `ComponentName.jsx` with `ComponentName.scss` when adding UI.
+- Prefer **composition** and shared pieces under `src/components/` before duplicating.
+- Match existing **SCSS** conventions (variables, nesting) in neighboring files.
+
+## Performance and bundles
+
+- Avoid pulling **large dependencies** into widely imported modules; use **dynamic import** for heavy admin or rare flows when it fits routing.
+
+## Accessibility and UX
+
+- Interactive controls should be **keyboard reachable** and labeled where the app expects it.
+- Surface **loading and errors** explicitly.
+
+## Linting and environment
+
+```bash
+cd Meridian/frontend && NODE_ENV=development npx eslint src/
+```
+
+## Testing
+
+- Tests under `src/**/__tests__/`; see **[Testing](/testing)** for `npm run test:frontend` and CI parity.
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    How `req.db`, JWT middleware, and response shapes pair with `useFetch` / `postRequest`.
+  </Card>
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    Cookies vs Bearer tokens and what the web client must send on each request.
+  </Card>
+  <Card title="API reference" icon="book" href="/api-reference/introduction">
+    HTTP API scope and auth expectations for Meridian clients.
+  </Card>
+  <Card title="Compass frontend" icon="compass" href="/compass/frontend">
+    Compass-oriented UI entrypoints and integration notes.
+  </Card>
+  <Card title="Atlas frontend" icon="users" href="/atlas/frontend">
+    Org and event UI routes in the Meridian web app.
+  </Card>
+  <Card title="Testing" icon="flask" href="/testing">
+    Frontend test layout, Jest, and CI parity with `npm run test:frontend`.
+  </Card>
+  <Card title="Development" icon="wrench" href="/development">
+    Local workflow, debugging, and troubleshooting.
+  </Card>
+  <Card title="Getting started" icon="rocket" href="/getting-started">
+    Environment setup before running the web app and tests.
+  </Card>
+</CardGroup>

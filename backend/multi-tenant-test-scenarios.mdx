@@ -1,0 +1,175 @@
+---
+title: 'Multi-Tenant Test Scenarios'
+description: 'Exhaustive checklist of scenarios and edge cases to validate multi-tenant behavior before deployment'
+---
+
+<Info>
+  **Audience**: QA, developers, and operators validating the multi-tenant identity system. Use this checklist before deploying to staging or production. Staging behavior may differ (e.g. different domains, CORS, SAML config).
+</Info>
+
+## Overview
+
+This document provides an exhaustive list of scenarios and edge cases to test for the multi-tenant setup. It complements the [Multi-Tenant Identity & SSO](/backend/multi-tenant-identity) architecture guide.
+
+---
+
+## 1. Domain Selection & lastTenant Persistence
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| 1.1 | First-time domain selection | Visit www → click "Go to Meridian" → select RPI | Redirect to rpi.meridian.study/events-dashboard; `lastTenant` = rpi |
+| 1.2 | Auto-redirect with lastTenant | Visit www with `lastTenant` = rpi in localStorage | Immediate redirect to rpi.meridian.study (same path) |
+| 1.3 | lastTenant with path preservation | Visit www/events-dashboard with `lastTenant` = rpi | Redirect to rpi.meridian.study/events-dashboard |
+| 1.4 | lastTenant with query string | Visit www/login?invite=xyz with `lastTenant` = tvcog | Redirect to tvcog.meridian.study/login?invite=xyz |
+| 1.5 | Invalid/stale lastTenant | Set `lastTenant` = "invalid" or removed tenant | No auto-redirect; show select-school or landing |
+| 1.6 | Switch tenant, then return to www | RPI → visit www → select TVCOG → later visit www | Auto-redirect to tvcog (lastTenant updated) |
+
+---
+
+## 2. Login & Registration
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| 2.1 | Register on tenant A | Visit rpi → register with email | Account in RPI DB; can log in on RPI |
+| 2.2 | Login on tenant A | Visit rpi → login with credentials | Access RPI app |
+| 2.3 | Same email, different tenant (new tenant) | Logged in on RPI → log out → visit tvcog → login with same email | Create new tenant user on TVCOG or join-tenant flow |
+| 2.4 | Same email, different tenant (SSO) | Logged in on RPI (SAML/OAuth) → visit tvcog → login with same IdP | SSO; same global user, new tenant membership |
+| 2.5 | Login via www flow | Visit www → "Sign in" → select-school → pick RPI → login | Land on rpi/login and complete login |
+| 2.6 | Register via www flow | Visit www → "Create account" → select-school → pick RPI → register | Land on rpi/register and complete registration |
+
+---
+
+## 3. Logout & Cross-Tenant Auth
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| 3.1 | Logout on tenant A, login on tenant B (same credentials) | RPI logged in → logout → tvcog → login same email | Login succeeds; TVCOG session independent |
+| 3.2 | Logout on tenant A, login on tenant B (same OAuth) | RPI logged in via Google → logout → tvcog → login with Google | OAuth; may auto-join TVCOG if global user exists |
+| 3.3 | Logout on tenant A, return to www | RPI logged in → logout → visit www | See landing or select-school; no tenant session |
+| 3.4 | Logout, switch domain, login (same account) | RPI logged in → logout → select-school → pick TVCOG → login same email | TVCOG login works; no RPI session |
+
+---
+
+## 4. Session & Token Behavior
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| 4.1 | Token on wrong tenant | Copy rpi session cookie → use on tvcog | Rejected or treated as unauthenticated |
+| 4.2 | Expired token on tenant | RPI session expires → navigate | Refresh or redirect to login |
+| 4.3 | Global user, no tenant membership | Global user exists, visit tenant where they have no membership | Join-tenant or "no access" flow |
+| 4.4 | Multiple sessions across tenants | RPI logged in → open tvcog in new tab → login | Both sessions valid; global user, two tenant memberships |
+
+---
+
+## 5. www vs Tenant Subdomain
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| 5.1 | Root on tenant subdomain | Visit rpi.meridian.study/ | Redirect to rpi.meridian.study/events-dashboard |
+| 5.2 | Root on www | Visit www.meridian.study/ | Landing (or auto-redirect if lastTenant set) |
+| 5.3 | Tenant path on www | Visit www.meridian.study/events-dashboard (no lastTenant) | Redirect to select-school?next=/events-dashboard |
+| 5.4 | Tenant path on www (with lastTenant) | Visit www.meridian.study/events-dashboard with lastTenant | Auto-redirect to tenant/events-dashboard |
+| 5.5 | Landing on tenant | Visit rpi.meridian.study/landing | Landing page (if route exists) or 404 |
+
+---
+
+## 6. Landing & Public Pages
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| 6.1 | Landing analytics on www | Visit www → use landing | Analytics to platform DB (not tenant) |
+| 6.2 | Android tester signup on www | Visit www/mobile → join Android beta | Signup stored in platform DB |
+| 6.3 | Log-visit on www | First visit to www | Visit logged in platform DB |
+| 6.4 | "Get started" from landing | www → "Get started" | select-school or tenant redirect |
+
+---
+
+## 7. Tenant Selector (Login/Register)
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| 7.1 | Change tenant from login | On rpi/login → "Change" | Go to select-school?next=/login; after pick, back to login |
+| 7.2 | Change tenant from register | On tvcog/register → "Change" | Go to select-school?next=/register; after pick, back to register |
+| 7.3 | Tenant banner visibility | On rpi/login | Banner shows institution name and "Change" |
+| 7.4 | Tenant banner on www | On www (if login/register reachable) | Banner hidden (no tenant) |
+
+---
+
+## 8. Staging-Specific
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| 8.1 | Staging domain vs production | Use staging host (e.g. staging.meridian.study or different subdomains) | Tenant resolution works for staging hosts |
+| 8.2 | localhost + devTenantOverride | Set devTenantOverride = rpi → visit localhost | Behaves like rpi; X-Tenant sent |
+| 8.3 | localhost without override | Visit localhost (no devTenantOverride) | Treated as www; select-school or landing |
+| 8.4 | localhost lastTenant auto-redirect | localhost + lastTenant = rpi | Redirect; devTenantOverride set; reload with tenant context |
+| 8.5 | Cookie domain on staging | Login on staging tenant subdomain | Cookies scoped so auth works on staging |
+| 8.6 | CORS on staging | API calls from staging frontend | CORS allows staging origin |
+| 8.7 | SAML on staging | SSO on staging tenant | IdP configured for staging callback URL |
+
+---
+
+## 9. Edge Cases & Errors
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| 9.1 | Direct tenant URL, no session | Visit rpi.meridian.study/events-dashboard (logged out) | Login or public view, no crash |
+| 9.2 | Select-school with ?next= | Visit select-school?next=/event/123 | After pick, redirect to tenant/event/123 |
+| 9.3 | Removed tenant in lastTenant | lastTenant = "oldtenant" (no longer valid) | No redirect; fall back to select-school or landing |
+| 9.4 | localStorage disabled | Disable localStorage | Graceful fallback; no lastTenant; select-school when needed |
+| 9.5 | AuthContext redirect loop | Logged in on www, path not allowed | Redirect to tenant or select-school, no infinite loop |
+| 9.6 | Platform admin cross-tenant | Platform admin on tenant A | Can access tenant A; verify no cross-tenant data leak |
+
+---
+
+## 10. SAML / SSO (if applicable)
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| 10.1 | SAML login on tenant | rpi → "Sign in with SSO" | SAML flow; callback to rpi; tenant user created/linked |
+| 10.2 | SAML same user, new tenant | RPI via SAML → tvcog → SAML same IdP | Global user; new tenant membership |
+| 10.3 | SAML wrong tenant in assertion | Misconfigured SAML (wrong tenant in response) | Rejected or corrected by provider config |
+
+---
+
+## Quick Reference: Staging Checklist
+
+Use this as a quick pass/fail checklist before deployment:
+
+```
+□ 1.1–1.6  Domain selection & lastTenant
+□ 2.1–2.6  Login & registration
+□ 3.1–3.4  Logout & cross-tenant
+□ 4.1–4.4  Session & token
+□ 5.1–5.5  www vs tenant
+□ 6.1–6.4  Landing & public
+□ 7.1–7.4  Tenant selector
+□ 8.1–8.7  Staging-specific
+□ 9.1–9.6  Edge cases
+□ 10.1–10.3 SAML (if applicable)
+```
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Multi-tenant identity & SSO" icon="users" href="/backend/multi-tenant-identity">
+    Architecture this checklist validates: global users, memberships, cookies.
+  </Card>
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    Login methods and token behavior referenced in login and session scenarios.
+  </Card>
+  <Card title="Session management" icon="rotate" href="/backend/auth/sessions">
+    Refresh, revocation, and multi-device rules to exercise while testing.
+  </Card>
+  <Card title="SAML" icon="key" href="/backend/auth/SAML">
+    IdP configuration and SAML-specific expectations for section 10.
+  </Card>
+  <Card title="Testing" icon="flask" href="/testing">
+    Automated route tests and CI commands that complement manual staging passes.
+  </Card>
+  <Card title="Deployment" icon="cloud" href="/deployment">
+    Staging vs production domains, TLS, and cookie behavior called out in section 8.
+  </Card>
+</CardGroup>

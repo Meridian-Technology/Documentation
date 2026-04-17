@@ -1,0 +1,40 @@
+---
+title: "Finance budgets (Phase 2)"
+description: "Tenant budget templates, org budgets, multi-stage review, and Atlas finance queue"
+---
+
+## Overview
+
+Phase 2 of [CMS parity modernization](/atlas/cms-parity-modernization) adds **organization budgets** inside each tenant:
+
+- **Templates** define line items (currency, number, or text) and which **workflow preset** applies.
+- **Workflow presets** are a **linear** list of stages: `org_permission` (officers with `manage_finances`) then `platform_admin` (campus staff in Atlas).
+- Each **org budget** stores line values, status, embedded workflow progress, **revision snapshots** on submit / revision requests, and **comments**.
+
+## Data model
+
+See [Atlas data model](/atlas/data-model): `FinanceConfig` (`financeConfigs`) and `OrgBudget` (`orgBudgets`).
+
+## Admin UI (Atlas)
+
+- **Settings → Budget templates**: edit `budgetTemplates` and `workflowPresets` as JSON (validated on save).
+- **Budgets** (top-level nav): cross-org list; **Approve / Request revision / Reject** when the current stage is `platform_admin`. CSV export link per row.
+
+## Club dashboard UI
+
+**Settings → Budgets**: create drafts from a template, edit line items, **Submit for review**, run **officer-stage** actions when the budget is `in_review` and the current stage is `org_permission`. Download CSV or JSON exports.
+
+## Permissions
+
+- **`view_finances`**: list/read budgets and export.
+- **`manage_finances`**: create, edit, submit, comment, and complete **org-side** approval stages.
+
+Assign these on `Org.positions[]` for treasurer/officer roles as needed. Owners already have `all`.
+
+## API summary
+
+Full paths and auth are documented under [Atlas backend](/atlas/backend#finance-cms-phase-2) (`/org-budgets` and `/org-management/finance/...`).
+
+## Default template
+
+On first access, the backend seeds a default `annual_club` template and a **two-stage** preset: officer review → finance office (platform admin).

@@ -1,0 +1,131 @@
+---
+title: 'Authentication overview'
+description: 'How Meridian signs users in: credentials, Google and Apple OAuth, JWTs, cookies vs mobile tokens, and how this relates to SAML and multi-tenant identity.'
+---
+
+## What this covers
+
+Meridian’s **first-party auth** uses **JWT access tokens** plus **refresh tokens** backed by **session records** (when global identity is enabled). Users can sign in with **email and password**, **Google**, or **Apple**. **SAML** is a separate, school-configured path that still ends in the same global user + token model when multi-tenant identity is on.
+
+For deep dives, use the pages below; for **architecture of global users, memberships, and SSO across subdomains**, see [Multi-tenant identity & SSO](/backend/multi-tenant-identity).
+
+<CardGroup cols={2}>
+  <Card title="Multi-tenant identity & SSO" icon="users" href="/backend/multi-tenant-identity">
+    Global users, tenant memberships, platform roles, and cookie domain SSO.
+  </Card>
+  <Card title="SAML (university SSO)" icon="key" href="/backend/auth/SAML">
+    Per-school IdP config, callbacks, and coexistence with Google, Apple, and password login.
+  </Card>
+  <Card title="Sessions & refresh" icon="rotate" href="/backend/auth/sessions">
+    Multi-device sessions, revoke flows, and how refresh ties to the global session store.
+  </Card>
+</CardGroup>
+
+---
+
+## Supported sign-in methods
+
+| Method | Typical use | Backend entry points |
+|--------|-------------|----------------------|
+| **Email + password** | Register and log in on the tenant (or `www` with `school` in the body) | `POST /register`, `POST /login` in `Meridian/backend/routes/authRoutes.js` |
+| **Google** | Web (auth code + PKCE), mobile / native (authorization code or **ID token**) | `POST /google-login`; token exchange and profile resolution in `Meridian/backend/services/userServices.js` (`authenticateWithGoogle`, `authenticateWithGoogleIdToken`) |
+| **Apple** | Mobile sends **ID token**; web can use **Sign in with Apple** callback | `POST /apple-login`, `POST /auth/apple/callback`; `authenticateWithApple` in `userServices.js` |
+| **SAML** | Institution SSO per school | `Meridian/backend/routes/samlRoutes.js` and [SAML](/backend/auth/SAML) |
+
+There is no generic “bring your own OAuth2 provider” plugin in core auth today: **Google** and **Apple** are the built-in OAuth-style providers, alongside **password** and **SAML**.
+
+---
+
+## Tenant context (`req.school`)
+
+Auth routes resolve **which MongoDB tenant** to use from the **host** (subdomain), same as the rest of the API. On the **`www`** host, registration and social login **require a `school` field** in the JSON body so the backend can attach `req.school` and `req.db` to the correct tenant before creating or looking up users.
+
+---
+
+## After a successful sign-in: global user, membership, tokens
+
+When multi-tenant identity is in use (see [Multi-tenant identity & SSO](/backend/multi-tenant-identity)):
+
+1. **`GlobalUser`** is loaded or created from the tenant user / OAuth profile (`Meridian/backend/services/authGlobalService.js` — `getOrCreateGlobalUser`).
+2. **`TenantMembership`** links that global identity to the current school and tenant `User` (`getOrCreateTenantMembership`).
+3. **Platform roles** (e.g. platform admin) are read from the global DB (`getPlatformRolesForGlobalUser`).
+4. **Tokens** are issued via `issueTokens`: JWT **access** and **refresh**, with the refresh tied to a **global session** row for SSO-friendly refresh across subdomains.
+
+**Admin accounts** with MFA configured may stop at a **pending MFA** step (`completeLoginWithAdminMfa` in `authRoutes.js`): the API returns `requiresMfa` and sets a short-lived pending cookie (or `mfaToken` for mobile) until TOTP or passkey verification completes.
+
+---
+
+## Tokens and how clients send them
+
+### Access token
+
+- Signed with **`JWT_SECRET`**.
+- Payload includes **`globalUserId`**, tenant **`roles`**, optional **`tenantUserId`**, **`platformRoles`**, and MFA flags when applicable.
+- **`Meridian/backend/middlewares/verifyToken.js`** accepts the token from:
+  - **`accessToken` HTTP-only cookie** (browser), or
+  - **`Authorization: Bearer <token>`** (API / mobile).
+
+Expired access tokens return **`TOKEN_EXPIRED`**; clients should call **`POST /refresh-token`** (or re-login).
+
+### Refresh token and session
+
+- Signed with **`JWT_REFRESH_SECRET`** if set, otherwise **`JWT_SECRET`** (see `issueTokens` in `authGlobalService.js`).
+- **Web**: stored in **`refreshToken` HTTP-only cookie**; **`POST /refresh-token`** and **`POST /logout`** read it from cookies.
+- **Mobile**: send **`X-Client: mobile`** and pass the refresh token via **`Authorization: Bearer …`** or **`X-Refresh-Token`** (see `authRoutes.js` refresh and logout handlers). Successful login responses can return **`accessToken`** and **`refreshToken`** in JSON for mobile.
+
+Default lifetimes are driven by **`ACCESS_TOKEN_EXPIRY`** / **`REFRESH_TOKEN_EXPIRY`** in `authGlobalService.js` (typically **15 minutes** access, **30 days** refresh unless overridden by env). Exact session fields and endpoints are documented under [Session management](/backend/auth/sessions).
+
+---
+
+## Related HTTP endpoints (non-exhaustive)
+
+All are mounted under the same auth prefix as the rest of your deployment (commonly `/api/...` — confirm in `app.js`).
+
+| Area | Examples |
+|------|----------|
+| Core auth | `POST /login`, `POST /register`, `POST /refresh-token`, `POST /logout`, `GET /validate-token` |
+| OAuth | `POST /google-login`, `POST /apple-login`, `POST /auth/apple/callback` |
+| Password recovery | `POST /forgot-password`, `POST /verify-code`, `POST /reset-password` |
+| Email verification | `POST /verify-email` |
+| Join another tenant while logged in | `POST /join-tenant` (requires valid access token) |
+| Admin MFA | `GET /mfa/admin/status`, TOTP and passkey setup/verify routes under `/mfa/...` in `authRoutes.js` |
+| Session UI | `GET /sessions`, `DELETE /sessions/:sessionId`, `POST /sessions/revoke-all-others` |
+
+OpenAPI or route lists in the repo remain the source of truth for full request/response shapes.
+
+---
+
+## Environment variables (first-party auth)
+
+Operators typically configure at least:
+
+- **`JWT_SECRET`** (and optionally **`JWT_REFRESH_SECRET`**)
+- **`GOOGLE_CLIENT_ID`**, **`GOOGLE_CLIENT_SECRET`** (web/Android; iOS native Google clients use PKCE without the secret — see `authenticateWithGoogle` in `userServices.js`)
+- Apple Sign In: keys and service configuration as required by `authenticateWithApple` (see backend code and Apple’s docs)
+
+SAML uses per-school DB configuration rather than a single global OAuth env block; see [SAML](/backend/auth/SAML).
+
+---
+
+## How SAML fits in
+
+SAML login is implemented in **`samlRoutes.js`**, not in the generic OAuth routes above. Once the IdP callback is processed, user provisioning and **global user / membership** alignment follow the same multi-tenant patterns as other methods where that stack is enabled. Details: [SAML authentication](/backend/auth/SAML).
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    `req.db`, `req.globalDb`, route layout, and how `verifyToken` resolves the tenant user.
+  </Card>
+  <Card title="Testing" icon="flask" href="/testing">
+    Backend route tests, multi-tenant scenarios, and CI coverage for auth-sensitive paths.
+  </Card>
+  <Card title="Multi-tenant test scenarios" icon="list" href="/backend/multi-tenant-test-scenarios">
+    Isolation checks and route-outcome patterns when identity spans tenants.
+  </Card>
+  <Card title="API reference" icon="book" href="/api-reference/introduction">
+    How clients call Meridian HTTP APIs with cookies or Bearer tokens.
+  </Card>
+</CardGroup>

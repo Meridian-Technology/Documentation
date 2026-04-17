@@ -1,0 +1,188 @@
+---
+title: "Accruent EMS Parity (Outcome Lens)"
+description: "How Meridian can match the operational outcomes of Accruent EMS without copying its product shape"
+---
+
+## Goal
+
+Meridian should deliver the outcomes universities most commonly expect from EMS: coordinated scheduling, governed events, resource accountability, and operational visibility across student affairs and campus partners. This is **not** a feature-for-feature chase and **not** a pursuit of EMS's full commercial office/IWMS footprint. EMS is a broad, sales-led scheduling suite; Meridian is a **domain- and stakeholder-aware campus platform**. Parity means **coverage of institutional intent**, expressed through Meridian’s composable services, policy model, and UX principles.
+
+## How to Read Vendor Capability (grain of salt)
+
+Accruent’s public positioning emphasizes breadth: **desk and room booking, classroom and exam scheduling, conference/event logistics, digital signage and kiosks, 100+ reports and a query builder, integrations (calendars, VC, HVAC/AV, signage), mobile (e.g. Direct Spaces), and invoicing/payment flows tied to bookings.** That breadth is a real strength for institutions that want **one scheduling spine** and are willing to absorb **implementation cost, module licensing, and enterprise UI complexity**.
+
+Treat marketing claims as **directional**: demos highlight happy paths; depth varies by module, contract, and campus integration maturity. For higher-ed use, one common weakness is that EMS can feel **too broad and not specific enough** to complex campus event lifecycles. In practice, institutions often add local process overlays to compensate. Meridian should **learn from the institutional problems EMS solves**, not from its information architecture or screen inventory.
+
+## Meridian Product Principles (vs. EMS-style suites)
+
+1. **Outcomes over modules**  
+   Deliver “conflict-safe booking” or “auditable event lifecycle,” not “EMS Room Module parity.”
+
+2. **Policy and tenant config first**  
+   Who may book what, which approvals apply, and which resources exist must be **data-driven**, not hardcoded like a single-campus EMS deployment.
+
+3. **Composable platform**  
+   Events, orgs, forms, tasks, notifications, analytics, and (where needed) external calendars or room systems should **integrate** rather than collapse into one monolithic scheduler.
+
+4. **Progressive depth**  
+   Small tenants: simple locations and RSVPs. Large tenants: resource libraries, utilization views, and bridge integrations—**opt in**.
+
+5. **Human-centered UX**  
+   Prefer clear flows for hosts, attendees, and admins over dense admin trees and legacy report catalogs.
+
+## Where EMS Is Genuinely Strong (and What That Means for Meridian)
+
+| EMS strength (typical) | Outcome institutions want | Meridian angle |
+|------------------------|---------------------------|----------------|
+| **Unified scheduling** across desks, rooms, events, exams | One place to resolve conflicts and communicate availability | Meridian needs a clear **resource and time model** (even if rooms start as “locations” or synced external IDs), not necessarily EMS’s UI. |
+| **Deep integrations** (calendars, VC, building systems, signage) | Rooms “ready,” hybrid links, and digital surfaces stay accurate | Meridian should expose **webhooks, ICS/calendar feeds, and integration adapters**; native HVAC control is usually **partner scope**. |
+| **Operational reporting at scale** | Finance and facilities can answer utilization, billing, and compliance questions | Meridian should invest in **exportable metrics, saved views, and API-first analytics**—not necessarily 100 canned PDFs on day one. |
+| **Conference / camp logistics** | Registration, payments, catering, badging, check-in | Meridian already trends **host- and org-centric events + forms + registration**; gaps are **payments/settlement**, **badging/print**, and **service orders**—often best as **integrations or phased builds**. |
+| **Exam and class scheduling** | Academic timetabling and room optimization | This is a **specialized domain**; equality of outcome may mean **SIS/EMS integration** or a **dedicated scheduling product**, not rebuilding FET in Meridian core. |
+| **Mobile + kiosks** | Book and check in from the field | Meridian should stay **mobile-first web** and **API-ready** for kiosk/signage partners; native “EMS clone” apps are optional. |
+
+## Meridian Today (representative capabilities and current gap)
+
+These are **illustrative**, not exhaustive—they show where Meridian already carries EMS-overlapping *intent*:
+
+- **Domain/stakeholder model**: Meridian has a stronger conceptual model for campus operations than generic schedulers. Roles and ownership map to real actors (org leaders, reviewers, admins), and policy can be embedded into event flow.
+- **Policy-engine integration (strategic differentiator)**: Event governance and permissions are designed to be configurable and deeply coupled to event workflows, instead of handled as external afterthoughts.
+- **Events**: Org- and user-hosted events, drafts, visibility, collaborator orgs, templates, agendas, jobs/assignments, RSVP/registration patterns, policy gates (e.g. Atlas) for creation.
+- **Space awareness (currently light)**: Location fields, classroom linkage where configured, and study-session style conflict checks against room/time.
+- **Engagement layer**: Tasks hub, announcements, messaging, org dashboards—usually **thin or missing in EMS**, which is scheduling-first.
+- **Governance and finance (Atlas track)**: Org lifecycle, permissions, budgets/workflow—**adjacent** to EMS’s “billable booking” story but centered on **student org operations** rather than facilities revenue.
+
+### Critical parity blocker to port from EMS
+
+The current module implementation is incomplete as a true source of truth because events are not yet backed by a robust, shared **resource model**. This is the core parity gap:
+
+- No canonical inventory of bookable resources (rooms, zones, equipment, service dependencies) with policy-governed constraints.
+- No single conflict and allocation engine reused across all scheduling entry points.
+- No durable utilization baseline that powers operations reporting without custom reconciliation.
+
+Porting this **resource source-of-truth layer** is higher priority than adding more isolated scheduling screens.
+
+## Capability Decisions (Outcome Parity)
+
+### Bring Over as Meridian-Native Outcomes
+
+#### 1) Resource-aware scheduling and conflict prevention (top priority)
+
+**EMS outcome:** Double-booking is caught; stakeholders see one truth for “what is when and where.”
+
+**Meridian direction:**  
+- First-class **bookable resources** (rooms, zones, equipment, service bundles) with optional **capacity, eligibility, setup/teardown, and blackout** rules.  
+- A single **allocation and conflict engine** reused by events, study sessions, and future scheduling modules.  
+- Optional **sync** from an external room master (EMS, 25Live, Google Resource calendars, etc.) when the tenant already has a system of record.  
+- Policy-aware reservations: approvals, holds, and overrides governed by the same stakeholder/policy system used in event workflows.
+
+#### 2) Event lifecycle transparency
+
+**EMS outcome:** Planners and facilities see changes, statuses, and history.
+
+**Meridian direction:**  
+- **Audit trails and notifications** on key transitions (submitted, approved, changed, canceled).  
+- **Task and checklist** patterns tied to events (Meridian’s strength) instead of EMS-style ticket grids where possible.
+
+#### 3) Registration, forms, and attendee accountability
+
+**EMS outcome:** Controlled entry, waitlists, and data for reporting.
+
+**Meridian direction:**  
+- **Configurable registration** (forms, caps, deadlines) as the default path.  
+- **Check-in** flows that work on mobile web; partner or phase **badge printing** if required.
+
+#### 4) Self-service discovery and calendaring
+
+**EMS outcome:** Community finds space and events with confidence.
+
+**Meridian direction:**  
+- Strong **public and campus calendars**, **search**, and **subscription/export (ICS)**.  
+- Deep **Outlook/Google** parity is integration work, not a Meridian page clone.
+
+### Rework (Don’t Copy EMS Shape)
+
+#### 5) Reporting and “100+ reports”
+
+**EMS outcome:** Answers for operations and finance without ad-hoc SQL.
+
+**Meridian direction:**  
+- **Metric definitions** + **saved views** + **CSV/API export** + **tenant dashboards**.  
+- Avoid inheriting **opaque report IDs** and legacy report menus; prefer **explorable analytics** aligned with Meridian’s existing analytics stack.
+
+#### 6) Billing and internal chargebacks
+
+**EMS outcome:** Invoices and payment tracking tied to reservations.
+
+**Meridian direction:**  
+- If needed, **integrate** with finance systems or payment providers; model **chargeback metadata** on events/bookings.  
+- Full AR/invoicing is a **product decision**, not a prerequisite for student-life parity.
+
+### Often Best as Integration or Shared Service (not core duplication)
+
+#### 7) Building systems and digital signage
+
+**EMS outcome:** Room ready, lights/HVAC/signs aligned.
+
+**Meridian direction:**  
+- **Events and bookings exposed by API**; partners or campus middleware drive AV/HVAC/signage.  
+- Build native controls only where Meridian has clear ongoing ownership.
+
+#### 8) Exam scheduling and academic optimizer
+
+**EMS outcome:** Term-scale timetables with complex constraints.
+
+**Meridian direction:**  
+- **Integrate** with SIS/timetabling tools, or accept EMS/others as **authoritative** and surface **read-only truth** in Meridian where useful.
+
+### Meridian Advantages to Preserve (not sacrificed for EMS parity)
+
+- **Org identity, roles, and student governance** tied to events and finance.  
+- **Engagement**: messaging, tasks, and community surfaces around activities.  
+- **Multi-tenant, campus-configurable** semantics (types, policies, terminology).  
+- **Modern creation flows** for hosts (faster than classic EMS request wizards for many use cases).
+
+## Vendor Patterns to Avoid Importing
+
+- **Monolithic “one module does everything” navigation** that buries student-facing clarity.  
+- **Implementation-defined business rules** that can’t be reconfigured without professional services.  
+- **Report catalogs without explainability** (users don’t know which report answers which question).  
+- **Treating Meridian as a facilities billing system** unless the tenant explicitly opts into that scope.
+
+## Suggested Phasing (outcome-aligned)
+
+### Phase 1 — Resource source of truth (must-have)
+
+- Build the canonical **resource model** (spaces, equipment, service dependencies, constraints).  
+- Build shared **allocation/conflict services** and route all scheduling writes through them.  
+- Enforce policy-gated reservation states (draft, hold, requested, approved, released, canceled).  
+- Strengthen calendar/subscription and **change notifications** around allocation state.
+
+### Phase 2 — University operations depth
+
+- Admin views for utilization, exception handling, and allocation quality; exports; optional external room-master sync.  
+- Stronger registration + check-in for high-volume campus events.  
+- Stakeholder-specific operational views (student life, facilities liaison, risk/compliance, approvers).
+
+### Phase 3 — Ecosystem
+
+- Partner integrations (signage, payments, timetabling, EMS itself as read/write peer where needed).  
+- Optional **chargeback** metadata and finance handoff.
+
+### Phase 4 — Scale and refinement
+
+- Advanced analytics, anomaly detection, and **policy templates** by campus archetype.
+
+## Decision Framework (before building “EMS-like” features)
+
+1. **Outcome clarity** — What decision or risk does this remove for the institution?  
+2. **Tenant fit** — Does every customer need it, or only enterprise facilities?  
+3. **Meridian composability** — Can events, forms, tasks, notifications, or analytics absorb it?  
+4. **Integration alternative** — Is the outcome already owned by SIS, EMS, or IWMS?  
+5. **UX cost** — Does it simplify life for hosts and attendees, or only for a facilities power user?
+
+If the answer is “facilities-only, integration-ready, high UX cost,” **defer to integration** or a **thin adapter** first.
+
+## Summary
+
+Accruent EMS is **strong** where institutions need **enterprise scheduling, utilization reporting, and integration density**. Meridian should respect those outcomes—**single truth for time and place, governed events, accountable attendance, operational visibility**—while staying **host- and org-centric**, **policy-driven**, and **integration-friendly**. **Equality of outcome** means campuses can run disciplined programs without necessarily running **the same software shape** as EMS.
