@@ -18,6 +18,11 @@ All Atlas data is stored in MongoDB via Mongoose schemas and is model-bound per 
 | `OrgVerification` | `Meridian/backend/schemas/orgVerification.js` | `orgVerifications` |
 | `OrgManagementConfig` | `Meridian/backend/schemas/orgManagementConfig.js` | `orgManagementConfigs` |
 | `OrgMessage` | `Meridian/backend/schemas/orgMessage.js` | `orgMessages` |
+| `OrgMembershipAudit` | `Meridian/backend/schemas/orgMembershipAudit.js` | `orgMembershipAudits` |
+| `FinanceConfig` | `Meridian/backend/schemas/financeConfig.js` | `financeConfigs` |
+| `OrgBudget` | `Meridian/backend/schemas/orgBudget.js` | `orgBudgets` |
+
+`FinanceConfig` holds one document per tenant with `budgetTemplates[]` and `workflowPresets[]`. `OrgBudget` stores per-org budget drafts, line items, linear multi-stage workflow state, revisions, and comments.
 
 ### User linkage
 
@@ -82,6 +87,18 @@ positions: [{
 <Warning>
 **Invariant:** Role names are referenced by `OrgMember.role`. If you rename role names, you must migrate members.
 </Warning>
+
+### Operational lifecycle & governance (CMS Phase 1)
+
+Distinct from `verificationStatus` and new-org `approvalStatus`:
+
+- `lifecycleStatus` — string (defaults to `active`; allowed values and transitions come from `OrgManagementConfig.atlasPolicy.lifecycle`).
+- `orgTypeKey` — ties the org to an entry in `atlasPolicy.orgTypes` for required governance document keys.
+- `lifecycleChangedAt` / `lifecycleChangedBy` — audit fields when status changes.
+- `adminNotes` — staff notes (replaces non-persisted `status`/`notes` on older admin update handlers).
+- `governanceDocuments[]` — per-key versioned PDF metadata (`draft` | `approved` | `superseded`), with S3 URLs under `orgs/governance/`.
+
+Defaults and merge logic for `atlasPolicy` live in `Meridian/backend/services/atlasPolicyService.js` (including directory hiding for non-active orgs on `GET /get-orgs` when enabled, and blocking new org-hosted events from template creation when configured).
 
 ### Verification fields
 
@@ -163,15 +180,29 @@ File: `Meridian/backend/schemas/orgMember.js`
   joinedAt: Date,
   assignedAt: Date,
   assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  roleTermStart: Date,
+  roleTermEnd: Date,
   roleHistory: [{
     role: String,
-    changedAt: Date,
-    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    assignedAt: Date,
+    reason: String
+  }],
+  membershipHistory: [{
+    at: Date,
+    action: String,
+    fromStatus: String,
+    toStatus: String,
+    role: String,
+    actorUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    reason: String
   }],
   customPermissions: [String],  // Force-allow permissions
   deniedPermissions: [String]   // Force-deny permissions
 }
 ```
+
+Hard-deletes of `OrgMember` append a row to `OrgMembershipAudit` (`orgMembershipAudits`) for accountability.
 
 ### Indexes
 
@@ -273,6 +304,15 @@ This is a **singleton document** (read via `findOne()`).
     minCharacterLimit: Number,
     requireProfanityFilter: Boolean,
     notificationSettings: {...}
+  },
+  // Mixed; merged with code defaults in atlasPolicyService
+  atlasPolicy: {
+    lifecycle: { statuses: [...], transitions: [...], defaultStatus: String },
+    orgTypes: [{ key, displayName, requiredGovernanceKeys: [...] }],
+    defaultOrgTypeKey: String,
+    terminology: { constitution: String, ... },
+    directory: { hideNonActiveFromPublicList: Boolean, nonActiveStatuses: [...] },
+    events: { inactiveOrgBlocksEventCreation: Boolean, blockedLifecycleStatuses: [...] }
   }
 }
 ```

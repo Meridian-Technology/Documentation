@@ -8,10 +8,11 @@ description: "Endpoint map, auth/permission requirements, and request/response s
 Atlas endpoints are split across multiple Express routers:
 
 ```javascript
-// Meridian/backend/app.js
-app.use(orgRoutes);                                    // Mounted at /
+// Meridian/backend/app.js (excerpt)
+app.use(orgRoutes); // Mounted at /
 app.use('/org-roles', orgRoleRoutes);
 app.use('/org-management', orgManagementRoutes);
+app.use('/org-budgets', orgBudgetRoutes); // orgBudgetRoutes from routes/orgBudgetRoutes.js
 app.use('/org-messages', orgMessageRoutes);
 app.use('/org-event-management', orgEventManagementRoutes);
 ```
@@ -20,7 +21,8 @@ app.use('/org-event-management', orgEventManagementRoutes);
 |--------------|------|---------|
 | `/` | `orgRoutes.js` | General org CRUD operations |
 | `/org-roles` | `orgRoleRoutes.js` | Roles and membership management |
-| `/org-management` | `orgManagementRoutes.js` | Platform admin (config, verification, analytics) |
+| `/org-management` | `orgManagementRoutes.js` | Platform admin (config, verification, analytics, finance config & budget queue) |
+| `/org-budgets` | `orgBudgetRoutes.js` | Org-scoped budgets (templates metadata, CRUD, workflow actions, export) |
 | `/org-messages` | `orgMessageRoutes.js` | Org messaging and announcements |
 | `/org-event-management` | `orgEventManagementRoutes.js` | Org-scoped event management |
 
@@ -365,6 +367,32 @@ Authorization: Bearer <token>
   - server-side pagination + per-org computed `memberCount` and `recentEventCount`
 - `GET /org-management/organizations/export?format=json|csv`
 
+### Finance (CMS Phase 2)
+
+- `GET /org-management/finance/config` — `verifyToken` + `requireAdmin`; returns `budgetTemplates` and `workflowPresets`
+- `PUT /org-management/finance/config` — admin; replaces `budgetTemplates` / `workflowPresets` when sent in body
+- `GET /org-management/finance/budgets?status=&search=&page=&limit=` — admin; cross-org list with optional filters
+- `PUT /org-management/organizations/:orgId/budgets/:budgetId/stages/:stageKey/approve|reject|request-revision` — admin; **platform_admin** workflow stages only
+
+## `orgBudgetRoutes` (mounted at `/org-budgets`)
+
+File: `Meridian/backend/routes/orgBudgetRoutes.js`
+
+Business logic: `Meridian/backend/services/budgetService.js`.
+
+| Method | Path | Permission |
+|--------|------|------------|
+| GET | `/org-budgets/:orgId/budget-templates` | `view_finances` |
+| GET | `/org-budgets/:orgId/budgets` | `view_finances` |
+| GET | `/org-budgets/:orgId/budgets/:budgetId` | `view_finances` |
+| POST | `/org-budgets/:orgId/budgets` | `manage_finances` |
+| PATCH | `/org-budgets/:orgId/budgets/:budgetId` | `manage_finances` |
+| POST | `/org-budgets/:orgId/budgets/:budgetId/submit` | `manage_finances` |
+| POST | `/org-budgets/:orgId/budgets/:budgetId/comments` | `manage_finances` |
+| PUT | `/org-budgets/:orgId/budgets/:budgetId/stages/:stageKey/approve` | `manage_finances` (org_permission stages) |
+| PUT | `.../reject`, `.../request-revision` | `manage_finances` (org_permission stages) |
+| GET | `/org-budgets/:orgId/budgets/:budgetId/export?format=json|csv` | `view_finances` |
+
 ## `orgMessageRoutes` (mounted at `/org-messages`)
 
 File: `Meridian/backend/routes/orgMessageRoutes.js`
@@ -398,5 +426,30 @@ Endpoints:
 - `POST /org-event-management/:orgId/events/from-template/:templateId`
 
 See `/atlas/event-analytics` for details.
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Atlas architecture" icon="sitemap" href="/atlas/architecture">
+    How Atlas models, routes, and UIs connect beyond this route map.
+  </Card>
+  <Card title="Atlas permissions" icon="key" href="/atlas/permissions">
+    Org roles and middleware that gate the endpoints listed here.
+  </Card>
+  <Card title="Event management API" icon="calendar" href="/api-reference/event-management">
+    Narrative REST reference for org events, RSVPs, and agendas.
+  </Card>
+  <Card title="Event dashboard" icon="table-columns" href="/atlas/event-dashboard">
+    Organizer flows implemented on top of `orgEventManagementRoutes`.
+  </Card>
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    Shared Express patterns: `getModels`, `verifyToken`, error shapes.
+  </Card>
+  <Card title="Multi-tenant identity" icon="users" href="/backend/multi-tenant-identity">
+    How platform admins and memberships interact with org APIs.
+  </Card>
+</CardGroup>
 
 

@@ -5,7 +5,7 @@ description: 'Administrator guide for Atlas organization management'
 
 # Atlas Admin Dashboard
 
-The Atlas admin dashboard provides administrators with comprehensive tools to manage organizations, monitor engagement, and configure scheduling settings.
+The Atlas admin dashboard provides administrators with comprehensive tools to manage organizations, monitor engagement, configure Atlas org settings, and access Atlas-scoped reporting.
 
 ## Access
 
@@ -88,11 +88,11 @@ Tools for managing organization membership:
 3. **Role Updates**: Keep leadership roles current
 4. **Data Export**: Export data regularly for backup
 
-## Integration with Other Modules
+## Integration with other modules
 
-- **Compass**: Organizations can book rooms for events
-- **Beacon**: Organization events appear in engagement feeds
-- **SIS**: Sync member rosters from student information systems
+- **Compass**: Org-affiliated bookings and scheduling when events or org life needs space (Compass owns utilization and scheduling framing).
+- **Beacon**: Org-owned events enter Beacon’s event and approval flows (Beacon owns stakeholder routing and cross-campus event process).
+- **SIS**: Optional sync of member rosters from student information systems where integrated.
 
 ## Troubleshooting
 
@@ -110,14 +110,32 @@ Tools for managing organization membership:
   </Accordion>
 </AccordionGroup>
 
-## Next Steps
+## Related pages
 
 <CardGroup cols={2}>
-  <Card title="API Reference" icon="book" href="/api-reference/introduction">
-    Use APIs to automate organization management
+  <Card title="Atlas architecture" icon="sitemap" href="/atlas/architecture">
+    Models, routes, permissions, and how admin UIs hang together.
   </Card>
-  <Card title="SIS Integration" icon="plug" href="/atlas/integrations">
-    Set up automated roster synchronization
+  <Card title="Atlas permissions" icon="key" href="/atlas/permissions">
+    Org roles, capability checks, and middleware used by admin flows.
+  </Card>
+  <Card title="Atlas backend" icon="server" href="/atlas/backend">
+    HTTP route map and backend entrypoints for org and directory features.
+  </Card>
+  <Card title="API reference" icon="book" href="/api-reference/introduction">
+    Automate organization management and adjacent Meridian APIs.
+  </Card>
+  <Card title="SIS & integrations" icon="plug" href="/atlas/integrations">
+    Roster sync and external directory integrations.
+  </Card>
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    How admins authenticate and how platform roles interact with tenant admins.
+  </Card>
+  <Card title="Multi-tenant identity" icon="users" href="/backend/multi-tenant-identity">
+    Platform admins and cross-tenant identity for operators who span schools.
+  </Card>
+  <Card title="Atlas frontend" icon="layout" href="/atlas/frontend">
+    Where admin and org settings routes live in the Meridian web app.
   </Card>
 </CardGroup>
 

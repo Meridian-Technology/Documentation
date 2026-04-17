@@ -1,165 +1,285 @@
 ---
-title: "Atlas Messaging (Org Messages)"
-description: "Org messages, visibility rules, mentions parsing, and API endpoints"
+title: "Org Messages (Messaging System)"
+description: "Organization messaging: timeline posts, event-specific announcements, email delivery, and PDF attachments"
 ---
 
-## Data model
+The org messages system lets organizations communicate with members and event attendees through **org-wide timeline messages** and **event-specific announcements**. Event announcements can be delivered in-app and by email (via Resend), with optional PDF attachments.
 
-Org messaging is stored as `OrgMessage` documents:
+## Overview
 
-- schema: `Meridian/backend/schemas/orgMessage.js`
-- collection: `orgMessages`
+<CardGroup cols={2}>
+  <Card title="Org-wide messages" icon="comments">
+    Timeline posts visible to members/followers based on visibility. Supports @event mentions, likes, and replies.
+  </Card>
+  <Card title="Event announcements" icon="bullhorn">
+    Targeted messages to event attendees only. Delivered in-app and/or by email, with optional PDF attachments.
+  </Card>
+</CardGroup>
 
-Key fields:
+- **Backend**: `Meridian/backend/routes/orgMessageRoutes.js` (mounted at `/org-messages`), `Meridian/backend/services/eventAnnouncementService.js`, `Meridian/backend/services/resendClient.js`
+- **Schema**: `Meridian/backend/schemas/orgMessage.js`
+- **Frontend**: Club dashboard message feed, Event Dashboard Communications tab and announcement compose UI
 
-- `orgId`, `authorId`
-- `content`
-- `visibility: members_only | members_and_followers | public`
-- `mentionedEvents[]` (refs `Event`) — derived from content parsing
-- `likes[]`, `likeCount`
-- replies: `parentMessageId`, `replyCount`
-- soft deletion: `isDeleted`, `deletedAt`
+<AccordionGroup>
+  <Accordion title="Data model" icon="database">
 
-## Per-org settings: `Org.messageSettings`
+Org messaging is stored as **OrgMessage** documents (collection: `orgMessages`).
 
-Messaging is controlled per org via:
+### Core fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `orgId` | ObjectId | Organization (ref: Org) |
+| `authorId` | ObjectId | Author (ref: User) |
+| `content` | String | Message body; max length from org/system config (hard cap 2000) |
+| `visibility` | String | `members_only` \| `members_and_followers` \| `public` |
+| `mentionedEvents` | ObjectId[] | Events referenced in content (from @event parsing) |
+| `links` | String[] | Parsed links from content |
+| `likes` | ObjectId[] | User IDs who liked |
+| `likeCount` | Number | Denormalized like count |
+| `parentMessageId` | ObjectId | Set for replies (ref: OrgMessage) |
+| `replyCount` | Number | Denormalized reply count |
+| `isDeleted` | Boolean | Soft delete flag |
+| `deletedAt` | Date | When soft-deleted |
+
+### Event-announcement fields
+
+When the message is an **event-specific announcement** (`eventId` set), these apply:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `eventId` | ObjectId | Event (ref: Event); only org-hosted events |
+| `subject` | String | Optional email subject (max 200 chars) |
+| `sendAsOrg` | Boolean | If true, display org name/avatar instead of author |
+
+Event announcements are **excluded** from the org timeline; they appear only in the event’s Communications tab.
+
+  </Accordion>
+
+  <Accordion title="Configuration" icon="cog">
+
+<div>
+
+### Per-org: `Org.messageSettings`
 
 ```javascript
 org.messageSettings = {
   enabled: Boolean,
-  postingPermissions: [String], // Role names allowed to post
+  postingPermissions: [String],  // e.g. ['owner', 'admin', 'officer']
   visibility: 'members_only' | 'members_and_followers' | 'public',
-  characterLimit: Number, // Org-level cap
+  characterLimit: Number,
   allowLikes: Boolean,
   allowReplies: Boolean
 }
 ```
 
-The API also reads **global** config values from `OrgManagementConfig.messaging` (if present):
+- **Effective character limit** = `Math.min(org.messageSettings.characterLimit, systemConfig.messaging.maxCharacterLimit)`.
 
-- `maxCharacterLimit` (hard ceiling)
-- `minCharacterLimit` (hard floor)
-- `requireProfanityFilter`
+### Global: `OrgManagementConfig.messaging`
 
-**Effective limit used by the server**:
+- `maxCharacterLimit` — hard ceiling
+- `minCharacterLimit` — hard floor
+- `requireProfanityFilter` — run content through profanity filter before save/send
+- `notificationSettings.notifyOnEventAnnouncement` — default for in-app notifications on event announcements
+- `notificationSettings.eventAnnouncementEmail` — default for sending event announcement emails
 
-```javascript
-const effectiveLimit = Math.min(
-  org.messageSettings.characterLimit,
-  systemConfig.messaging.maxCharacterLimit
-);
-```
+### Event announcements: `OrgManagementConfig.messaging.eventAnnouncements`
 
-## Backend routes
+- `enabled` — if false, event announcements are disabled
+- `allowAnnouncementsDaysBeforeEvent` — number of days before event start when announcements are allowed (e.g. 7 = only within 7 days before)
+- `includeCheckedIn` — if false, only checked-in attendees are eligible (default: true = all registrants)
+- `includeAnonymousInEmail` — if false, anonymous form registrants are not included in email (default: true when email is resolvable)
 
-File: `Meridian/backend/routes/orgMessageRoutes.js`
+</div>
 
-Mounted at:
+  </Accordion>
 
-- `/org-messages`
+  <Accordion title="Backend routes" icon="route">
 
-### Create a message
+
+All routes under **`/org-messages`**. Auth: `verifyToken`; event-announcement routes also use `requireOrgPermission(ORG_PERMISSIONS.SEND_ANNOUNCEMENTS, 'orgId')`.
+
+### General org messages (timeline)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/:orgId/messages` | Create message |
+| GET | `/:orgId/messages` | List messages (timeline; visibility-filtered) |
+| GET | `/:orgId/messages/:messageId` | Get one message + replies |
+| POST | `/:orgId/messages/:messageId/like` | Like / unlike |
+| POST | `/:orgId/messages/:messageId/reply` | Reply |
+| PUT | `/:orgId/messages/:messageId` | Edit message |
+| DELETE | `/:orgId/messages/:messageId` | Soft-delete message |
+
+**Create message** body: `content`, `visibility`, optional `sendAsOrg`, optional `parentMessageId` (for replies). Server parses content for @event mentions and stores `mentionedEvents` and `links`.
+
+**List messages**: Filtered by user’s relationship to org (member → all; follower → members_and_followers + public; public → public only). Only top-level messages (`parentMessageId` null) and **excludes** messages with `eventId` set (event announcements live in the event Communications tab).
+
+### Event-specific announcements
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/:orgId/events/:eventId/announcements` | Send event announcement (in-app + optional email + optional PDFs) |
+| GET | `/:orgId/events/:eventId/announcement-recipients` | List who would receive (for recipient picker) |
+| GET | `/:orgId/events/:eventId/announcements` | List past announcements for this event |
+
+**POST announcement** creates an `OrgMessage` with `eventId` set, then:
+
+1. **In-app**: Batch template notification `org_event_announcement` to selected recipients (members/form registrants with accounts).
+2. **Email**: For each unique email (attendees, form registrants, resolved anonymous, plus optional `additionalEmails`), sends one Resend email with optional PDF attachments.
+
+Recipients can be narrowed with `excludeUserIds`, `excludeEmails`, and optional `additionalEmails` (max 20). Channels are controlled with `channels: { inApp: boolean, email: boolean }`.
+
+  </Accordion>
+
+  <Accordion title="Sending an event announcement" icon="paper-plane">
+
+### Request bodies
+
+**JSON (no attachments):**
 
 <RequestExample>
 ```bash
-POST /org-messages/abc123/messages
+POST /org-messages/:orgId/events/:eventId/announcements
 Content-Type: application/json
 Authorization: Bearer <token>
 
 {
-  "content": "Check out our next meeting!",
-  "visibility": "members_only"
+  "content": "Reminder: bring your ID for check-in.",
+  "subject": "Reminder for Saturday's meetup",
+  "sendAsOrg": true,
+  "excludeUserIds": [],
+  "excludeEmails": [],
+  "additionalEmails": ["guest@example.com"],
+  "channels": { "inApp": true, "email": true }
 }
+```
+</RequestExample>
+
+**Multipart (with PDF attachments):**
+
+Use `multipart/form-data`. Same fields as above as form fields; arrays (`excludeUserIds`, `excludeEmails`, `additionalEmails`, `channels`) as JSON strings. Attach files with field name **`attachments`** (max 3 PDFs, 10MB each).
+
+<RequestExample>
+```bash
+POST /org-messages/:orgId/events/:eventId/announcements
+Content-Type: multipart/form-data; boundary=----...
+Authorization: Bearer <token>
+
+------...
+Content-Disposition: form-data; name="content"
+Reminder: see the attached agenda.
+------...
+Content-Disposition: form-data; name="subject"
+Agenda for Saturday
+------...
+Content-Disposition: form-data; name="attachments"; filename="agenda.pdf"
+Content-Type: application/pdf
+<binary>
+------...
 ```
 </RequestExample>
 
 <ResponseExample>
 ```json
 {
-  "_id": "...",
-  "orgId": "abc123",
-  "authorId": "...",
-  "content": "Check out our next meeting!",
-  "mentionedEvents": [],
-  "links": [],
-  "likeCount": 0,
-  "replyCount": 0
+  "success": true,
+  "message": "Event announcement sent successfully",
+  "data": { "_id": "...", "orgId": "...", "eventId": "...", "content": "...", "subject": "...", "authorId": { "name": "...", "username": "...", "picture": "..." }, ... }
 }
 ```
 </ResponseExample>
 
-**Auth & rules**:
-- User must be authenticated
-- Org must exist
-- Org messaging must be enabled
-- User must be an **active** org member
-- User role must be included in `postingPermissions` (defaults to `owner/admin/officer`)
-- Message must be within min/max limits
-- Optional profanity filter
+### Who receives announcements
 
-**Mentions parsing**:
-- Server calls `parseMessageContent(content, Event, orgId)` from `Meridian/backend/utilities/messageParser.js`
-- Stores `mentionedEvents` and `links`
+- **Eligible attendees**: From `event.attendees` (and optionally only checked-in if `includeCheckedIn` is false); author is excluded.
+- **Form registrants**: If the event has `registrationFormId`, `FormResponse` docs with `submittedBy` set are included (by user id and email).
+- **Anonymous form respondents**: If `includeAnonymousInEmail` is true and the event has a registration form, responses with `submittedBy: null` are included for **email only** when an email can be resolved (e.g. `guestEmail` or the answer to the question referenced by `event.notificationEmailQuestionId`).
+- **Additional emails**: Up to 20 extra addresses via `additionalEmails` (email-only recipients).
 
-### List messages (timeline)
+The **GET announcement-recipients** endpoint returns the full list (with `userId`, `name`, `email`, and `isAnonymous` where applicable) plus `anonymousWithNoEmailCount` for UI.
 
-- `GET /org-messages/:orgId/messages`
+### Timing rule
 
-Visibility filtering depends on relationship:
+If `allowAnnouncementsDaysBeforeEvent` is set (e.g. 7), announcements are only allowed starting that many days before `event.start_time`. Earlier attempts return 403 with code `ANNOUNCEMENTS_NOT_YET_ALLOWED`.
 
-- member → sees all
-- follower → sees members_and_followers + public
-- public → sees public only
+  </Accordion>
 
-### Fetch single message + replies
+  <Accordion title="Email and PDF attachments" icon="paperclip">
 
-- `GET /org-messages/:orgId/messages/:messageId`
+### Resend integration
 
-### Like/unlike
+- **Client**: `Meridian/backend/services/resendClient.js` — `getResend()` returns the Resend SDK instance when `RESEND_API_KEY` is set.
+- **Usage**: Event announcement emails are sent with `resend.emails.send()` per recipient (same HTML, subject, from; optional `attachments`). From address uses org name: `"Org Name <support@meridian.study>"`.
+- **HTML**: Built by `buildEventAnnouncementEmail()` in `orgInviteService` (org name, event name, start time, author/org picture, message HTML, link to event).
 
-- `POST /org-messages/:orgId/messages/:messageId/like`
+### PDF attachments
 
-Likes are stored as user ids in `likes[]` and denormalized into `likeCount`.
-
-### Reply
-
-- `POST /org-messages/:orgId/messages/:messageId/reply`
-
-Replies are separate `OrgMessage` docs with `parentMessageId` set. Parent `replyCount` is incremented.
-
-### Edit message
-
-- `PUT /org-messages/:orgId/messages/:messageId`
-
-### Delete message
-
-- `DELETE /org-messages/:orgId/messages/:messageId`
-
-Deletion uses soft-delete semantics at the schema level (`isDeleted`), but confirm route behavior in `orgMessageRoutes.js` if you need strict guarantees.
-
-## Frontend usage
-
-The club dashboard includes:
-
-- `OrgMessageFeed` component (see `Meridian/frontend/src/pages/ClubDash/ClubDash.jsx` import)
-
-Typical calls:
-
-- list messages: `GET /org-messages/:orgId/messages`
-- post message: `POST /org-messages/:orgId/messages`
-
-## Common pitfalls
+- **Limits**: Max **3** attachments per announcement, **10MB** per file. Only **PDF** (`application/pdf`) is allowed.
+- **Backend**: Multipart requests are handled by a conditional multer middleware (only when `Content-Type: multipart/form-data`). Files are validated (type, size, count), then passed to the event announcement service as `{ filename, content: Buffer }`. The service sanitizes filenames and forwards them to Resend as `attachments: [{ filename, content, content_type: 'application/pdf' }]`.
+- **Resend**: Total email size after Base64 is capped at 40MB per email; 3×10MB stays under that.
+- **Storage**: Attachments are **not** persisted; they are sent in-memory to Resend only.
 
 <Warning>
-**Min character limit**: SystemConfig defaults can reject short messages unexpectedly.
+If `RESEND_API_KEY` is missing, announcement emails (and any attachments) are skipped; the OrgMessage and in-app notifications are still created.
+</Warning>
+
+  </Accordion>
+
+  <Accordion title="Frontend" icon="desktop">
+
+<div>
+
+### Org timeline
+
+- **OrgMessageFeed** (e.g. in Club Dashboard): Fetches `GET /org-messages/:orgId/messages`, displays timeline. Posting uses `POST /org-messages/:orgId/messages`.
+
+### Event announcements
+
+- **Communications tab** (Event Dashboard): Lists past announcements via `GET /org-messages/:orgId/events/:eventId/announcements` and provides a “Send announcement” action.
+- **EventAnnouncementCompose** (`Meridian/frontend/src/pages/ClubDash/EventsManagement/components/EventDashboard/EventAnnouncementCompose.jsx`):
+  - Fetches recipients: `GET .../announcement-recipients`.
+  - Subject, message (markdown), delivery toggles (in-app, email), send-as-org vs as self, recipient picker (include/exclude), optional additional emails (max 20).
+  - **Attachments**: “Add PDF” with `accept=".pdf,application/pdf"`, multiple, max 3 files and 10MB each; selected files shown with remove. On send, if there are attachments the client builds `FormData` and POSTs multipart; otherwise POSTs JSON.
+
+</div>
+
+  </Accordion>
+
+  <Accordion title="Security and limits" icon="shield">
+
+<div>
+
+- **Auth**: All routes require a valid token. Event announcement routes require org permission `SEND_ANNOUNCEMENTS`.
+- **Org state**: Messaging must be enabled (`messageSettings.enabled`). If the org is `approvalStatus: 'pending'`, posting may be blocked unless allowed by `pendingOrgLimits.allowedActions` (e.g. `post_messages`).
+- **Content**: Min/max character limits and optional profanity filter apply. Event announcement content is required and validated the same way.
+- **Attachments**: Type (PDF only), count (≤3), and size (≤10MB each) are enforced on the server; filenames are sanitized (path stripped, length capped, .pdf ensured).
+
+</div>
+
+  </Accordion>
+
+  <Accordion title="Common pitfalls" icon="triangle-exclamation">
+
+<Warning>
+**Min character limit**: System config can reject short messages; ensure `minCharacterLimit` matches product expectations.
 </Warning>
 
 <Warning>
-**Posting permissions use role names**: If you rename roles, update `postingPermissions`.
+**Posting permissions**: Uses role names (e.g. `owner`, `admin`, `officer`). Renaming roles requires updating `postingPermissions`.
 </Warning>
 
 <Warning>
-**Visibility vs "followers" model**: Follower schema currently references `Club` instead of `Org`; verify follower queries/populate behavior if you lean on followers for visibility.
+**Event announcements vs timeline**: Messages with `eventId` set do not appear in the org message timeline; they only appear under the event’s Communications tab.
 </Warning>
 
+<Warning>
+**Anonymous recipients**: To email anonymous form respondents, configure a notification-email question in registration settings and keep `includeAnonymousInEmail` enabled. Guests with no resolvable email are counted in `anonymousWithNoEmailCount` and cannot receive email.
+</Warning>
 
+<Warning>
+**Development**: In `NODE_ENV=development`, announcement emails and in-app notifications may be redirected to a single dev address (e.g. `james@activeherb.com`); check `eventAnnouncementService.js` for the redirect logic.
+</Warning>
+
+  </Accordion>
+</AccordionGroup>

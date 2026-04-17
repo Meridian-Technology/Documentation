@@ -14,6 +14,7 @@ In this codebase, **Atlas** is the "organizations system":
   - **General org routes**: `Meridian/backend/routes/orgRoutes.js` (mounted at `/` in `Meridian/backend/app.js`)
   - **Role + membership API**: `Meridian/backend/routes/orgRoleRoutes.js` (mounted at `/org-roles`)
   - **Platform admin (config/verification/analytics)**: `Meridian/backend/routes/orgManagementRoutes.js` (mounted at `/org-management`)
+  - **Org budgets (Phase 2 finance MVP)**: `Meridian/backend/routes/orgBudgetRoutes.js` (mounted at `/org-budgets`)
   - **Org messaging**: `Meridian/backend/routes/orgMessageRoutes.js` (mounted at `/org-messages`)
   - **Org event management + analytics**: `Meridian/backend/routes/orgEventManagementRoutes.js` (mounted at `/org-event-management`)
 
@@ -112,6 +113,14 @@ Menu items map directly to backend endpoints:
 - organizations list → `/org-management/organizations`
 - analytics → `/org-management/analytics`
 - system config → `/org-management/config` (+ `PUT /org-management/config`)
+
+**Atlas CMS Phase 1 (additional routes):**
+
+- `PATCH /org-management/organizations/:orgId/lifecycle` — platform admin lifecycle transitions (validated against `atlasPolicy`).
+- `PUT /org-management/organizations/:orgId/governance/:docKey/versions/:version/approve` — approve a governance PDF version.
+- `PATCH /org-roles/:orgId/lifecycle` — org leaders (`manage_roles` or `manage_settings`) may transition per policy.
+- `GET|POST /org-roles/:orgId/governance/...` — list requirements, upload PDF (`manage_governance`).
+- `GET /org-roles/:orgId/members/:userId/history` — membership and removal audit.
 
 ### 3) Org messaging
 
