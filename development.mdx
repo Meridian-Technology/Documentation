@@ -1,367 +1,233 @@
 ---
 title: 'Development Guide'
-description: 'Meridian development workflow and best practices'
+description: 'Day-to-day Meridian development: where to run commands, how dev servers fit together, and pointers to platform conventions'
 ---
 
 <Info>
-  **Prerequisite**: Complete the [Quick Start Guide](/quickstart) before proceeding with development.
+  **Prerequisite:** Complete [Getting started](/getting-started) (Node 20, MongoDB, `gh`, clone, `npm run setup`, and `.env`) before using this page.
 </Info>
 
-## Development Environment
+## Conventions (read these first)
 
-Meridian uses a monorepo structure with separate frontend and backend applications that communicate via REST APIs and WebSockets.
-
-## Project Structure
-
-```
-Meridian-Mono/
-├── Meridian/
-│   ├── frontend/          # React application
-│   │   ├── src/
-│   │   │   ├── components/
-│   │   │   ├── context/
-│   │   │   ├── pages/
-│   │   │   └── hooks/
-│   │   └── package.json
-│   ├── backend/           # Node.js/Express API
-│   │   ├── routes/
-│   │   ├── schemas/
-│   │   ├── services/
-│   │   └── package.json
-│   └── README.md
-├── Meridian-Mobile/       # React Native mobile app
-└── Meridian-Mintlify/     # Documentation site
-```
-
-## Running Development Servers
-
-### Option 1: Run Both Together
-
-From the root directory:
-
-```bash
-npm run dev
-```
-
-This concurrently runs:
-- Frontend on `http://localhost:3000`
-- Backend on `http://localhost:5001`
-
-### Option 2: Run Separately
-
-**Frontend:**
-```bash
-cd Meridian/frontend
-npm start
-```
-
-**Backend:**
-```bash
-cd Meridian/backend
-npm start
-```
-
-### Custom Ports
-
-**Frontend:**
-```bash
-PORT=3001 npm start
-```
-
-**Backend:**
-```bash
-PORT=5002 npm start
-```
-
-## Development Workflow
-
-### 1. Create a Feature Branch
-
-```bash
-git checkout -b feature/your-feature-name
-```
-
-### 2. Make Your Changes
-
-- Frontend: Edit files in `Meridian/frontend/src/`
-- Backend: Edit files in `Meridian/backend/`
-
-### 3. Test Your Changes
-
-```bash
-# Frontend tests
-cd Meridian/frontend
-npm test
-
-# Backend tests
-cd Meridian/backend
-npm test
-```
-
-### 4. Format Code
-
-```bash
-# Format all code
-npm run format
-
-# Or use Prettier directly
-npx prettier --write "**/*.{js,jsx,scss,json}"
-```
-
-### 5. Commit and Push
-
-```bash
-git add .
-git commit -m "feat: your feature description"
-git push origin feature/your-feature-name
-```
-
-## Frontend Development
-
-### Key Technologies
-
-- **React** - UI framework
-- **SCSS** - Styling
-- **Context API** - State management
-- **React Router** - Navigation
-- **WebSocket** - Real-time updates
-
-### Component Structure
-
-```jsx
-// Example component structure
-import React from 'react';
-import { useAuth } from '../context/AuthContext';
-import './Component.scss';
-
-const Component = () => {
-  const { user } = useAuth();
-  
-  return (
-    <div className="Component">
-      <h1>Hello, {user?.name}</h1>
-    </div>
-  );
-};
-
-export default Component;
-```
-
-### State Management
-
-Meridian uses React Context API for global state:
-
-- `AuthContext` - User authentication
-- `CacheContext` - API response caching
-- `ErrorContext` - Error handling
-- `NotificationContext` - Notifications
-- `WebSocketContext` - Real-time connections
-
-### Styling Guidelines
-
-- Use SCSS modules for component styles
-- Follow BEM naming convention
-- Keep styles co-located with components
-
-```scss
-.Component {
-  &__header {
-    font-size: 1.5rem;
-  }
-  
-  &__content {
-    margin: 1rem 0;
-  }
-}
-```
-
-## Backend Development
-
-### API Structure
-
-```
-backend/
-├── routes/          # API route handlers
-├── schemas/         # Data validation schemas
-├── services/        # Business logic
-├── middlewares/     # Express middlewares
-└── utilities/       # Helper functions
-```
-
-### Creating a New Route
-
-```javascript
-// routes/example.js
-const express = require('express');
-const router = express.Router();
-const { validateRequest } = require('../middlewares/validation');
-
-router.get('/example', validateRequest, async (req, res) => {
-  try {
-    // Your logic here
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-module.exports = router;
-```
-
-### Database Migrations
-
-```bash
-cd Meridian/backend
-npm run migrate        # Run migrations
-npm run migrate:rollback  # Rollback last migration
-```
-
-## Code Quality
-
-### Linting
-
-```bash
-# Frontend
-cd Meridian/frontend
-npm run lint
-
-# Backend
-cd Meridian/backend
-npm run lint
-```
-
-### Type Checking
-
-For TypeScript files:
-
-```bash
-npm run type-check
-```
-
-## Debugging
-
-### Frontend Debugging
-
-1. Use React Developer Tools browser extension
-2. Check browser console for errors
-3. Use `console.log()` strategically (remove before committing)
-
-### Backend Debugging
-
-1. Use `console.log()` or `debugger` statements
-2. Check server logs in terminal
-3. Use Postman/Insomnia for API testing
-
-### Database Debugging
-
-```bash
-# Connect to PostgreSQL
-psql meridian
-
-# View tables
-\dt
-
-# Query data
-SELECT * FROM users LIMIT 10;
-```
-
-## Testing
-
-### Frontend Tests
-
-```bash
-cd Meridian/frontend
-npm test              # Run tests
-npm test -- --watch   # Watch mode
-npm test -- --coverage # Coverage report
-```
-
-### Backend Tests
-
-```bash
-cd Meridian/backend
-npm test              # Run tests
-npm test -- --watch   # Watch mode
-```
-
-## Environment Variables
-
-Never commit `.env` files. Use `.env.example` as a template:
-
-```bash
-# Copy example file
-cp .env.example .env
-
-# Edit with your values
-nano .env
-```
-
-## Common Issues
-
-<AccordionGroup>
-  <Accordion title="Module Not Found">
-    **Solution**: Delete `node_modules` and reinstall:
-    ```bash
-    rm -rf node_modules package-lock.json
-    npm install
-    ```
-  </Accordion>
-  
-  <Accordion title="Port Already in Use">
-    **Solution**: Kill the process using the port:
-    ```bash
-    lsof -ti:3000 | xargs kill
-    ```
-  </Accordion>
-  
-  <Accordion title="Database Connection Failed">
-    **Solution**: Ensure PostgreSQL is running and credentials are correct:
-    ```bash
-    # Check PostgreSQL status
-    brew services list  # macOS
-    sudo systemctl status postgresql  # Linux
-    ```
-  </Accordion>
-  
-  <Accordion title="WebSocket Connection Failed">
-    **Solution**: Check backend WebSocket server is running and CORS is configured correctly.
-  </Accordion>
-</AccordionGroup>
-
-## Best Practices
-
-1. **Write Descriptive Commits**: Use conventional commit format
-   ```
-   feat: add user authentication
-   fix: resolve login redirect issue
-   docs: update API documentation
-   ```
-
-2. **Keep Components Small**: Single responsibility principle
-
-3. **Use TypeScript**: For better type safety (where applicable)
-
-4. **Test Your Code**: Write unit and integration tests
-
-5. **Document Complex Logic**: Add comments for non-obvious code
-
-6. **Follow Code Style**: Use Prettier and ESLint
-
-## Resources
+Product rules and code patterns live in two dedicated guides—this page stays **workflow-oriented** (commands, layout, debugging). When you touch code, start from the right doc:
 
 <CardGroup cols={2}>
-  <Card title="Frontend Guide" icon="code" href="/navigatingthefrontend">
-    Detailed frontend architecture guide
+  <Card title="Web client best practices" icon="code" href="/frontend/best-practices">
+    **`Meridian/frontend/`** — `useFetch`, **`postRequest`** (no direct axios), dev **proxy** to port **5001**, routing, SCSS/Tailwind, and ESLint entrypoints.
   </Card>
-  <Card title="API Reference" icon="book" href="/api-reference/introduction">
-    Complete API documentation
-  </Card>
-  <Card title="SAML Auth" icon="key" href="/backend/auth/SAML">
-    Authentication setup guide
-  </Card>
-  <Card title="Quick Start" icon="rocket" href="/quickstart">
-    Setup instructions
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    **`Meridian/backend/`** — **`getModels(req, …)`**, **`req.db` / `req.globalDb`**, **`verifyToken`**, org permissions, and how **`events`** routes mount.
   </Card>
 </CardGroup>
 
-Need help? Check the [Quick Start Guide](/quickstart) or reach out to the development team.
+---
+
+## Monorepo layout
+
+You **clone the Meridian repo** first (`Meridian/` is a real git checkout). **`Events-Backend/`**, **`Meridian-Mobile/`**, and this docs site are **separate** checkouts or folders you place **next to** Meridian on disk when needed. Some teams call that sibling layout **“Meridian-Mono”**—it is a **folder convention**, not something you `git clone` as one repository.
+
+```text
+workspace/                    # any parent directory (not a git repo)
+├── Meridian/                 # clone of Meridian — daily driver for web + API
+│   ├── frontend/
+│   ├── backend/              # Express entry: server.js
+│   │   └── events/           # Symlink → ../Events-Backend when using meridian CLI
+│   ├── bin/meridian.js
+│   └── package.json          # dev, server, client, test:*
+├── Events-Backend/           # private module; sibling of Meridian/ when linked
+├── Meridian-Mobile/          # optional: separate Expo / React Native clone
+└── Meridian-Mintlify/        # optional: this documentation site
+```
+
+Unless a doc says otherwise, run **install, dev, and test commands from `Meridian/`** so `concurrently` and path assumptions match CI and the rest of the team.
+
+---
+
+## Run the app locally
+
+From **`Meridian/`**:
+
+| Script | What it does |
+|--------|----------------|
+| **`npm run dev`** | Runs **`npm run server`** and **`npm run client`** together (see `Meridian/package.json`). Default URLs: **frontend** `http://localhost:3000`, **API** `http://localhost:5001`. |
+| **`npm run server`** | **`nodemon`** + `node --preserve-symlinks backend/server.js` — Express API with reload. |
+| **`npm run client`** | **`cd frontend && npm start`** — webpack dev server for the React app. |
+
+**Run API and web separately** (two terminals, still from `Meridian/`):
+
+```bash
+npm run server
+```
+
+```bash
+npm run client
+```
+
+Do **not** rely on `cd Meridian/backend && npm start` — the backend **`package.json`** does not define a `start` script; the supported entry is **`npm run server`** from **`Meridian/`**.
+
+### Custom ports
+
+- **API:** `backend/server.js` uses **`process.env.PORT`** and defaults to **5001**.
+
+  ```bash
+  PORT=5002 npm run server
+  ```
+
+- **Frontend:** the CRA-style dev server respects **`PORT`** when you start the client (from `Meridian/`):
+
+  ```bash
+  PORT=3001 npm run client
+  ```
+
+Keep the frontend **`package.json` `proxy`** target aligned with wherever the API listens (default `http://localhost:5001/`).
+
+---
+
+## Branching and CLI
+
+Use the **[Meridian CLI](/meridian-cli)** for branch names that match automation (for example **`MER-123-short-slug`**), syncing **`Events-Backend`**, and shipping. Install **`gh`** and run **`gh auth login`** (see [Getting started — GitHub CLI](/getting-started#github-cli-gh)) so `meridian ship` can open and merge PRs.
+
+Plain Git is fine for small fixes; for anything touching the private events module or lockfile, follow the CLI doc.
+
+---
+
+## Testing
+
+From **`Meridian/`**:
+
+```bash
+npm run test:ci          # backend coverage + frontend coverage (matches a large part of CI)
+npm run test:backend     # Jest in backend/
+npm run test:frontend    # Jest in frontend/
+```
+
+See **[Testing](/testing)** for **`test:unit` / `test:integration` / `test:routes`**, folder layout, and how GitHub Actions maps jobs.
+
+---
+
+## Linting
+
+There is **no** root `npm run format` or `npm run type-check` in **`Meridian/package.json`**. Formatting is team/IDE-driven unless you add scripts yourself.
+
+**Frontend** (ESLint config lives in `Meridian/frontend/package.json`):
+
+```bash
+cd Meridian/frontend && NODE_ENV=development npx eslint src/
+```
+
+**Backend:** there is currently **no** `lint` script in `Meridian/backend/package.json`; rely on your editor and the patterns in [Backend best practices](/backend/best-practices) until a shared script exists.
+
+---
+
+## Debugging
+
+### Frontend
+
+- React DevTools in the browser.
+- Network tab: confirm requests go to **relative** URLs so the **dev proxy** and **cookies** behave (see [Web client best practices](/frontend/best-practices)).
+- Remove stray **`console.log`** before merge.
+
+### Backend
+
+- Logs in the terminal running **`npm run server`**.
+- **`debugger`** breakpoints under Node inspect if you use that workflow.
+- **`curl` / Postman / Insomnia** against `http://localhost:5001` (or your `PORT`).
+
+### MongoDB
+
+Use **`mongosh`** with the same URI as **`Meridian/backend/.env`** (for example **`MONGO_URI_RPI`** or **`MONGODB_URI`**). See [Getting started — Environment variables](/getting-started#environment-variables) and [Update local database](/update-local-db) for data refresh.
+
+```bash
+mongosh "mongodb://127.0.0.1:27017/<your-db-name>"
+show collections
+db.users.find().limit(5)
+```
+
+---
+
+## Environment variables
+
+Do **not** commit real **`.env`** files. The repo may not ship a single **`.env.example`** at the repo root—follow **[Getting started — Environment variables](/getting-started#environment-variables)** for which files to create (`Meridian/backend/.env` at minimum) and typical keys (`JWT_SECRET`, Mongo URIs, `NODE_ENV`).
+
+---
+
+## Common issues
+
+<AccordionGroup>
+  <Accordion title="Module not found or stale dependencies">
+    Reinstall from the package that owns the dependency:
+
+    ```bash
+    cd Meridian/frontend && rm -rf node_modules && npm install
+    cd Meridian/backend && rm -rf node_modules && npm install
+    ```
+
+    From **`Meridian/`** you can also reinstall root tooling deps: **`rm -rf node_modules && npm install`**.
+  </Accordion>
+
+  <Accordion title="Port already in use (3000 / 5001)">
+    **macOS / Linux**
+
+    ```bash
+    lsof -ti:3000 | xargs kill
+    lsof -ti:5001 | xargs kill
+    ```
+
+    **Windows (PowerShell)**
+
+    ```powershell
+    netstat -ano | findstr :3000
+    netstat -ano | findstr :5001
+    taskkill /PID <pid> /F
+    ```
+  </Accordion>
+
+  <Accordion title="Database connection errors">
+    Confirm MongoDB is running and the URI in **`Meridian/backend/.env`** matches your local database name. **macOS (Homebrew):** `brew services list`. **Windows:** **Services** (`services.msc`) or `net start MongoDB`. See [Getting started — Prerequisites](/getting-started#prerequisites).
+  </Accordion>
+
+  <Accordion title="WebSocket or real-time issues">
+    Ensure the **API** process is up, the browser is on the same origin/proxy path you expect, and that CORS / cookie settings match how you are hitting the API (see [Web client best practices](/frontend/best-practices)).
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Before you open a PR
+
+- Run **`npm run test:ci`** (or at least the suites you touched).
+- Follow **`MER-*`** / CLI conventions when your work spans **`Events-Backend`** or the lockfile—see **[Meridian CLI](/meridian-cli)** and **[Deployment](/deployment)**.
+- Prefer **conventional commits** (`feat:`, `fix:`, `docs:`) so history stays readable.
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Getting started" icon="rocket" href="/getting-started">
+    Stack, MongoDB, `gh`, `npm run setup`, and first-run env vars.
+  </Card>
+  <Card title="Testing" icon="flask" href="/testing">
+    Backend vs frontend tests, route-outcomes, and CI alignment.
+  </Card>
+  <Card title="Web client best practices" icon="code" href="/frontend/best-practices">
+    `useFetch`, `postRequest`, proxy, and UI conventions.
+  </Card>
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    Multi-tenant `req.db`, auth, and route patterns.
+  </Card>
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    How login, JWTs, and cookies line up with the dev proxy.
+  </Card>
+  <Card title="Multi-tenant identity" icon="users" href="/backend/multi-tenant-identity">
+    Subdomains, global DB, and how `req.user` resolves locally.
+  </Card>
+  <Card title="API reference" icon="book" href="/api-reference/introduction">
+    HTTP surfaces the web app calls through `useFetch` / `postRequest`.
+  </Card>
+  <Card title="Meridian CLI" icon="terminal" href="/meridian-cli">
+    Branches, `Events-Backend`, lockfile, and `meridian ship`.
+  </Card>
+</CardGroup>
+
+For **credentials, tenant Atlas URIs, or production access**, use internal Study Compass engineering channels—not this docs site.

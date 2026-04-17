@@ -19,6 +19,8 @@ The Meridian CLI solves this by treating Meridian + its modules as a single work
 
 ## Installation
 
+For first-time installs (dependencies, Events-Backend, platform-specific PATH and `backend/events` linking), follow **[Getting Started](/getting-started)**.
+
 **Recommended:** Link the CLI globally so you can run `meridian` from anywhere. From the Meridian root:
 
 ```bash
@@ -28,6 +30,7 @@ npm link
 After that, use the base command:
 
 ```bash
+meridian setup
 meridian status
 meridian start MER-123-Org-Forms
 meridian ship
@@ -44,7 +47,7 @@ npm run meridian -- <command>
 
 ## Workspace Layout
 
-Your workspace should have Meridian and its modules as siblings:
+The expected workspace has Meridian and its modules as siblings:
 
 ```
 <WORKSPACE>/
@@ -52,7 +55,7 @@ Your workspace should have Meridian and its modules as siblings:
   Events-Backend/    # first closed-source module; more can be added
 ```
 
-If you're in Meridian-Mono, that's `Meridian-Mono/Meridian` and `Meridian-Mono/Events-Backend`. The CLI auto-detects the workspace when run from `Meridian/`. If a required module is missing, the CLI will prompt you to clone it (e.g. Events-Backend):
+If you follow the **suggested sibling layout** (sometimes called “Meridian-Mono” in docs), the parent folder contains **`Meridian/`** and **`Events-Backend/`** next to each other—that parent is **not** a git repository. The CLI auto-detects the workspace when run from **`Meridian/`**. If a required module is missing, the CLI will prompt you to clone it (e.g. Events-Backend):
 
 ```bash
 git clone git@github.com:Study-Compass/Events-Backend.git ../Events-Backend
@@ -91,6 +94,20 @@ meridian ship
 Guides you through: push module(s) → create module PR(s) → merge to main → sync lockfile → push Meridian → create Meridian PR. You merge all PRs manually.
 
 ## Commands Reference
+
+### `meridian setup`
+
+Bootstraps local development from the `Meridian/` repo root.
+
+- Clones `Events-Backend` into the workspace if missing (after confirmation)
+- Runs `npm install` in `Meridian/`, `frontend/`, and `backend/`
+- Offers to symlink `backend/events` to `../Events-Backend`
+
+```bash
+meridian setup
+# or
+npm run setup
+```
 
 ### `meridian status`
 
@@ -192,7 +209,34 @@ Or set `MERIDIAN_WORKSPACE` to the parent directory containing Meridian and all 
 
 ## Windows Notes
 
-`npm link` works on Windows too — run it from Meridian root, then use `meridian <cmd>` from any directory. If you prefer not to link:
+`npm link` works on Windows, but **`meridian` may not be on your PATH` until you add the global npm bin folder manually** (see the Windows tab in [Getting Started](/getting-started)). Symlinks for `backend/events` often need **Developer Mode**, an elevated terminal, or a **junction** (`mklink /J`) — same page has step-by-step options.
+
+If you prefer not to link:
 
 - Use `npm run meridian -- <cmd>` or `node bin/meridian.js <cmd>`
 - Optional: create `m.cmd` and `mer.cmd` that call `node bin/meridian.js %*`
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Getting started" icon="rocket" href="/getting-started">
+    `meridian setup`, PATH, and Windows symlink notes the CLI assumes.
+  </Card>
+  <Card title="Development" icon="wrench" href="/development">
+    Running servers, debugging, and workflow after branches are aligned.
+  </Card>
+  <Card title="Deployment" icon="cloud" href="/deployment">
+    Lockfile verification, CI, and promotion—where `meridian ship` fits.
+  </Card>
+  <Card title="Testing" icon="flask" href="/testing">
+    What to run before opening a PR from a CLI-managed branch.
+  </Card>
+  <Card title="Update local database" icon="database" href="/update-local-db">
+    Refresh local Mongo when your branch needs fresh tenant data.
+  </Card>
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    Code layout in `Meridian/backend` when modules sync via `backend/events`.
+  </Card>
+</CardGroup>

@@ -54,7 +54,7 @@ If any step fails, the build fails. No deployment occurs.
 
 ## 3. Build Process
 
-When Heroku (or your deploy target) builds the app:
+When Heroku (or the configured deploy target) builds the app:
 
 1. **heroku-prebuild** — Runs `bin/setup_ssh` and `bin/fetch_private_deps` to clone modules at pinned SHAs
 2. **npm install** — Installs dependencies
@@ -118,7 +118,7 @@ Before promoting to production (especially the first time or after significant c
 ### Database
 
 - [ ] Schema or migration changes from modules are compatible with production
-- [ ] Migrations have been run or are handled by your deploy process
+- [ ] Migrations have been run or are handled by the deploy pipeline
 
 ### Rollback
 
@@ -136,3 +136,28 @@ cd ../Events-Backend
 git fetch origin main
 git cat-file -t <SHA-from-lockfile>   # should print "commit"
 ```
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Testing" icon="flask" href="/testing">
+    What CI runs (`test:ci`, unit vs integration) and how to match it locally.
+  </Card>
+  <Card title="Getting started" icon="rocket" href="/getting-started">
+    Environment and scripts assumed by deploy and build pipelines.
+  </Card>
+  <Card title="Update local database" icon="database" href="/update-local-db">
+    Migrations and local DB refresh before promoting schema-sensitive changes.
+  </Card>
+  <Card title="Multi-tenant test scenarios" icon="list" href="/backend/multi-tenant-test-scenarios">
+    Staging checklist for domains, cookies, and auth before production.
+  </Card>
+  <Card title="Meridian CLI" icon="terminal" href="/meridian-cli">
+    Branch flow and shipping commands aligned with how features land.
+  </Card>
+  <Card title="Development" icon="wrench" href="/development">
+    Local servers, debugging, and workflow next to deploy docs.
+  </Card>
+</CardGroup>

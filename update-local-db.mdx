@@ -1,31 +1,29 @@
 ---
 title: 'Updating Local Database'
-description: 'Export MongoDB Atlas and import into your local MongoDB instance'
+description: 'Export MongoDB Atlas and restore into a local MongoDB for Meridian development'
 ---
 
-This guide walks you through exporting data from MongoDB Atlas and restoring it into your local MongoDB so you can work with up-to-date data. You need your own Mongo Atlas URL (ask your team lead if you don’t have one).
+Use this when you need **tenant data from MongoDB Atlas** in a **local MongoDB** that Meridian’s backend already points at via `Meridian/backend/.env`. The Atlas connection string is the same credential set used for that environment (staging snapshot, shared dev cluster, etc.)—not checked into this documentation.
 
 ## Step 1: Export the MongoDB Atlas Database
 
-Export your MongoDB Atlas database to a BSON (Binary JSON) dump using `mongodump`.
+Export the Atlas database to a BSON dump using `mongodump`.
 
 1. **Export the database**
 
-   Use `mongodump` with the same connection string as in your backend `.env`. Replace `MONGO_URL` with the `MONGO_URL` value from `Meridian/backend/.env`, and set a local path for the dump:
+   Use `mongodump` with the **Atlas URI** from `Meridian/backend/.env` (for example `MONGO_URI_RPI`, `MONGODB_URI`, or the Atlas SRV string used for that tenant). Pick a writable dump directory (examples: `~/dump` on macOS/Linux, `C:\temp\meridian-dump` on Windows):
 
    ```sh
-   mongodump --uri="MONGO_URL" --out=/path/to/dump
+   mongodump --uri="<ATLAS_URI_FROM_ENV>" --out=/path/to/dump
    ```
 
 <Note>
-Your dump path is only a temporary location. Examples: `C:\Users\<username>\dump` (Windows) or `~/dump` (macOS/Linux).
+The dump directory is disposable after `mongorestore`; keep it off shared drives if the snapshot contains PII.
 </Note>
 
-   Replace `your-atlas-connection-string` with your actual Atlas connection string and `/path/to/dump` with the directory where you want the dump files.
+## Step 2: Import the dump into local MongoDB
 
-## Step 2: Import the Dump into Your Local MongoDB Instance
-
-Import the BSON dump into your local MongoDB using `mongorestore`.
+Import the BSON dump with `mongorestore`.
 
 1. **Import the database**
 
@@ -36,7 +34,32 @@ Import the BSON dump into your local MongoDB using `mongorestore`.
    ```
 
 <Note>
-Append the database name to your dump path. For example, if your dump path was `C:\Users\James\dump`, the mongorestore path is `C:\Users\James\dump\studycompass`.
+`mongodump` writes a folder per database name under `--out`. Point `mongorestore` at that inner folder (for example `.../dump/studycompass` if the database name is `studycompass`).
 </Note>
 
-   Replace `your-local-db-name` with the name you want for your local database, `/path/to/dump` with the path to the dump directory, and `your-atlas-db-name` with the Atlas database name (e.g. `studycompass`).
+Use the **same database name** locally that Meridian expects (often `studycompass` or the tenant DB name in `.env`). Replace `/path/to/dump/...` with the actual dump path from step 1.
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Getting started" icon="rocket" href="/getting-started">
+    `.env` and Mongo URIs this restore process must match.
+  </Card>
+  <Card title="Development" icon="wrench" href="/development">
+    Running the backend against your local database after restore.
+  </Card>
+  <Card title="Multi-tenant identity" icon="users" href="/backend/multi-tenant-identity">
+    How tenant DB names and the global DB relate when testing SSO locally.
+  </Card>
+  <Card title="Deployment" icon="cloud" href="/deployment">
+    Database checklist items before promoting schema or data-dependent changes.
+  </Card>
+  <Card title="Meridian CLI" icon="terminal" href="/meridian-cli">
+    Workspace layout and branch flow around the same mono-repo.
+  </Card>
+  <Card title="Testing" icon="flask" href="/testing">
+    Run tests after a restore when validating multi-tenant behavior.
+  </Card>
+</CardGroup>

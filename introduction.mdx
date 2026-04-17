@@ -10,11 +10,11 @@ description: "Welcome to Meridian Developer Documentation"
 
 ## Welcome to Meridian
 
-Meridian is a **Student Experience Operating System** that unifies campus systems into a single, data-driven platform. Built for universities, Meridian consolidates room booking, event management, organization administration, and space intelligence into one seamless experience.
+Meridian is a **Student Experience Operating System** that unifies campus systems into a single, data-driven platform. Compass centers utilization and scheduling; Atlas centers clubs and organizations; Beacon centers events with approval routing and stakeholders—each with dedicated reporting, sharing data where the domains overlap.
 
 ## Platform Overview
 
-Meridian consists of four integrated modules:
+Meridian consists of four integrated modules. **Compass**, **Atlas**, and **Beacon** each have their own reporting surfaces; they share data and workflows but are framed around different institutional jobs.
 
 <CardGroup cols={2}>
   <Card
@@ -22,21 +22,21 @@ Meridian consists of four integrated modules:
     icon="compass"
     href="/compass/overview"
   >
-    Rooms, events, services, and space intelligence. Discover and book study spaces, manage events, and access campus services.
+    Utilization, scheduling, and space-time coordination: how rooms and resources are used, booked, and measured, with Compass-specific reporting.
   </Card>
   <Card
     title="Atlas"
     icon="map"
     href="/atlas/overview"
   >
-    Academic scheduling and optimization. Manage course schedules, room assignments, and organization management.
+    Clubs and registered organizations: directory, membership, governance, permissions, and org-side operations, with Atlas-specific reporting.
   </Card>
   <Card
     title="Beacon"
     icon="signal"
     href="/beacon/overview"
   >
-    Campus-wide engagement feeds and approvals. Connect with organizations, track engagement, and manage workflows.
+    Events, approval routing, and the stakeholder model: sign-off chains, role-based routing, and the event lifecycle, with Beacon-specific reporting.
   </Card>
   <Card
     title="Platform"
@@ -60,18 +60,18 @@ Meridian consists of four integrated modules:
 
 <CardGroup cols={2}>
   <Card
-    title="Quick Start"
+    title="Getting Started"
     icon="rocket"
-    href="/quickstart"
+    href="/getting-started"
   >
-    Set up your development environment and start building
+    Local Meridian install, Events-Backend, and first run
   </Card>
   <Card
-    title="Frontend Development"
+    title="Web client best practices"
     icon="code"
-    href="/navigatingthefrontend"
+    href="/frontend/best-practices"
   >
-    Learn about the React-based frontend architecture
+    React web app conventions, API access (`useFetch`, `postRequest`), and quality
   </Card>
   <Card
     title="Backend Authentication"
@@ -94,11 +94,30 @@ Meridian consists of four integrated modules:
 Meridian is built with a modern tech stack:
 
 - **Frontend**: React with SCSS, Context API for state management
-- **Backend**: Node.js/Express with PostgreSQL
+- **Backend**: Node.js/Express with MongoDB (Mongoose)
 - **Mobile**: React Native (Expo) for iOS and Android
 - **Real-time**: WebSocket integration for live updates
 - **Authentication**: SAML 2.0 and OAuth 2.0 support
 
-## Next Steps
+## Related pages
 
-Ready to start developing? Check out our [Quick Start Guide](/quickstart) to set up your local development environment.
+<CardGroup cols={2}>
+  <Card title="Getting started" icon="rocket" href="/getting-started">
+    Local Meridian install on macOS or Windows: stack, `meridian setup`, and first commands.
+  </Card>
+  <Card title="Development" icon="wrench" href="/development">
+    Day-to-day workflow, debugging tips, and common fixes.
+  </Card>
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    How Meridian signs users in: passwords, Google, Apple, JWTs, and SAML at a glance.
+  </Card>
+  <Card title="Testing" icon="flask" href="/testing">
+    Backend and frontend test commands and how CI mirrors them.
+  </Card>
+  <Card title="Multi-tenant identity" icon="users" href="/backend/multi-tenant-identity">
+    Global users, SSO across subdomains, and how `req.user` is resolved.
+  </Card>
+  <Card title="API reference" icon="book" href="/api-reference/introduction">
+    HTTP APIs documented on this site and how clients authenticate.
+  </Card>
+</CardGroup>
