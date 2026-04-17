@@ -67,10 +67,24 @@ The result is returned as `platform.referrerSources`:
   "referrerSources": {
     "org_page": 45,
     "explore": 120,
-    "direct": 30
+    "direct": 30,
+    "email": 12
   }
 }
 ```
+
+---
+
+## Per-Source Conversion Rates
+
+Registrations are attributed to the source that brought the user to the event page. For each `event_registration`, the backend finds the most recent `event_view` before the registration from the same user (anonymous_id or user_id) and uses that view's source.
+
+**Response fields:**
+
+- `platform.referrerRegistrations` — `{ org_page, explore, direct, email }` — registrations attributed to each source
+- `platform.qrReferrerSources` — each item now includes `registrations` — registrations attributed to each QR code
+
+**Conversion rate** = `registrations / views` for each source (e.g. "50% of QR scans led to registration").
 
 ---
 
@@ -90,7 +104,19 @@ To add a new source:
 
 ---
 
-## Related
+## Related pages
 
-- [Analytics Collected Events](/backend/analytics-collected-events) — Event types and referrer attribution overview
-- [Platform Analytics](/backend/analytics-platform) — Event pipeline and envelope schema
+<CardGroup cols={2}>
+  <Card title="Analytics collected events" icon="list" href="/backend/analytics-collected-events">
+    Event names, properties, and referrer attribution across the product.
+  </Card>
+  <Card title="Platform analytics" icon="chart-line" href="/backend/analytics-platform">
+    Ingestion pipeline, envelope schema, and `POST /v1/events` contract.
+  </Card>
+  <Card title="Atlas event analytics" icon="chart-column" href="/atlas/event-analytics">
+    Organizer dashboards that consume aggregated views and sources.
+  </Card>
+  <Card title="Event dashboard" icon="table-columns" href="/atlas/event-dashboard">
+    Where Sources and funnel views surface in the Atlas UI.
+  </Card>
+</CardGroup>

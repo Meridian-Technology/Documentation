@@ -140,3 +140,28 @@ To add new events:
 3. Keep event names in `snake_case`
 4. Avoid PII in properties (email, name, phone, etc. are stripped)
 5. Update this document when adding new event types
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Platform analytics" icon="chart-line" href="/backend/analytics-platform">
+    Philosophy, ingestion API, envelope schema, and storage in `analytics_events`.
+  </Card>
+  <Card title="Referrer sources" icon="share-nodes" href="/backend/analytics-referrer-sources">
+    How URLs map to `source` buckets for dashboards and aggregations.
+  </Card>
+  <Card title="Mobile analytics" icon="smartphone" href="/mobile/analytics">
+    Mobile SDK usage, batching, and parity with web event names.
+  </Card>
+  <Card title="Atlas event analytics" icon="chart-column" href="/atlas/event-analytics">
+    Product-facing analytics built on the same event taxonomy.
+  </Card>
+  <Card title="Event check-in" icon="qrcode" href="/atlas/event-checkin">
+    Flows that emit registration and check-in related events.
+  </Card>
+  <Card title="Web client best practices" icon="browser" href="/frontend/best-practices">
+    Where `analytics.track` / `screen` are wired in the Meridian web app.
+  </Card>
+</CardGroup>

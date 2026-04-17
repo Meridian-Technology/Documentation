@@ -209,3 +209,28 @@ When organizers send **event announcement emails**, the “View Event” and eve
 - **Path:** Track → queue → batch → `POST /v1/events` → validate & enrich → insert into `analytics_events` with duplicate detection via `event_id`.
 
 For client-side usage (e.g. mobile SDK, queue, batching, and event taxonomy), see the [Mobile analytics](/mobile/analytics) doc.
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Analytics collected events" icon="list" href="/backend/analytics-collected-events">
+    Canonical list of event names and properties emitted by clients.
+  </Card>
+  <Card title="Referrer sources" icon="share-nodes" href="/backend/analytics-referrer-sources">
+    URL-to-source mapping used in aggregations and dashboards.
+  </Card>
+  <Card title="Mobile analytics" icon="smartphone" href="/mobile/analytics">
+    Mobile client queue, batching, and alignment with the envelope schema.
+  </Card>
+  <Card title="Atlas event analytics" icon="chart-column" href="/atlas/event-analytics">
+    Organizer-facing charts and funnels backed by this pipeline.
+  </Card>
+  <Card title="Event dashboard" icon="table-columns" href="/atlas/event-dashboard">
+    Where event views and email-driven sources appear for organizers.
+  </Card>
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    Where ingestion routes live alongside the rest of `Meridian/backend`.
+  </Card>
+</CardGroup>
