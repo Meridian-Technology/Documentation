@@ -126,8 +126,25 @@ API rate limits apply to prevent abuse. Check response headers for rate limit in
 4. **Use pagination** - For endpoints that return lists, use pagination parameters
 5. **Validate input** - Client-side validation improves UX and reduces errors
 
-## Related Documentation
+## Related pages
 
-- [Atlas Event Analytics](/atlas/event-analytics) - Event analytics overview
-- [Atlas Backend](/atlas/backend) - Backend architecture details
-- [API Reference Introduction](/api-reference/introduction) - General API documentation
+<CardGroup cols={2}>
+  <Card title="API reference home" icon="book" href="/api-reference/introduction">
+    Scope, authentication expectations, and links to other HTTP docs.
+  </Card>
+  <Card title="Event dashboard" icon="table-columns" href="/atlas/event-dashboard">
+    Organizer UI that consumes these endpoints for agendas, RSVPs, and readiness.
+  </Card>
+  <Card title="Event check-in" icon="qrcode" href="/atlas/event-checkin">
+    Check-in surfaces and anonymous flows built on the same event APIs.
+  </Card>
+  <Card title="Atlas event analytics" icon="chart-column" href="/atlas/event-analytics">
+    RSVP growth, sources, and dashboard analytics backed by these routes.
+  </Card>
+  <Card title="Atlas backend" icon="server" href="/atlas/backend">
+    How Atlas routes, models, and permissions are organized in `Meridian/backend`.
+  </Card>
+  <Card title="Backend best practices" icon="route" href="/backend/best-practices">
+    `getModels`, tenancy, and middleware patterns used by event handlers.
+  </Card>
+</CardGroup>

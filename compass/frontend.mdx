@@ -1,15 +1,15 @@
 ---
 title: 'Compass Frontend Development'
-description: 'Frontend architecture and development guide for Compass'
+description: 'Frontend architecture for utilization, scheduling, and space surfaces'
 ---
 
 # Compass Frontend Development
 
-The Compass frontend is built with **React** and provides the user interface for room discovery, booking, and space management.
+The Compass-facing UI is built with **React** inside the shared Meridian frontend. It emphasizes **utilization, scheduling, and booking**—how users find time in space and how operators see load—alongside Compass-specific reporting surfaces.
 
 ## Overview
 
-The Compass frontend is located in `Meridian/frontend/` and serves as the primary user-facing application for Meridian's space management features.
+Code lives under `Meridian/frontend/` together with Atlas and Beacon; Compass is a domain slice of that app, not a separate repository. Platform-wide web conventions (`useFetch`, `postRequest`, shared layout) are in **[Web client best practices](/frontend/best-practices)**.
 
 ### Key Technologies
 
@@ -169,14 +169,26 @@ Compass uses SCSS with BEM naming convention:
 - **Calendar Systems**: External calendar integration
 - **Authentication**: SAML/OAuth for user login
 
-## Next Steps
+## Related pages
 
 <CardGroup cols={2}>
-  <Card title="API Integration" icon="plug" href="/api-reference/introduction">
-    Learn how to integrate with Compass backend APIs
+  <Card title="Compass overview" icon="compass" href="/compass/overview">
+    Product scope, utilization concepts, and how Compass reporting differs from Atlas/Beacon.
   </Card>
-  <Card title="WebSocket Setup" icon="signal" href="/development">
-    Set up real-time WebSocket connections
+  <Card title="Web client best practices" icon="code" href="/frontend/best-practices">
+    Shared Meridian frontend patterns: routing, state, and API access.
+  </Card>
+  <Card title="API reference" icon="book" href="/api-reference/introduction">
+    HTTP APIs the Compass UI and integrations call.
+  </Card>
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    How campus users sign in and how tokens flow to Compass clients.
+  </Card>
+  <Card title="Development" icon="wrench" href="/development">
+    Local dev server, WebSockets, and troubleshooting for real-time features.
+  </Card>
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    How Compass-facing routes use `req.db` and shared middleware.
   </Card>
 </CardGroup>
 

@@ -1,33 +1,39 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: 'API reference'
+description: 'Meridian HTTP APIs documented on this site'
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+## Scope
 
-## Welcome
-
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
-
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+This section documents **Meridian** HTTP APIs and related contracts as maintained for Study Compass engineering. Narrative pages under **`api-reference/`** (for example [Event management](/api-reference/event-management)) carry the detailed paths, payloads, and behavior aligned with the **Express** backend in `Meridian/backend/`.
 
 ## Authentication
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+The Meridian **web client** uses **cookie-backed JWT** access and refresh flows; frontend code should go through **`useFetch`** and **`postRequest`** ([Web client best practices](/frontend/best-practices)), not ad hoc clients. Individual API pages state whether a route expects a session cookie, a Bearer token, or a public call.
 
-```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
-```
+## OpenAPI file
+
+The repository may include **`api-reference/openapi.json`** for Mintlify tooling or future playground generation. Until that file is fully curated for Meridian, treat the **MDX API pages** in this tab as authoritative.
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Event management API" icon="calendar" href="/api-reference/event-management">
+    Organization events, agendas, RSVPs, and related HTTP operations.
+  </Card>
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    Route layout, `req.db`, `verifyToken`, and how Express handlers are structured.
+  </Card>
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    Cookie vs Bearer JWTs, refresh, and which routes require a logged-in user.
+  </Card>
+  <Card title="Web client best practices" icon="browser" href="/frontend/best-practices">
+    `useFetch` and `postRequest`—the supported way to call these APIs from the web app.
+  </Card>
+  <Card title="Multi-tenant identity" icon="users" href="/backend/multi-tenant-identity">
+    How `globalUserId` and memberships affect authorization on tenant subdomains.
+  </Card>
+  <Card title="Atlas event dashboard" icon="table-columns" href="/atlas/event-dashboard">
+    Organizer-facing flows that sit on top of the event management API.
+  </Card>
+</CardGroup>

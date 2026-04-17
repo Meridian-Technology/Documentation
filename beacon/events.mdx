@@ -1,11 +1,11 @@
 ---
 title: 'Beacon Event System'
-description: 'Comprehensive guide to event creation, management, and workflows'
+description: 'Event lifecycle, approval routing, stakeholders, and Beacon reporting'
 ---
 
 # Beacon Event System
 
-The Beacon event system provides end-to-end event lifecycle management, from creation through approval to completion and analytics.
+The Beacon event system covers **end-to-end event lifecycle**: drafting, **approval routing**, stakeholder actions, publication, RSVP and check-in, and **Beacon-scoped reporting**. Feeds and notifications are consumers of that pipeline, not the definition of the module.
 
 ## Event Lifecycle
 
@@ -197,14 +197,26 @@ POST /api/events/:eventId/rsvp
   </Accordion>
 </AccordionGroup>
 
-## Next Steps
+## Related pages
 
 <CardGroup cols={2}>
-  <Card title="Workflow Configuration" icon="sitemap" href="/beacon/workflows">
-    Learn how to configure approval workflows
+  <Card title="Beacon overview" icon="tower-broadcast" href="/beacon/overview">
+    How Beacon fits next to Compass and Atlas, and where reporting lives.
   </Card>
-  <Card title="Admin Dashboard" icon="dashboard" href="/beacon/admin">
-    Access Beacon admin tools and settings
+  <Card title="Approval workflows" icon="sitemap" href="/beacon/events#approval-workflows">
+    Stakeholders, routing rules, and lifecycle gates on this page.
+  </Card>
+  <Card title="Who uses Beacon" icon="users" href="/beacon/overview#who-uses-it">
+    Organizers, approvers, and admins in the Beacon overview.
+  </Card>
+  <Card title="Event dashboard (Atlas)" icon="table-columns" href="/atlas/event-dashboard">
+    Org-facing event management, agendas, and readiness on top of shared event data.
+  </Card>
+  <Card title="Event management API" icon="calendar" href="/api-reference/event-management">
+    REST documentation for org events, RSVPs, and assignments.
+  </Card>
+  <Card title="Platform analytics" icon="chart-column" href="/backend/analytics-platform">
+    Event pipeline and analytics that power funnel and RSVP insights.
   </Card>
 </CardGroup>
 

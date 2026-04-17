@@ -1,119 +1,104 @@
 ---
 title: 'Beacon Overview'
-description: 'Campus-wide engagement feeds and approval workflows'
+description: 'Events, approval routing, stakeholders, and Beacon reporting'
 ---
 
 # Beacon
 
-Beacon is Meridian's module for **campus-wide engagement, event approvals, and workflow automation**. It provides a unified feed of campus activities, automated approval processes, and tools for managing events, organizations, and campus communications.
+Beacon is Meridian’s surface for **campus events as an institutional process**: creation and change, **who must approve**, how requests **route across stakeholders**, and how policy is expressed in software. Engagement feeds and notifications are part of the experience, but the **center of gravity is the event system plus approval routing and the stakeholder model**—not “just a feed.”
 
-## Key Features
+Beacon has **its own reporting** (event performance, funnel and RSVP views where productized, approval throughput, and admin analytics). That is separate in intent from **Compass** utilization reports or **Atlas** org-directory and membership reporting, even though all three read from related data.
+
+## Key features
 
 <CardGroup cols={2}>
-  <Card title="Engagement Feed" icon="rss">
-    Unified feed of campus events, organization activities, and announcements
+  <Card title="Event lifecycle" icon="calendar">
+    Draft → review → published → RSVP → check-in → wrap-up, with room needs delegated to Compass where applicable
   </Card>
-  <Card title="Approval Workflows" icon="check-circle">
-    Automated event approval processes reducing processing time by up to 70%
+  <Card title="Approval routing" icon="route">
+    Multi-step flows, domain-aware routing, and clear ownership at each gate
   </Card>
-  <Card title="Event Management" icon="calendar-days">
-    End-to-end event lifecycle management from creation to completion
+  <Card title="Stakeholder model" icon="users-gear">
+    Roles, domains, and permissions that determine who sees what and who can move work forward
   </Card>
-  <Card title="Stakeholder Management" icon="users-gear">
-    Multi-tier stakeholder system with role-based permissions and routing
+  <Card title="Beacon reporting" icon="chart-column">
+    Event- and workflow-oriented analytics and admin dashboards distinct from Compass utilization or Atlas org metrics
   </Card>
 </CardGroup>
 
-## Core Capabilities
+## Core capabilities
 
-### Engagement Feed
+### Events
 
-- **Unified Timeline**: Single feed showing all campus activities
-- **Personalized Content**: Filter by interests, organizations, or event types
-- **Real-time Updates**: Live updates on events, RSVPs, and announcements
-- **Cross-platform**: Available on web and mobile apps
+- Rich event definitions, collaborators, visibility, and templates (see [Beacon event system](/beacon/events))
+- Integration with **Compass** when events need rooms or resources on a schedule
+- Integration with **Atlas** when events are owned by or attributed to organizations
 
-### Approval Workflows
+### Approvals & policy
 
-- **Automated Routing**: Events automatically routed to appropriate approvers
-- **Multi-tier Approval**: Support for complex approval chains
-- **Notification System**: Automated notifications at each approval stage
-- **Tracking & Analytics**: Monitor approval times and bottlenecks
+- Configurable approval types (required vs notify vs acknowledge)
+- Conditional routing by event attributes, location, org, or domain rules
+- Audit-friendly progression: who acted, when, and outcome
 
-### Event System
+### Stakeholders
 
-The Beacon event system supports:
-
-- **Event Creation**: Comprehensive event forms with room booking integration
-- **RSVP Management**: Track attendees and manage capacity
-- **Promotion Tools**: Campus-wide event promotion and marketing
-- **Check-in System**: Track event attendance
-- **Post-event Analytics**: Measure event success and engagement
-
-### Stakeholder Management
-
-- **Role Assignment**: Assign institutional positions to users
-- **Domain Management**: Organize stakeholders by department or domain
-- **Permission Control**: Granular permissions for different roles
-- **Workflow Configuration**: Customize approval workflows per domain
+- Institutional roles tied into routing (not only “org officers”)
+- Domain management where the product separates areas of responsibility
+- Alignment between **Atlas** org permissions and **Beacon** event/stakeholder rules where features intersect
 
 ## Architecture
 
 Beacon integrates with:
 
-- **Frontend**: React-based dashboard (`/feature-admin/beacon`)
-- **Backend API**: RESTful endpoints for events and workflows
-- **Notification System**: Email, SMS, and push notifications
-- **Compass Integration**: Room booking for events
-- **Atlas Integration**: Organization data and member management
+- **Frontend**: operator and admin surfaces (for example under feature admin for Beacon configuration)
+- **Backend**: event and workflow routers in the monolith, plus notification channels (email, in-app, mobile where wired)
+- **Compass**: scheduling and rooms for event logistics
+- **Atlas**: organization membership and org-scoped policy that gates who can create or sponsor what
 
-## Use Cases
+## Who uses it
 
-- **Students**: Discover events, RSVP, and engage with campus activities
-- **Event Organizers**: Create events and manage RSVPs
-- **Administrators**: Approve events, monitor engagement, configure workflows
-- **Organization Leaders**: Promote events and track attendance
+- **Event organizers**: propose work, respond to feedback, publish when clear
+- **Approvers & stakeholders**: act inside routing rules without manual email chains
+- **Admins**: tune workflows, domains, and reporting for their campus
 
-## Workflow System
-
-### Approval Types
-
-1. **Approval Required**: Event must be approved before going live
-2. **Notification Only**: Stakeholders notified but approval not required
-3. **Acknowledgment**: Stakeholders must acknowledge receipt
-
-### Workflow Configuration
-
-- **Global Configuration**: System-wide settings from root dashboard
-- **Domain-specific**: Custom workflows per department or domain
-- **Stakeholder Roles**: Assign roles that trigger specific workflows
-- **Conditional Routing**: Route based on event type, location, or other criteria
-
-## Performance Metrics
-
-- **Approval Time**: Reduced from days to hours (70% reduction)
-- **Event Discovery**: Increased event visibility and attendance
-- **Engagement**: Improved student participation in campus activities
-
-## Getting Started
+## Getting started
 
 <CardGroup cols={2}>
-  <Card title="Event System" icon="calendar" href="/beacon/events">
-    Learn about event creation and management
+  <Card title="Event system" icon="calendar" href="/beacon/events">
+    Lifecycle, RSVP, check-in, and how Beacon talks to Compass and Atlas
   </Card>
-  <Card title="Workflow Configuration" icon="sitemap" href="/beacon/workflows">
-    Set up approval workflows and stakeholder routing
+  <Card title="HTTP API" icon="code" href="/api-reference/introduction">
+    Event-management and related REST surfaces
   </Card>
-  <Card title="Admin Dashboard" icon="dashboard" href="/beacon/admin">
-    Configure Beacon settings and monitor engagement
+  <Card title="Atlas (organizations)" icon="map" href="/atlas/overview">
+    Org directory and permissions that often gate event creation
   </Card>
-  <Card title="API Reference" icon="code" href="/api-reference/introduction">
-    Integrate with Beacon APIs for events and workflows
+  <Card title="Compass (scheduling)" icon="compass" href="/compass/overview">
+    Utilization and room scheduling when events need space
   </Card>
 </CardGroup>
 
+---
 
+## Related pages
 
-
-
-
+<CardGroup cols={2}>
+  <Card title="Event management API" icon="calendar" href="/api-reference/event-management">
+    REST reference for org events, RSVPs, and assignments Beacon depends on.
+  </Card>
+  <Card title="Event dashboard (Atlas)" icon="table-columns" href="/atlas/event-dashboard">
+    Organizer UI for agendas, readiness, and analytics tabs.
+  </Card>
+  <Card title="Platform analytics" icon="chart-column" href="/backend/analytics-platform">
+    Event pipeline powering funnel and RSVP insights in reporting.
+  </Card>
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    How attendees and organizers sign in across tenant subdomains.
+  </Card>
+  <Card title="Testing" icon="flask" href="/testing">
+    Regression tests for event and auth flows before release.
+  </Card>
+  <Card title="Deployment" icon="cloud" href="/deployment">
+    Shipping Beacon-related backend changes safely through CI.
+  </Card>
+</CardGroup>
