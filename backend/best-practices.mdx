@@ -150,6 +150,53 @@ Auth middlewares already use `success`, `message`, and `code`. Use `code` for st
 
 When adding event features: add schemas under `events/schemas/`, register in `getModelService.js`, add routes under `events/routes/`, then mount in `events/index.js` if needed.
 
+## Testing
+
+The backend uses a three-layer testing framework (Jest + Supertest + mongodb-memory-server). See `Meridian/docs/TESTING_FRAMEWORK.md` for full details.
+
+### Layout
+
+| Layer | Location | Purpose |
+|-------|----------|---------|
+| **Unit** | `backend/tests/unit/**/*.test.js` | Pure utilities (e.g. `semesterHelpers`, `timeBlockHelper`). |
+| **Integration** | `backend/tests/integration/**/*.test.js` | HTTP route wiring, middleware behavior (e.g. `/health`). |
+| **Route outcomes** | `backend/tests/route-outcomes/**/*.test.js` | End-to-end API correctness against in-memory MongoDB. |
+
+### Commands
+
+From repo root:
+
+- `npm run test:backend` — backend coverage
+- `npm run test:ci` — backend + frontend (CI gate)
+
+From backend:
+
+- `npm --prefix backend run test:unit`
+- `npm --prefix backend run test:integration`
+- `npm --prefix backend run test:routes` — route-outcome tests
+- `npm --prefix backend run test:coverage`
+
+### Multi-tenant route-outcome tests
+
+Route-outcome tests must set `req.db`, `req.school`, and (when applicable) `req.globalDb` so handlers get the correct tenant context:
+
+```javascript
+app.use((req, _res, next) => {
+  req.db = mongo.connection;
+  req.globalDb = mongo.globalConnection;  // when route uses authGlobalService
+  req.school = 'rpi';
+  next();
+});
+```
+
+For auth routes that call `authGlobalService` (e.g. register, login):
+
+- Use `createMongoMemoryConnection({ withGlobalDb: true })`.
+- Set `req.globalDb = mongo.globalConnection`.
+- Mock `createGlobalSession` in `sessionUtils` (tests use in-memory DB, not global Session persistence).
+
+When adding new route-outcome tests (e.g. for Events-Backend routes mounted via `backend/events`), mock `backendRoot` for `verifyToken`, `requireAdmin`, and `getModelService`; use `modulePaths: ['<rootDir>/node_modules']` in Jest so Events-Backend files resolve backend deps correctly.
+
 ## Permissions constants
 
 - **File**: `Meridian/backend/constants/permissions.js`
@@ -193,23 +240,39 @@ When adding event features: add schemas under `events/schemas/`, register in `ge
 | Route definitions | `Meridian/backend/routes/*.js`, `Meridian/backend/events/routes/*.js` |
 | Event route mounting | `Meridian/backend/events/index.js` |
 | Mongoose schemas | `Meridian/backend/schemas/*.js`, `Meridian/backend/events/schemas/*.js` |
+| Test helpers, unit, integration, route-outcomes | `Meridian/backend/tests/`, `Meridian/docs/TESTING_FRAMEWORK.md` |
 
-## Related docs
+## Related pages
 
 <CardGroup cols={2}>
-  <Card title="Multi-Tenant Identity & SSO" icon="users" href="/backend/multi-tenant-identity">
-    Global identity, platform admins, cross-tenant events, SSO, and migration
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    Login methods, JWT access/refresh, web cookies vs mobile headers, and admin MFA.
   </Card>
-  <Card title="Atlas Backend" icon="route" href="/atlas/backend">
-    Endpoint map, auth, and request/response shapes for org routes
+  <Card title="Multi-tenant identity & SSO" icon="users" href="/backend/multi-tenant-identity">
+    Global users, memberships, platform roles, and per-request `req.user` resolution.
   </Card>
-  <Card title="Atlas Architecture" icon="sitemap" href="/atlas/architecture">
-    How Atlas is wired: models, routes, permissions, and UIs
+  <Card title="Session management" icon="rotate" href="/backend/auth/sessions">
+    Global sessions, device metadata, and revoke endpoints used after login.
   </Card>
-  <Card title="Atlas Permissions" icon="key" href="/atlas/permissions">
-    Org roles, permissions, and middleware enforcement
+  <Card title="SAML" icon="key" href="/backend/auth/SAML">
+    Institution SSO per school and how it issues the same token model.
   </Card>
-  <Card title="Session Management" icon="clock" href="/backend/auth/sessions">
-    Multi-device sessions and token refresh
+  <Card title="Multi-tenant test scenarios" icon="list" href="/backend/multi-tenant-test-scenarios">
+    Route-outcome tests and tenant isolation patterns for auth-aware code.
+  </Card>
+  <Card title="Testing" icon="flask" href="/testing">
+    Backend test layout, CI jobs, and conventions aligned with this repo.
+  </Card>
+  <Card title="Atlas backend" icon="route" href="/atlas/backend">
+    Org and event routes; pairs with `getModels` and permission middleware.
+  </Card>
+  <Card title="Atlas architecture" icon="sitemap" href="/atlas/architecture">
+    How Atlas is wired: models, routes, permissions, and UIs.
+  </Card>
+  <Card title="Atlas permissions" icon="key" href="/atlas/permissions">
+    Org roles, permission constants, and `orgPermissions` usage.
+  </Card>
+  <Card title="Web client best practices" icon="browser" href="/frontend/best-practices">
+    `useFetch`, `postRequest`, routing, and styling next to these APIs.
   </Card>
 </CardGroup>

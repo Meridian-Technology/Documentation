@@ -29,7 +29,7 @@ When a user logs in (via email/password, Google OAuth, Apple Sign In, or SAML), 
    - IP address
    - Client type (web, mobile, ios, android)
    - Expiration timestamp (30 days)
-3. Access token (1 minute) and refresh token (30 days) are set as HTTP-only cookies
+3. Access token (short-lived; default **15 minutes** unless overridden by env) and refresh token (default **30 days**) are set as HTTP-only cookies
 4. Session is stored in database, allowing multiple concurrent sessions per user
 
 ### Session Validation
@@ -387,6 +387,25 @@ setInterval(async () => {
 - Implement periodic cleanup job
 - Verify `expiresAt` is set correctly on session creation
 - Check `validateSession()` includes expiration check
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    Email, Google, Apple, JWT cookies vs mobile headers, and how login reaches `issueTokens`.
+  </Card>
+  <Card title="SAML" icon="key" href="/backend/auth/SAML">
+    University SSO; after callback, tokens and sessions align with the same global model.
+  </Card>
+  <Card title="Multi-tenant identity & SSO" icon="users" href="/backend/multi-tenant-identity">
+    Why sessions live in the global DB and how refresh works across subdomains.
+  </Card>
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    Middleware, `getGlobalModelService`, and patterns next to session-aware routes.
+  </Card>
+</CardGroup>
 
 ## Notes
 

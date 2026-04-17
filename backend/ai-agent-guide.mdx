@@ -193,19 +193,31 @@ When adding event features: add schemas under `events/schemas/`, register in `ge
 | Event route mounting | `Meridian/backend/events/index.js` |
 | Mongoose schemas | `Meridian/backend/schemas/*.js`, `Meridian/backend/events/schemas/*.js` |
 
-## Related docs
+## Related pages
 
 <CardGroup cols={2}>
-  <Card title="Atlas Backend" icon="route" href="/atlas/backend">
-    Endpoint map, auth, and request/response shapes for org routes
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    Canonical patterns for `getModels`, `verifyToken`, routes, and responses.
   </Card>
-  <Card title="Atlas Architecture" icon="sitemap" href="/atlas/architecture">
-    How Atlas is wired: models, routes, permissions, and UIs
+  <Card title="Multi-tenant identity & SSO" icon="users" href="/backend/multi-tenant-identity">
+    When to use `getGlobalModelService` and how `req.user` is resolved from JWTs.
   </Card>
-  <Card title="Atlas Permissions" icon="key" href="/atlas/permissions">
-    Org roles, permissions, and middleware enforcement
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    How login, OAuth, and sessions fit together for correct `req` usage in generated code.
   </Card>
-  <Card title="Session Management" icon="clock" href="/backend/auth/sessions">
-    Multi-device sessions and token refresh
+  <Card title="Testing" icon="flask" href="/testing">
+    How to validate route changes with Supertest and tenant fixtures.
+  </Card>
+  <Card title="Atlas backend" icon="route" href="/atlas/backend">
+    Org and event HTTP surfaces agents often touch.
+  </Card>
+  <Card title="Atlas architecture" icon="sitemap" href="/atlas/architecture">
+    Product wiring: models, routes, permissions, and UIs.
+  </Card>
+  <Card title="Atlas permissions" icon="key" href="/atlas/permissions">
+    Org roles and middleware enforcement.
+  </Card>
+  <Card title="Session management" icon="rotate" href="/backend/auth/sessions">
+    Refresh and multi-device behavior when generating client or server flows.
   </Card>
 </CardGroup>

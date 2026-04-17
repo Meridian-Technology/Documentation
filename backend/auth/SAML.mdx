@@ -1,7 +1,6 @@
 ---
 title: 'SAML Authentication'
 description: 'Learn how to integrate SAML authentication with Study Compass for university SSO'
-openapi: 'https://raw.githubusercontent.com/your-repo/study-compass-api/main/openapi.yaml'
 ---
 
 # SAML Authentication
@@ -16,32 +15,32 @@ This documentation covers the complete SAML integration process for universities
 
 <CardGroup cols={2}>
   <Card
-    title="Multi-Tenant Architecture"
+    title="SAML architecture"
     icon="building"
-    href="/docs/saml/architecture"
+    href="/backend/auth/SAML#architecture"
   >
-    Each university subdomain has its own SAML configuration, ensuring complete isolation and security.
+    Per-tenant SAML, subdomains, and how configuration is isolated per school.
   </Card>
   <Card
-    title="Flexible Attribute Mapping"
+    title="Configuration options"
     icon="settings"
-    href="/docs/saml/configuration"
+    href="/backend/auth/SAML#configuration-options"
   >
-    Configurable mapping between SAML attributes and user fields for seamless integration.
+    Attribute mapping, IdP metadata, and tunables documented on this page.
   </Card>
   <Card
-    title="Automatic User Provisioning"
+    title="Integration guide"
     icon="user-plus"
-    href="/docs/saml/user-provisioning"
+    href="/backend/auth/SAML#integration-guide"
   >
-    Users are automatically created and updated from SAML attributes with configurable rules.
+    Provisioning, callbacks, and rollout steps for university SSO.
   </Card>
   <Card
-    title="OAuth Coexistence"
+    title="Other sign-in methods"
     icon="key"
-    href="/docs/saml/oauth-integration"
+    href="/backend/auth/overview"
   >
-    SAML works alongside existing Google OAuth authentication for maximum flexibility.
+    SAML coexists with email/password, Google, and Apple; see the authentication overview for how tokens and tenants align.
   </Card>
 </CardGroup>
 
@@ -605,27 +604,35 @@ Enable debug logging for detailed troubleshooting:
   </Card>
 </CardGroup>
 
-## Support
+## Related pages
 
 <CardGroup cols={2}>
-  <Card title="Documentation">
-    <ul>
-      <li><a href="/docs/saml/configuration">Configuration Guide</a></li>
-      <li><a href="/docs/saml/troubleshooting">Troubleshooting</a></li>
-      <li><a href="/docs/saml/security">Security Guide</a></li>
-      <li><a href="/docs/api">API Reference</a></li>
-    </ul>
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    How SAML fits alongside password, Google, and Apple, and how JWTs are issued afterward.
   </Card>
-  <Card title="Contact">
-    <ul>
-      <li>Email: support@study-compass.com</li>
-      <li>Slack: #saml-support</li>
-      <li>GitHub Issues</li>
-      <li>Emergency: +1-555-SAML-HELP</li>
-    </ul>
+  <Card title="Session management" icon="rotate" href="/backend/auth/sessions">
+    Refresh sessions and multi-device behavior once users complete SAML login.
+  </Card>
+  <Card title="Multi-tenant identity & SSO" icon="users" href="/backend/multi-tenant-identity">
+    Global users, `TenantMembership`, and cookie-domain SSO across subdomains.
+  </Card>
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    Tenant DB routing, `samlRoutes.js` context, and middleware adjacent to auth.
+  </Card>
+  <Card title="API reference" icon="book" href="/api-reference/introduction">
+    Other HTTP surfaces clients use alongside SAML redirects and callbacks.
+  </Card>
+  <Card title="Testing" icon="flask" href="/testing">
+    How to regression-test auth and tenant-specific SAML assumptions in CI.
   </Card>
 </CardGroup>
 
+## Support
+
 <Callout type="info">
-  For urgent SAML integration issues, contact our support team with your university name and error details.
+  **Escalation:** Use internal Study Compass engineering channels for tenant SAML cutovers and IdP coordination. Include **tenant subdomain**, **IdP metadata version**, **approximate failure time**, and **`RelayState` / error codes** from the browser or IdP logs.
+</Callout>
+
+<Callout type="warning">
+  Production SAML changes affect live campus login. Route urgent incidents through the same on-call / engineering escalation used for Meridian authentication outages.
 </Callout>

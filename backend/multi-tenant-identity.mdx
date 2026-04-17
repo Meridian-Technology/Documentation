@@ -351,19 +351,31 @@ Before or after deploy, create at least one platform admin:
 
 ---
 
-## Related docs
+## Related pages
 
 <CardGroup cols={2}>
-  <Card title="Backend Best Practices" icon="book" href="/backend/best-practices">
-    Multi-tenancy, getModelService, getGlobalModelService, requireAdmin, and response shapes
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    Password, Google, Apple, JWTs, cookies vs mobile, and how they tie to `GlobalUser`.
   </Card>
-  <Card title="Session Management" icon="clock" href="/backend/auth/sessions">
-    Multi-device sessions; sessions are stored in global DB when using global identity
+  <Card title="Session management" icon="rotate" href="/backend/auth/sessions">
+    Refresh tokens, multi-device sessions, and global session storage for SSO.
+  </Card>
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    `req.db`, `getGlobalModelService`, `verifyToken`, and route conventions.
   </Card>
   <Card title="SAML" icon="key" href="/backend/auth/SAML">
-    SAML login flows; after success, tokens are issued via authGlobalService (global identity)
+    Per-tenant SAML; after IdP callback, provisioning uses the same global identity path.
   </Card>
-  <Card title="Atlas Backend" icon="route" href="/atlas/backend">
-    Org and event routes; admin routes use requireAdmin for platform admins
+  <Card title="Multi-tenant test scenarios" icon="list" href="/backend/multi-tenant-test-scenarios">
+    Route tests and isolation checks for cross-tenant and membership edge cases.
+  </Card>
+  <Card title="Testing" icon="flask" href="/testing">
+    Where auth and tenant tests live and how CI runs them.
+  </Card>
+  <Card title="Atlas backend" icon="route" href="/atlas/backend">
+    Org and event APIs; `requireAdmin` respects platform admins from the global DB.
+  </Card>
+  <Card title="API reference" icon="book" href="/api-reference/introduction">
+    HTTP API scope and how callers authenticate.
   </Card>
 </CardGroup>
