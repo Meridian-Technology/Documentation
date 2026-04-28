@@ -12,6 +12,8 @@ Atlas membership is represented by two record types:
 
 Which record is created depends on org settings.
 
+`OrgMember` now supports multi-role assignment through `roles[]` (with `role` kept as a synced legacy primary role for compatibility).
+
 ## Join configuration knobs (Org)
 
 Stored on the org document:
@@ -26,7 +28,7 @@ Stored on the org document:
 **Path**: `POST /:orgId/apply-to-org` (in `orgRoutes`)
 
 **Behavior**:
-- Creates `OrgMember({ org_id, user_id, role: 'member' })`
+- Creates `OrgMember({ org_id, user_id, role: 'member', roles: ['member'] })`
 - Responds immediately with success
 
 <Warning>
@@ -95,6 +97,7 @@ This returns:
 - `POST /org-roles/:orgId/applications/:applicationId/approve`
   - gated by `requireMemberManagement()` (org permission: `manage_members`)
   - creates a new `OrgMember` for the applicant
+  - supports role assignment via `roles[]` in the request body (default remains `member`)
   - marks the application `approved` and writes metadata
 
 ### Rejecting an application
@@ -116,11 +119,20 @@ The role assignment endpoint:
 
 - `POST /org-roles/:orgId/members/:userId/role`
 
-…will **create** an `OrgMember` row if missing (and assign the role), or change role if it exists.
+…will **create** an `OrgMember` row if missing (and assign roles), or update roles if it exists.
+
+Current payload shape:
+
+- `roles: string[]` (preferred)
+- `role: string` (legacy-compatible)
 
 It also pushes the orgId into `User.clubAssociations` if it’s missing.
 
 This means role assignment can effectively “force-join” a user into an org.
+
+<Warning>
+`owner` cannot be assigned through this endpoint. Ownership changes must use the explicit transfer ownership flow.
+</Warning>
 
 ## Troubleshooting membership issues
 
@@ -129,6 +141,6 @@ This means role assignment can effectively “force-join” a user into an org.
 - **User is “member” but permission middleware denies**:
   - `OrgMember.status` must be `active`
 - **Role exists on member but permissions don’t apply**:
-  - `Org.positions[].name` must match `OrgMember.role`
+  - `Org.positions[].name` must match assigned values in `OrgMember.roles[]`
 
 
