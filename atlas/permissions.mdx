@@ -45,7 +45,7 @@ Each role has:
 
 - `name` (string key)
 - `permissions[]`
-- plus helper booleans (`canManageMembers`, etc)
+- helper booleans (`canManageMembers`, etc) derived from `permissions[]` at save time for compatibility with older reads
 
 The canonical evaluation path uses `permissions[]`.
 
@@ -57,10 +57,13 @@ Membership records are stored in:
 
 Each member has:
 
-- `role` (string key that must match `Org.positions[].name`)
+- `roles[]` (multi-role assignment; each role key must match `Org.positions[].name`)
+- `role` (legacy/sync primary role; maintained for backward compatibility)
 - overrides:
   - `customPermissions[]` (force-allow)
   - `deniedPermissions[]` (force-deny)
+
+`OrgInvite` follows the same `roles[]` + `role` compatibility pattern.
 
 ## How enforcement works (backend)
 
@@ -125,8 +128,8 @@ In `OrgMember.hasPermissionWithOrg(permission, org)`:
   <Step title="Check custom permissions">
     Else if `customPermissions.includes(permission)` → **allow**
   </Step>
-  <Step title="Check org role">
-    Else → `org.hasPermission(this.role, permission)`
+  <Step title="Check org roles">
+    Else → evaluate across assigned roles (`getAssignedRoles()`), allow if any assigned role grants the permission
   </Step>
 </Steps>
 
@@ -155,11 +158,23 @@ Important invariants enforced in code:
 - You **cannot** remove `owner` or `member` roles (`Org.removeRole`)
 - You **must** preserve `owner` in bulk updates (`PUT /org-roles/:orgId/roles`)
 - Owner role must retain `permissions: ['all']` and role management capability (`Org.updateRole`)
+- `owner` role assignment is restricted to explicit ownership transfer flows
 
 ## Member management endpoints (and how they are gated)
 
-- `DELETE /org-roles/:orgId/members/:userId` is gated by `requireMemberManagement()` → checks `manage_members`.
-- Some other member endpoints currently **do not** use middleware gates (e.g. assigning roles) and may rely on higher-level UI gating. When hardening security, audit these and add `requireMemberManagement` where appropriate.
+- `GET /org-roles/:orgId/members` is gated by `requireMemberManagement()`.
+- `POST /org-roles/:orgId/members/:userId/role` is gated by `requireMemberManagement()`.
+- `GET /org-roles/:orgId/roles/:roleName/members` is gated by `requireMemberManagement()`.
+- `DELETE /org-roles/:orgId/members/:userId` is gated by `requireMemberManagement()`.
+
+Server-side enforcement is authoritative; client-side checks are for UI only.
+
+## Owner invariants and migration paths
+
+- Organization ownership is anchored to `Org.owner`.
+- Effective owner permissions are granted even if membership rows are stale/missing.
+- Ownership transfer uses an explicit transfer endpoint that updates both `Org.owner` and membership role state.
+- Admin migration endpoint exists to backfill/repair owner membership role consistency.
 
 ## Frontend permission checks (client-side)
 
@@ -168,20 +183,15 @@ The club dashboard (`Meridian/frontend/src/pages/ClubDash/ClubDash.jsx`) compute
 - If `adminView=true` and user has `admin` or `root` role → all capabilities (admin bypass)
 - Else if org owner → all capabilities
 - Else:
-  - fetch `GET /org-roles/:orgId/members`
-  - find current user’s member row
-  - look up role object in `org.positions`
-  - allow if:
-    - role boolean is true **or**
-    - role.permissions includes the string **or**
-    - role.permissions includes `all`
+  - fetch `GET /org-roles/:orgId/me/permissions`
+  - use returned effective permission flags to enable/disable UI actions
 
 This is UI gating only. Backend enforcement is still required.
 
 ## Common pitfalls
 
 <Warning>
-**Role name drift**: Renaming roles without migrating `OrgMember.role` will "orphan" members.
+**Role name drift**: Renaming/deleting roles without migrating `OrgMember.roles[]` will orphan assignments.
 </Warning>
 
 <Warning>
