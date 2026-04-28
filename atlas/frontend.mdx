@@ -92,10 +92,8 @@ Computation:
 
 1. Owner check: `org.owner === user._id` → allow all
 2. Else:
-   - fetch all members via `GET /org-roles/:orgId/members`
-   - find the current user’s `OrgMember` row
-   - find role object in `org.positions`
-   - allow based on booleans or `role.permissions`
+   - fetch effective permissions via `GET /org-roles/:orgId/me/permissions`
+   - set UI capability flags from the effective permission payload
 
 Backend enforcement still exists (see `/atlas/permissions`).
 
@@ -108,6 +106,15 @@ The club dashboard includes components that map to backend APIs:
 - **Announcements** (`OrgMessageFeed`) → `/org-messages/:orgId/messages` etc.
 - **Events** (`EventsManagement`) → typically event routes + `/org-event-management/:orgId/...` for analytics/management
 - **Verification request** (`Settings/VerificationRequest`) → `POST /org-management/verification-requests`
+
+### Roles UI model (ClubDash)
+
+`Meridian/frontend/src/pages/ClubDash/Roles/Roles.jsx` now defaults to a view-first flow:
+
+- read-only role overview with condensed role cards and per-role member breakdown
+- internal "Edit Roles" toggle inside `RoleManager` (Discord-style view/edit split)
+- role member assignment/unassignment handled in a dedicated management popup from the overview
+- owner role remains visible as an immutable system role
 
 ## Org management admin dashboard (`/feature-admin/atlas`)
 
