@@ -1,0 +1,68 @@
+---
+title: "Infrastructure Onboarding"
+description: "Core Meridian docs to read first for engineering context"
+---
+
+This page collects the most important documentation to onboard quickly to Meridian infrastructure and development patterns.
+
+## Development guides
+
+These docs explain local setup, daily workflows, testing, CLI usage, and deployment flow:
+
+<CardGroup cols={2}>
+  <Card title="Development" icon="wrench" href="/development">
+    Daily engineering workflow, local run patterns, and practical debugging guidance.
+  </Card>
+  <Card title="Testing" icon="flask" href="/testing">
+    Test commands, suite organization, and how local verification maps to CI.
+  </Card>
+  <Card title="Meridian CLI" icon="terminal" href="/meridian-cli">
+    Branch, status, setup, and shipping workflows powered by Meridian CLI commands.
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/deployment">
+    Release flow, deployment expectations, and operational rollout context.
+  </Card>
+</CardGroup>
+
+## Best practices
+
+These guides capture implementation conventions for backend and frontend work:
+
+<CardGroup cols={2}>
+  <Card title="Backend best practices" icon="server" href="/backend/best-practices">
+    Service patterns, route conventions, data access, and multi-tenant backend standards.
+  </Card>
+  <Card title="Frontend best practices" icon="code" href="/frontend/best-practices">
+    React architecture, state and API usage conventions, and frontend quality standards.
+  </Card>
+</CardGroup>
+
+## Important architecture
+
+These pages are key for understanding identity, authentication, and analytics design in Meridian:
+
+<CardGroup cols={2}>
+  <Card title="Multi-tenant identity" icon="users" href="/backend/multi-tenant-identity">
+    How users, tenants, and memberships are modeled across schools and subdomains.
+  </Card>
+  <Card title="Authentication overview" icon="shield" href="/backend/auth/overview">
+    End-to-end auth model including JWT flows, SSO integration points, and session behavior.
+  </Card>
+  <Card title="Analytics platform" icon="chart-line" href="/backend/analytics-platform">
+    Core analytics architecture, event pipelines, and reporting foundations in Meridian.
+  </Card>
+</CardGroup>
+
+## Suggested read order
+
+If you are onboarding from scratch, read in this sequence:
+
+1. [Development](/development)
+2. [Testing](/testing)
+3. [Backend best practices](/backend/best-practices)
+4. [Frontend best practices](/frontend/best-practices)
+5. [Multi-tenant identity](/backend/multi-tenant-identity)
+6. [Authentication overview](/backend/auth/overview)
+7. [Analytics platform](/backend/analytics-platform)
+8. [Meridian CLI](/meridian-cli)
+9. [Deployment](/deployment)

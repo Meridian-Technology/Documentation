@@ -55,7 +55,7 @@
   "navigation": [
     {
       "group": "Overview",
-      "pages": ["introduction", "getting-started"]
+      "pages": ["introduction", "getting-started", "onboarding-infra"]
     },
     {
       "group": "Engineering",
