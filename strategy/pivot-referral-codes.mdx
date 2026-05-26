@@ -1,0 +1,229 @@
+---
+title: "Pivot referral codes"
+description: "Global invite codes that gate the Pivot mobile edition—schema, platform admin, APIs, and seeding"
+---
+
+## Purpose
+
+Pivot referral codes are the **only gate** into the Pivot edition of Meridian Mobile. Campus users who never enter a valid code keep the normal campus experience.
+
+Each code maps to exactly one **Pivot city tenant** (`tenantKey`) and optionally carries a **cohort** label for analytics and pilot segmentation. Codes live in the **global/platform Mongo database**, not in per-city tenant DBs.
+
+<Note>
+**Product boundary:** Referral validation is server-authoritative. Mobile must not infer `tenantKey` or subdomain from the code string alone—use `POST /pivot/referral/validate` (see [Mobile flow](#mobile-flow-planned)).
+</Note>
+
+Related docs:
+
+- [Pivot MVP implementation plan](/strategy/pivot-mvp-implementation-plan) — tasks 0.3, 1.2–1.3, 1.6
+- [Pivot metadata contract](/strategy/pivot-metadata-contract) — catalog events and intent (separate from referral codes)
+- [Events marketplace pivot — architecture](/strategy/events-marketplace-pivot) — strategic context
+- [Multi-tenant identity](/backend/multi-tenant-identity) — global DB and platform admin
+
+---
+
+## Data model
+
+**Collection:** `pivot_referral_codes` (global DB)  
+**Mongoose model:** `PivotReferralCode` via `getGlobalModelService(req, 'PivotReferralCode')`  
+**Schema file:** `Meridian/backend/schemas/pivotReferralCode.js`
+
+### Document shape
+
+```json
+{
+  "_id": "665b1b2c3d4e5f6789012346",
+  "code": "NYC-PILOT-A",
+  "tenantKey": "nyc",
+  "cohortId": "pilot-a",
+  "maxRedemptions": 50,
+  "redemptionCount": 0,
+  "expiresAt": null,
+  "active": true,
+  "batchWeek": "2026-W21",
+  "createdAt": "2026-05-26T12:00:00.000Z",
+  "updatedAt": "2026-05-26T12:00:00.000Z"
+}
+```
+
+### Field reference
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `code` | `string` | **Yes** | Unique globally. Stored **uppercase** (normalized on save). |
+| `tenantKey` | `string` | **Yes** | Must match a **Pivot** row in `TenantConfig` (`tenantType: 'pivot'` or `pivotPilot: true`). |
+| `cohortId` | `string` | **Yes** | Opaque cohort label (e.g. `pilot-a`) for analytics and A/B pilots. |
+| `maxRedemptions` | `number` | **Yes** | Cap on successful redemptions (default `50` on create). |
+| `redemptionCount` | `number` | **Yes** | Incremented when a user redeems (task 1.6). Ops may override in admin UI. |
+| `expiresAt` | ISO-8601 datetime \| `null` | No | After this instant, code is not redeemable. |
+| `active` | `boolean` | **Yes** | Manual kill switch (`false` = never redeemable). |
+| `batchWeek` | `string` \| `null` | No | Optional default ISO week (`YYYY-Www`) returned to mobile on validate—see [Pivot metadata contract](/strategy/pivot-metadata-contract#iso-week-format-batchweek). |
+
+**Indexes:** unique on `code`; compound on `(tenantKey, active)`.
+
+### When a code is redeemable
+
+A code is **redeemable** when all of the following hold:
+
+1. `active === true`
+2. `expiresAt` is null or in the future
+3. `redemptionCount < maxRedemptions`
+
+The admin API exposes a computed `redeemable` boolean on list responses. Status labels in the UI map to: **Redeemable**, **Inactive**, **Expired**, **Maxed**.
+
+---
+
+## Tenant binding
+
+| Rule | Detail |
+| --- | --- |
+| One code → one city | Each document has a single `tenantKey` (e.g. `nyc`). |
+| Pivot tenants only | Platform admin referral APIs return **403** for campus tenants. |
+| Subdomain resolution | On validate, server loads `TenantConfig` for `tenantKey` and returns `subdomain` + `cityDisplayName` for the mobile HTTP client. |
+
+Pivot city tenants are provisioned via [Platform Admin tenant management](/strategy/pivot-mvp-implementation-plan#task-02--provision-pilot-city-tenants) (`/platform-admin`).
+
+---
+
+## Platform admin UI
+
+**Path:** Platform Admin → **Tenants** → select a **Pivot city pilot** tenant.
+
+The **Pivot referral codes** panel appears only when `tenantType === 'pivot'` or `pivotPilot === true`. Campus tenants do not show this section.
+
+**Capabilities:**
+
+- List codes for the selected tenant (code, cohort, redemptions, batch week, status)
+- Create a new code
+- Edit fields (including ops override of `redemptionCount`)
+- Delete a code
+
+**Implementation:** `Meridian/frontend/src/pages/PlatformAdmin/TenantManagement/PivotReferralCodesPanel/`
+
+---
+
+## Platform admin API
+
+All routes require `verifyToken` + **platform admin** (`requirePlatformAdmin`). Base path:
+
+`/admin/platform/tenants/:tenantKey/pivot-referral-codes`
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/admin/platform/tenants/:tenantKey/pivot-referral-codes` | List codes + `currentBatchWeek` (server ISO week). |
+| `POST` | `/admin/platform/tenants/:tenantKey/pivot-referral-codes` | Create code. Body: `code`, `cohortId`, optional `maxRedemptions`, `active`, `batchWeek`, `expiresAt`. |
+| `PUT` | `/admin/platform/tenants/:tenantKey/pivot-referral-codes/:codeId` | Partial update. |
+| `DELETE` | `/admin/platform/tenants/:tenantKey/pivot-referral-codes/:codeId` | Remove code. |
+
+### `GET` response (excerpt)
+
+```json
+{
+  "success": true,
+  "data": {
+    "tenantKey": "nyc",
+    "currentBatchWeek": "2026-W21",
+    "codes": [
+      {
+        "_id": "665b1b2c3d4e5f6789012346",
+        "code": "NYC-PILOT-A",
+        "tenantKey": "nyc",
+        "cohortId": "pilot-a",
+        "maxRedemptions": 50,
+        "redemptionCount": 0,
+        "expiresAt": null,
+        "active": true,
+        "batchWeek": "2026-W21",
+        "redeemable": true
+      }
+    ]
+  }
+}
+```
+
+**Service:** `Meridian/backend/services/pivotReferralCodeService.js`  
+**Routes:** `Meridian/backend/routes/platformTenantRoutes.js`
+
+---
+
+## Seeding (CLI)
+
+For local/staging bootstrap, seed default NYC pilot codes from `Meridian/backend`:
+
+```bash
+npm run seed:pivot-referral-codes
+```
+
+Equivalent: `node migrations/seedPivotReferralCodes.js`
+
+**Default tenant:** `nyc` (constant `PILOT_TENANT_KEY` in `constants/pivotPilotReferralCodes.js`).
+
+**Seeded codes:**
+
+| Code | Cohort | Purpose |
+| --- | --- | --- |
+| `NYC-PILOT-A` | `pilot-a` | Active pilot cohort A |
+| `NYC-PILOT-B` | `pilot-b` | Active pilot cohort B |
+| `NYC-PILOT-C` | `pilot-c` | Active (no default `batchWeek`) |
+| `NYC-PILOT-INACTIVE` | `pilot-inactive-test` | `active: false` — negative testing |
+| `NYC-PILOT-EXPIRED` | `pilot-expired-test` | `expiresAt` in the past — negative testing |
+
+Re-running the seed **upserts** by `code` and removes legacy `BK-PILOT*` rows.
+
+<Warning>
+Do not commit production pilot codes that should stay private. Prefer creating codes in Platform Admin for shared environments.
+</Warning>
+
+---
+
+## Mobile flow (planned)
+
+Implemented in [Pivot MVP implementation plan](/strategy/pivot-mvp-implementation-plan) Phase 1—not yet required for ops-only seeding.
+
+| Step | API | Auth |
+| --- | --- | --- |
+| User enters code on Welcome | `POST /pivot/referral/validate` | None |
+| After first Pivot login | `POST /pivot/referral/redeem` | Required |
+
+### `POST /pivot/referral/validate` (planned)
+
+- Normalize code: trim, uppercase
+- Load `PivotReferralCode`; enforce redeemability
+- Resolve tenant from `TenantConfig`
+- Response: `{ tenantKey, subdomain, cohortId, cityDisplayName, batchWeek }`
+
+Mobile persists `app_edition: 'pivot'` and `pivot_meta` in SecureStore, then sets API subdomain to the city host (e.g. `nyc.meridian.study`).
+
+### `POST /pivot/referral/redeem` (planned)
+
+- Increment `redemptionCount` (idempotent per user via `PivotReferralRedemption` or equivalent)
+- Enforces `maxRedemptions` server-side
+
+---
+
+## Cohort and batch week usage
+
+| Field | Used by | Notes |
+| --- | --- | --- |
+| `cohortId` | Analytics, Pivot Lab | Attached to swipe/funnel events from mobile `pivot_meta`. |
+| `batchWeek` on code | Mobile bootstrap | Optional default week when user has not selected a week; catalog events still use `customFields.pivot.batchWeek` on each event. |
+
+These are independent: a referral code’s `batchWeek` does not change event ingest—it only hints the attendee’s initial week context.
+
+---
+
+## Manual checklist (ops)
+
+1. Provision Pivot city tenant (`nyc`, etc.) in Platform Admin.
+2. Confirm DB health and Pivot Catalog org.
+3. Create referral codes in **Pivot referral codes** (or run seed locally).
+4. Distribute code to pilot users (e.g. `NYC-PILOT-A`).
+5. After mobile Phase 1 ships: verify validate → login → subdomain is the city, not campus.
+
+---
+
+## Changelog
+
+| Date | Change |
+| --- | --- |
+| 2026-05-26 | Initial doc — schema, admin UI/API, NYC seed (Task 0.3) |

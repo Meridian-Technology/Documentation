@@ -55,7 +55,15 @@
   "navigation": [
     {
       "group": "Overview",
-      "pages": ["introduction", "getting-started", "onboarding-infra"]
+      "pages": [
+        "introduction",
+        "getting-started",
+        "onboarding-infra",
+        "strategy/events-marketplace-pivot",
+        "strategy/pivot-metadata-contract",
+        "strategy/pivot-referral-codes",
+        "strategy/pivot-mvp-implementation-plan"
+      ]
     },
     {
       "group": "Engineering",

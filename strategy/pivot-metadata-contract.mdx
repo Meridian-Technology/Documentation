@@ -1,0 +1,273 @@
+---
+title: "Pivot metadata contract"
+description: "Internal spec for customFields.pivot, displayHost API shape, and PivotEventIntent statuses"
+---
+
+## Purpose
+
+This document is the **canonical contract** for Pivot catalog events and attendee intent. Anyone ingesting events manually (before Pivot Lab exists) or building `/pivot/*` APIs should follow it.
+
+Related docs:
+
+- [Pivot MVP implementation plan](/strategy/pivot-mvp-implementation-plan) — task-by-task build plan
+- [Pivot metadata contract](/strategy/pivot-metadata-contract) — canonical `customFields.pivot` and API shapes
+- [Pivot referral codes](/strategy/pivot-referral-codes) — invite codes and platform admin
+- [Events marketplace pivot — architecture](/strategy/events-marketplace-pivot) — strategic context
+
+---
+
+## `customFields.pivot` on Event
+
+Pivot catalog events are **normal `Event` documents** in the tenant (city) database. Pivot-specific metadata lives under `customFields.pivot` — not a separate collection or event type.
+
+### Schema
+
+```json
+{
+  "batchWeek": "2026-W21",
+  "source": "luma",
+  "sourceUrl": "https://lu.ma/example-event",
+  "host": {
+    "name": "Brooklyn Board Game Cafe",
+    "imageUrl": "https://example.com/host-avatar.jpg",
+    "profileUrl": "https://partiful.com/u/example-host"
+  },
+  "tags": ["music", "outdoor"],
+  "ingestStatus": "published",
+  "importedAt": "2026-05-20T14:30:00.000Z",
+  "importedBy": "ops@meridian.study"
+}
+```
+
+### Field reference
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `batchWeek` | `string` | **Yes** (published) | ISO week: `YYYY-Www` (see below) |
+| `source` | `"luma" \| "partiful" \| "manual"` | Recommended | Where the event was imported from |
+| `sourceUrl` | `string` (URL) | Recommended | Original listing URL; often same as `externalLink` |
+| `host.name` | `string` | **Yes** (published) | Display organizer — what users see in Pivot UI |
+| `host.imageUrl` | `string` (URL) | No | Avatar or logo for the display host |
+| `host.profileUrl` | `string` (URL) | No | Link to host profile on Partiful/Luma |
+| `tags` | `string[]` | No | Facets for v0 ranker (e.g. `music`, `board-games`) |
+| `ingestStatus` | `"draft" \| "published"` | **Yes** | Only `published` events appear in `/pivot/feed` |
+| `importedAt` | ISO-8601 datetime | Recommended | When ops ingested the event |
+| `importedBy` | `string` | Recommended | Global user ID or ops email |
+
+<Warning>
+**Published catalog events must have `batchWeek` and `host.name`.** Ingest QA should reject publish if either is missing. Draft events may omit them until ready.
+</Warning>
+
+### ISO week format (`batchWeek`)
+
+Use **ISO 8601 week date** format: `YYYY-Www`
+
+- `YYYY` — ISO week-numbering year (may differ from calendar year near January)
+- `W` — literal separator
+- `ww` — zero-padded week number (`01`–`53`)
+
+Examples: `2026-W21`, `2026-W01`, `2025-W52`
+
+JavaScript (reference):
+
+```javascript
+function toIsoWeek(date = new Date()) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+```
+
+---
+
+## Catalog host model (display vs technical)
+
+Pivot uses two host layers on the same `Event` document:
+
+| Layer | Storage | Shown in Pivot UI? |
+| --- | --- | --- |
+| **Display host** | `customFields.pivot.host` | **Yes** — primary label on cards and detail |
+| **Technical host** | `hostingId` → per-city **Pivot Catalog** org (`hostingType: 'Org'`) | **No** — satisfies Events-Backend required fields only |
+
+**Do not** create a new `Org` per venue. **Do not** show “Meridian [city]” as the public host label.
+
+Tickets live on `externalLink` (Partiful/Luma URL). Campus `EventCard` paths that read `hostingId.org_name` are unchanged; Pivot clients must use `displayHost` from API responses.
+
+---
+
+## Sample published catalog event
+
+Full `Event` document (tenant DB) for manual ingest reference:
+
+```json
+{
+  "_id": "665a1b2c3d4e5f6789012345",
+  "name": "Friday Night Board Games",
+  "description": "Open tables, BYOB. All skill levels welcome.",
+  "type": "social",
+  "location": "123 Atlantic Ave, Brooklyn, NY",
+  "start_time": "2026-05-23T19:00:00.000Z",
+  "end_time": "2026-05-23T23:00:00.000Z",
+  "status": "not-applicable",
+  "visibility": "public",
+  "registrationEnabled": true,
+  "externalLink": "https://partiful.com/e/example-event-id",
+  "hostingType": "Org",
+  "hostingId": "665a00000000000000000001",
+  "isDeleted": false,
+  "customFields": {
+    "pivot": {
+      "batchWeek": "2026-W21",
+      "source": "partiful",
+      "sourceUrl": "https://partiful.com/e/example-event-id",
+      "host": {
+        "name": "Brooklyn Board Game Cafe",
+        "imageUrl": "https://cdn.partiful.com/avatars/example.jpg",
+        "profileUrl": "https://partiful.com/u/bkbgcafe"
+      },
+      "tags": ["board-games", "social"],
+      "ingestStatus": "published",
+      "importedAt": "2026-05-20T14:30:00.000Z",
+      "importedBy": "ops@meridian.study"
+    }
+  }
+}
+```
+
+<Note>
+`hostingId` (`665a00000000000000000001` above) is the **Pivot Catalog org** for that city — internal only. Users see `customFields.pivot.host.name` (`Brooklyn Board Game Cafe`), not the org document name (`Pivot Catalog — Brooklyn`).
+</Note>
+
+### Required top-level Event fields (catalog)
+
+| Field | Value for Pivot catalog |
+| --- | --- |
+| `status` | `'not-applicable'` or `'approved'` |
+| `visibility` | `'public'` |
+| `hostingType` | `'Org'` |
+| `hostingId` | Pivot Catalog org `_id` for tenant |
+| `externalLink` | Partiful/Luma ticket URL |
+| `customFields.pivot.ingestStatus` | `'published'` for feed visibility |
+
+---
+
+## `displayHost` API shape
+
+Pivot APIs resolve **`displayHost`** from `customFields.pivot.host` so mobile never reads `hostingId.org_name`.
+
+### Source mapping
+
+| `displayHost` field | Source |
+| --- | --- |
+| `name` | `customFields.pivot.host.name` (**required**) |
+| `imageUrl` | `customFields.pivot.host.imageUrl` (optional) |
+| `profileUrl` | `customFields.pivot.host.profileUrl` (optional) |
+
+### `GET /pivot/feed` response (excerpt)
+
+```json
+{
+  "success": true,
+  "data": {
+    "batchWeek": "2026-W21",
+    "cityDisplayName": "Brooklyn",
+    "events": [
+      {
+        "_id": "665a1b2c3d4e5f6789012345",
+        "name": "Friday Night Board Games",
+        "description": "Open tables, BYOB. All skill levels welcome.",
+        "location": "123 Atlantic Ave, Brooklyn, NY",
+        "start_time": "2026-05-23T19:00:00.000Z",
+        "end_time": "2026-05-23T23:00:00.000Z",
+        "externalLink": "https://partiful.com/e/example-event-id",
+        "displayHost": {
+          "name": "Brooklyn Board Game Cafe",
+          "imageUrl": "https://cdn.partiful.com/avatars/example.jpg",
+          "profileUrl": "https://partiful.com/u/bkbgcafe"
+        },
+        "userIntent": null,
+        "friendsInterested": [],
+        "friendsGoing": []
+      }
+    ]
+  }
+}
+```
+
+### Rules
+
+- **`displayHost.name` is always present** for published catalog events in the feed. Server should omit or reject events missing `host.name` at ingest QA time.
+- **`hostingId` and org name are not returned** to Pivot mobile clients (or are stripped from the payload).
+- Same `displayHost` shape applies to **`GET /pivot/week-recap`** and event detail endpoints.
+- Campus event APIs are unchanged; they continue to use org/host resolution as today.
+
+---
+
+## `PivotEventIntent` (attendee intent)
+
+For MVP, **creators live on Partiful/Luma**. Meridian stores **intent**, not ticket confirmation. Do not reuse campus `attendees` rows as “going” unless status is explicitly `registered`.
+
+### Collection shape (tenant DB)
+
+```json
+{
+  "_id": "665b1b2c3d4e5f6789012346",
+  "userId": "665c00000000000000000002",
+  "eventId": "665a1b2c3d4e5f6789012345",
+  "batchWeek": "2026-W21",
+  "status": "interested",
+  "updatedAt": "2026-05-21T18:00:00.000Z"
+}
+```
+
+**Unique index:** `(userId, eventId)`
+
+### Status enum
+
+| Status | Meaning | UI copy | Friend-facing |
+| --- | --- | --- | --- |
+| `interested` | Swipe right / tap Interested | “Interested” | “X friends interested” |
+| `registered` | User tapped “I got a ticket” (self-report v0) | “Going” | “X friends going” |
+| `passed` | Swipe left | — | — |
+
+### Intent vs campus RSVP
+
+| Action | MVP behavior |
+| --- | --- |
+| Swipe right | Set `interested` — **do not** open external URL |
+| Swipe left | Set `passed` |
+| “Get tickets” (detail / recap) | Open `externalLink`; log `pivot_external_open` |
+| “I got a ticket” | Set `registered` via `POST /pivot/intent/:eventId/registered` |
+
+**Social copy:** use **interested** vs **going** (registered). Only `registered` counts as friends **going**.
+
+### Related APIs
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /pivot/feed/action` | `{ eventId, action: "interested" \| "pass" }` |
+| `GET /pivot/week-recap` | User’s `interested` events for `batchWeek` |
+| `POST /pivot/intent/:eventId/registered` | Self-confirm ticket (optional `openedExternalAt`) |
+
+---
+
+## Manual ingest checklist
+
+Before Pivot Lab (Task 5.4–5.5), use this checklist when pasting events into the tenant DB:
+
+1. Set tenant (city) DB and **Pivot Catalog** `hostingId` for that city.
+2. Set `status: 'not-applicable'`, `visibility: 'public'`, `externalLink` to Partiful/Luma URL.
+3. Set `customFields.pivot.batchWeek` to target ISO week.
+4. Set `customFields.pivot.host.name` to the **real organizer** from the listing.
+5. Set `customFields.pivot.ingestStatus: 'published'` when ready for feed.
+6. Verify event appears in `GET /pivot/feed` with correct `displayHost.name`.
+
+---
+
+## Changelog
+
+| Date | Change |
+| --- | --- |
+| 2026-05-26 | Initial contract (Task 0.1) |
