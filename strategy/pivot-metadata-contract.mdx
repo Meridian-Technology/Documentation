@@ -10,8 +10,9 @@ This document is the **canonical contract** for Pivot catalog events and attende
 Related docs:
 
 - [Pivot MVP implementation plan](/strategy/pivot-mvp-implementation-plan) — task-by-task build plan
-- [Pivot metadata contract](/strategy/pivot-metadata-contract) — canonical `customFields.pivot` and API shapes
+- [Pivot tenant ops dashboard plan](/strategy/pivot-tenant-ops-dashboard-plan) — per-tenant Overview / Curation / Journeys; batch release gate
 - [Pivot referral codes](/strategy/pivot-referral-codes) — invite codes and platform admin
+- [Pivot weekly drop runbook](/strategy/pivot-weekly-drop-runbook) — drop timing vs catalog release
 - [Events marketplace pivot — architecture](/strategy/events-marketplace-pivot) — strategic context
 
 ---
@@ -32,8 +33,8 @@ Pivot catalog events are **normal `Event` documents** in the tenant (city) datab
     "imageUrl": "https://example.com/host-avatar.jpg",
     "profileUrl": "https://partiful.com/u/example-host"
   },
-  "tags": ["music", "outdoor"],
-  "ingestStatus": "published",
+  "tags": ["board-games", "social"],
+  "ingestStatus": "staged",
   "importedAt": "2026-05-20T14:30:00.000Z",
   "importedBy": "ops@meridian.study"
 }
@@ -43,20 +44,63 @@ Pivot catalog events are **normal `Event` documents** in the tenant (city) datab
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `batchWeek` | `string` | **Yes** (published) | ISO week: `YYYY-Www` (see below) |
+| `batchWeek` | `string` | **Yes** (`staged` / `published`) | ISO week: `YYYY-Www` (see below). **Default at ingest:** ISO week of the event’s start date (or first time slot). Optional `forceBatchWeek` pins to an explicit week. |
 | `source` | `"luma" \| "partiful" \| "manual"` | Recommended | Where the event was imported from |
 | `sourceUrl` | `string` (URL) | Recommended | Original listing URL; often same as `externalLink` |
-| `host.name` | `string` | **Yes** (published) | Display organizer — what users see in Pivot UI |
+| `host.name` | `string` | **Yes** (`staged` / `published`) | Display organizer — what users see in Pivot UI |
 | `host.imageUrl` | `string` (URL) | No | Avatar or logo for the display host |
 | `host.profileUrl` | `string` (URL) | No | Link to host profile on Partiful/Luma |
-| `tags` | `string[]` | No | Facets for v0 ranker (e.g. `music`, `board-games`) |
-| `ingestStatus` | `"draft" \| "published"` | **Yes** | Only `published` events appear in `/pivot/feed` |
+| `tags` | `string[]` | Recommended (`staged` / `published`) | Catalog slugs from **Pivot tag catalog** (see below); used by ranker, Lab, and chips |
+| `ingestStatus` | `"draft" \| "staged" \| "published"` | **Yes** | Lifecycle — see [Ingest status lifecycle](#ingest-status-lifecycle) |
 | `importedAt` | ISO-8601 datetime | Recommended | When ops ingested the event |
 | `importedBy` | `string` | Recommended | Global user ID or ops email |
 
 <Warning>
-**Published catalog events must have `batchWeek` and `host.name`.** Ingest QA should reject publish if either is missing. Draft events may omit them until ready.
+**Staged and published catalog events must have `batchWeek` and `host.name`.** Ingest QA should reject stage/release if either is missing. Draft events may omit them until ready. **New ingest must not auto-set `published`** — see [Ingest defaults](#ingest-defaults).
 </Warning>
+
+### Ingest status lifecycle
+
+| `ingestStatus` | Meaning | In `GET /pivot/feed`? | Ops UI |
+| --- | --- | --- | --- |
+| `draft` | Imported / crawled; incomplete or unreviewed | **No** | Curation / Lab review queue |
+| `staged` | Ready for the target `batchWeek`; waiting for explicit release | **No** | Curation “ready for drop” |
+| `published` | Released for that week’s live deck | **Yes** | Live catalog |
+
+```text
+crawl / import  →  draft
+review + tags   →  staged          (still hidden from feed)
+Release week    →  published       (bulk flip; feed-eligible)
+```
+
+**Feed eligibility rule (Choice A — event-only):**
+
+> `GET /pivot/feed` (and `findPublishedPivotEvent` helpers) require `customFields.pivot.ingestStatus === 'published'` (plus existing `batchWeek`, `host.name`, window filters).  
+> **Release** = ops action that bulk-updates `staged` → `published` for a `(tenantKey, batchWeek)`.  
+> There is **no** separate batch flag required for feed reads in v0.
+
+Choice B (batch `released` **and** event `staged|published`) was considered and **rejected for v0** — more moving parts for the same ops outcome. Optional `PivotBatch` still tracks ops progress; it does **not** gate the feed under Choice A.
+
+### Ingest defaults
+
+| Action | Default `ingestStatus` |
+| --- | --- |
+| New URL / explore crawl / JSON import (Lab ingest) | **`staged`** when host + tags valid (Lab requires tags); never auto-`published` |
+| Incomplete / unreviewed rows | `draft` (edit modal / future crawl without tags) |
+| “Release week” API | bulk `staged` → `published` |
+| Emergency “Stage & release now” (`releaseNow` + confirm `RELEASE_NOW`) | `published` on create |
+
+Do **not** treat Lab “Stage for city” as live-deck publish — keep **Release** separate ([Pivot tenant ops dashboard plan](/strategy/pivot-tenant-ops-dashboard-plan) Phase 3). Ops sequence: [weekly drop runbook](/strategy/pivot-weekly-drop-runbook#ops-sequence-curate--release--push).
+
+### Migration (existing catalog)
+
+| Existing rows | Behavior |
+| --- | --- |
+| Already `ingestStatus: 'published'` (current or past weeks) | **Leave as `published`.** No mass rewrite required. Feed behavior unchanged for live decks. |
+| New imports after the gate ships | Default **`staged`**; appear in feed **only after** explicit Release (or emergency `RELEASE_NOW`). |
+| Future weeks already wrongly published early | Ops may **unrelease** (`published` → `staged`) via admin API — document danger if users already swiped. |
+
+Task 3.3 landed: ingest create defaults to `staged`; `published` on create requires `releaseNow` + `confirm: "RELEASE_NOW"`.
 
 ### ISO week format (`batchWeek`)
 
@@ -67,6 +111,14 @@ Use **ISO 8601 week date** format: `YYYY-Www`
 - `ww` — zero-padded week number (`01`–`53`)
 
 Examples: `2026-W21`, `2026-W01`, `2025-W52`
+
+**Assignment at crawl / manual ingest (locked):**
+
+1. **Default:** `batchWeek` = ISO week of the event’s `start_time` (else first `timeSlots[].start_time`). One crawl or batch import may land events in many weeks.
+2. **Override:** request body `forceBatchWeek: true` + `batchWeek` pins every write to that week.
+3. **Undated:** fall back to provided `batchWeek`, else current ISO week.
+
+Helpers: `resolveEventBatchWeek` / `batchWeekFromEventDate` in `utilities/pivotIsoWeek.js`.
 
 JavaScript (reference):
 
@@ -79,6 +131,138 @@ function toIsoWeek(date = new Date()) {
   return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 ```
+
+---
+
+## `PivotBatch` (optional ops record)
+
+Per-city week progress for Curation readiness and release auditing. **Does not gate the feed under Choice A** — feed still keys only off event `ingestStatus === 'published'`.
+
+**Storage (preferred):** tenant (city) DB, registered via `getModelService`, accessed with `connectToDatabase(tenantKey)` + `getModels({ db }, 'PivotBatch')` from platform-admin routes. Alternative: global DB with unique `(tenantKey, batchWeek)` — document if chosen.
+
+### Shape
+
+```json
+{
+  "tenantKey": "brooklyn",
+  "batchWeek": "2026-W28",
+  "status": "curating",
+  "targetEventCount": 40,
+  "releasedAt": null,
+  "releasedBy": null
+}
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `tenantKey` | `string` | City key (required if stored globally; implied by DB if tenant-scoped) |
+| `batchWeek` | `string` | ISO week `YYYY-Www` |
+| `status` | `"curating" \| "ready" \| "released"` | Ops progress only |
+| `targetEventCount` | `number` | Optional readiness target for the drop |
+| `releasedAt` | ISO-8601 datetime \| `null` | Set when Release succeeds |
+| `releasedBy` | `string` \| `null` | Platform admin user id / email |
+
+**Status mapping (ops, not feed):**
+
+| `PivotBatch.status` | Typical event states for that week |
+| --- | --- |
+| `curating` | Mix of `draft` / `staged`; none or few `published` for this future week |
+| `ready` | Enough `staged` events; awaiting Release |
+| `released` | Release ran; matching events flipped to `published` |
+
+Upsert on first curation activity for `(tenantKey, batchWeek)`. Release API should set `status: 'released'`, `releasedAt`, `releasedBy` **and** bulk-update events `staged` → `published`.
+
+---
+
+## Pivot tag catalog
+
+Published event `customFields.pivot.tags` **should** use slugs from the global **Pivot tag catalog** (`PivotTagCatalog` in the platform DB). The catalog is the single vocabulary shared by Lab ingest, mobile onboarding, user interests, and feed ranking.
+
+### Catalog row shape (platform DB)
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `slug` | `string` | Lowercase kebab-case, unique (e.g. `live-music`, `board-games`) |
+| `label` | `string` | Human copy for chips and onboarding (“live music”, “board games”) |
+| `sortOrder` | `number` | Display order in pickers |
+| `active` | `boolean` | When `false`, hidden from `GET /pivot/tags` but still valid on legacy events |
+
+Seed idempotently: `npm run seed:pivot-tag-catalog` (from `Meridian/backend`).
+
+### `GET /pivot/tags`
+
+Authenticated Pivot clients fetch the active catalog:
+
+```json
+{
+  "success": true,
+  "data": {
+    "tags": [
+      { "slug": "live-music", "label": "live music" },
+      { "slug": "board-games", "label": "board games" }
+    ]
+  }
+}
+```
+
+- Requires `verifyToken` (same as other `/pivot/*` routes).
+- Returns only **`active: true`** rows, sorted by `sortOrder` then `slug`.
+- Inactive slugs remain valid on events already published; they are omitted from onboarding/Lab pickers until reactivated.
+
+### Tag validation rules
+
+| Context | Rule |
+| --- | --- |
+| **Event stage / release (Lab / Curation)** | Each tag must be an **active** catalog slug; stage/release requires ≥1 tag (`400 TAGS_REQUIRED`). Optional **Claude tag suggestion** via `POST /admin/pivot/ingest/suggest-tags` when `ANTHROPIC_API_KEY` (or `CLAUDE_API_KEY`) is set in backend env. |
+| **User interests** | Subset of **active** catalog slugs only; max 8 (Task 8.2) |
+| **Feed payload** | Returns `tags[]` as stored on the event (may include inactive slugs on legacy rows) |
+| **Slug format** | Lowercase kebab-case: `^[a-z0-9]+(?:-[a-z0-9]+)*$` |
+
+### `GET /pivot/profile/interests`
+
+Authenticated Pivot clients load saved interest tags:
+
+```json
+{
+  "success": true,
+  "data": {
+    "interestTags": ["live-music", "board-games"]
+  }
+}
+```
+
+- Requires `verifyToken`.
+- Returns `[]` when the user has not set interests yet.
+
+### `PUT /pivot/profile/interests`
+
+Body:
+
+```json
+{
+  "interestTags": ["live-music", "board-games"]
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "interestTags": ["live-music", "board-games"]
+  }
+}
+```
+
+- Slugs are normalized (trim, lowercase), deduped, and capped at **8** (`400 INTEREST_TAGS_LIMIT` if exceeded).
+- Unknown or inactive slugs → `400 INVALID_TAG`.
+- `interestTags: []` clears interests (skip onboarding / profile reset).
+- Stored on tenant `User.pivotInterestTags`; campus `/update-user` is unchanged.
+
+<Warning>
+Do not invent ad hoc tag strings in mobile or Lab. Unknown slugs are rejected at publish and interest save time once Tasks 8.2 and 8.4 land.
+</Warning>
 
 ---
 
@@ -149,7 +333,7 @@ Full `Event` document (tenant DB) for manual ingest reference:
 | `hostingType` | `'Org'` |
 | `hostingId` | Pivot Catalog org `_id` for tenant |
 | `externalLink` | Partiful/Luma ticket URL |
-| `customFields.pivot.ingestStatus` | `'published'` for feed visibility |
+| `customFields.pivot.ingestStatus` | `'published'` for feed visibility; use `'draft'` / `'staged'` while curating next drop |
 
 ---
 
@@ -203,6 +387,46 @@ Pivot APIs resolve **`displayHost`** from `customFields.pivot.host` so mobile ne
 - Same `displayHost` shape applies to **`GET /pivot/week-recap`** and event detail endpoints.
 - Campus event APIs are unchanged; they continue to use org/host resolution as today.
 
+### Feed sort pipeline (Tasks 8.6 + 8.8)
+
+After the DB pre-sort (`registrationCount` desc, `start_time` asc), `getPivotFeed` re-sorts in-process:
+
+```text
+friend registered count ↓
+friend interested count ↓
+interest overlap count ↓        |event.tags ∩ user.pivotInterestTags|
+negative-tag overlap count ↑    |event.tags ∩ tagsFromLowRatedEvents|  (fewer overlaps rank higher)
+start_time ↑
+```
+
+- **Interest overlap** uses exact catalog slug equality (case-normalized). Events with no tags get overlap `0` (neutral, not penalized).
+- Users with empty `pivotInterestTags` skip the interest tier — order matches friend boost + penalties + `start_time`.
+- **Negative-tag penalty** loads the user's prior `pivot_event` feedback with `rating < 3`, collects catalog slugs from those events' `customFields.pivot.tags`, and downranks feed events that share tags. Events are **never hidden** — penalty is sort-only.
+- **Penalty weight:** one shared negative tag is one sort tier — equivalent to losing one interest-overlap point among ties. A single bad board-games night downranks other board-games events only when friend and interest scores already match; it does not override a +1 interest-overlap advantage from another tag.
+- Untagged feed events always get penalty `0`.
+
+### Mobile tag chips (Task 8.5)
+
+Deck cards, event detail hero, and week recap rows render **`PivotTagChips`** from feed `tags[]`:
+
+| Surface | Max chips | Interest highlight |
+| --- | --- | --- |
+| Swipe card / detail hero | 3 | Accent fill when slug ∈ `user.pivotInterestTags` |
+| Week recap row | 1 (compact) | Same accent rule |
+
+- Labels come from catalog slug formatting (`board-games` → `board games`).
+- When `tags` is empty, mobile shows a single **`type`** chip if `event.type` is set; otherwise the chip row is hidden.
+- Legacy single `tagLabel` nav params still render one pill on detail until callers migrate to `tags` + `eventType`.
+
+### Profile interests edit (Task 8.7)
+
+Authenticated users edit saved interests from **Profile → your interests** (`PivotEditInterests` screen):
+
+- Pre-fill from `GET /pivot/profile/interests` (falls back to auth user payload on load failure).
+- Save via `PUT /pivot/profile/interests`; allows `[]` to clear interests (unlike onboarding, which requires ≥1 tag or skip).
+- After save, pull-to-refresh on the Week tab reloads `GET /pivot/feed` so interest-aware rank order applies.
+- Analytics: `pivot_interests_updated` with `{ count }`.
+
 ---
 
 ## `PivotEventIntent` (attendee intent)
@@ -255,14 +479,16 @@ For MVP, **creators live on Partiful/Luma**. Meridian stores **intent**, not tic
 
 ## Manual ingest checklist
 
-Before Pivot Lab (Task 5.4–5.5), use this checklist when pasting events into the tenant DB:
+When pasting events into the tenant DB (or before Lab/Curation release):
 
 1. Set tenant (city) DB and **Pivot Catalog** `hostingId` for that city.
 2. Set `status: 'not-applicable'`, `visibility: 'public'`, `externalLink` to Partiful/Luma URL.
-3. Set `customFields.pivot.batchWeek` to target ISO week.
+3. Set `customFields.pivot.batchWeek` to the ISO week of the event’s **actual start date** (default). Only force a different week when intentionally overriding.
 4. Set `customFields.pivot.host.name` to the **real organizer** from the listing.
-5. Set `customFields.pivot.ingestStatus: 'published'` when ready for feed.
-6. Verify event appears in `GET /pivot/feed` with correct `displayHost.name`.
+5. Set `customFields.pivot.ingestStatus`:
+   - `'draft'` or `'staged'` while curating (default for new imports).
+   - `'published'` **only** when releasing that week to the live deck (or legacy rows already live).
+6. Verify: staged/draft events do **not** appear in `GET /pivot/feed`; after release to `published`, they appear with correct `displayHost.name`.
 
 ---
 
@@ -270,4 +496,7 @@ Before Pivot Lab (Task 5.4–5.5), use this checklist when pasting events into t
 
 | Date | Change |
 | --- | --- |
+| 2026-07-09 | `batchWeek` assignment: default from event start date; `forceBatchWeek` override; multi-week crawl/import |
+| 2026-07-09 | Three-state `ingestStatus` (`draft` \| `staged` \| `published`); Choice A feed rule; ingest defaults; migration; optional `PivotBatch`; link ops dashboard plan (Task 0.1) |
+| 2026-06-29 | Tag catalog (`PivotTagCatalog`), `GET /pivot/tags`, seed script (Task 8.1) |
 | 2026-05-26 | Initial contract (Task 0.1) |

@@ -62,7 +62,10 @@
         "strategy/events-marketplace-pivot",
         "strategy/pivot-metadata-contract",
         "strategy/pivot-referral-codes",
-        "strategy/pivot-mvp-implementation-plan"
+        "strategy/pivot-weekly-drop-runbook",
+        "strategy/pivot-mvp-implementation-plan",
+        "strategy/just-go-pilot-readiness-plan",
+        "strategy/pivot-tenant-ops-dashboard-plan"
       ]
     },
     {

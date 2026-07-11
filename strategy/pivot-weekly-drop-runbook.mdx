@@ -1,0 +1,163 @@
+---
+title: "Pivot weekly drop push runbook"
+description: "Manual, config-driven ops steps for sending the Just Go weekly deck push at each city's configured drop time"
+---
+
+## Purpose
+
+The **weekly drop push** nudges Pivot users when a new catalog week is live. It is **not** the publish gate — users see published events whenever they open the app via `GET /pivot/feed`. The push is the reminder to open **PivotWeek** and start swiping.
+
+Drop timing is **configurable per city** (and per week via overrides) in `TenantConfig`. Do **not** rely on a hardcoded Thursday 6pm constant in ops memory or scripts.
+
+Related docs:
+
+- [Pivot MVP implementation plan — Task 6.3](/strategy/pivot-mvp-implementation-plan#task-63--manual-weekly-drop-push-runbook-config-driven)
+- [Pivot MVP implementation plan — Weekly drop schedule](/strategy/pivot-mvp-implementation-plan#weekly-drop-schedule-configurable)
+- [Pivot metadata contract](/strategy/pivot-metadata-contract) — `batchWeek` and catalog publish fields
+
+<Note>
+**Pilot default (suggestion only):** When provisioning a new Pivot city, seed **Thursday 18:00** in the tenant's local timezone (e.g. `America/New_York` for NYC). That gives users Thu–Sun to browse before weekend events. Change defaults or one-off weeks in **Platform Admin** — never in mobile or push copy.
+</Note>
+
+---
+
+## Push copy (Just Go voice)
+
+| Field | Text |
+| --- | --- |
+| **Title** | `just go*` |
+| **Body** | `What are you doing this week? Just go.` |
+
+Tapping the notification must open **PivotWeek** (not campus `EventDetails`). Payload requirements (Task 6.2):
+
+- `data.edition` / `data.appEdition`: `'pivot'`
+- `data.type`: `'pivot_week'`
+- `data.navigation.route`: `'PivotWeek'` (or deep link `meridian://pivot/week`)
+
+---
+
+## Tenant drop config (source of truth)
+
+Each Pivot city row in **`TenantConfig`** stores:
+
+| Field | Notes |
+| --- | --- |
+| `pivotDropTimezone` | IANA zone (e.g. `America/New_York`) |
+| `pivotDropDayOfWeek` | `0` = Sunday … `4` = Thursday … `6` = Saturday |
+| `pivotDropHour` | Local hour `0–23` |
+| `pivotDropMinute` | Local minute (default `0`) |
+| `pivotDropOverrides[]` | Optional `{ batchWeek, dayOfWeek, hour, minute }` when one week moves |
+
+Backend helper: `resolvePivotDropInstant(tenant, batchWeek)` in `Meridian/backend/utilities/pivotDropSchedule.js` — override wins over default; returns UTC `dropAt`.
+
+**Where ops reads "Next drop":**
+
+1. **Platform Admin → Tenant management** — pivot tenant detail / metadata (Task 0.4)
+2. **Pivot Lab** — city header for the selected `batchWeek`
+
+If the schedule moved, update **`pivotDropOverrides`** or the default fields in Platform Admin **before** sending. Do not send from calendar memory.
+
+---
+
+## Ops sequence (curate → release → push)
+
+After the [release gate](/strategy/pivot-tenant-ops-dashboard-plan#batch-release-model) (Phase 3):
+
+1. **Curate early** — Import / crawl into the target `batchWeek` as **`staged`** (Lab “Stage for city”). Staged events never appear in `GET /pivot/feed`.
+2. **Release before drop** — Explicit **Release week** (`POST .../batches/:batchWeek/release`) flips `staged` → `published`. Emergency Lab path: “Stage & release now…” with typed `RELEASE_NOW`.
+3. **Send the push** — At the resolved drop instant (below). The push is still only a nudge; the feed already shows released events.
+
+Do **not** treat Lab “Stage” as live-deck publish.
+
+## Pre-send checklist
+
+Complete these steps **in order** for the target city and `batchWeek`:
+
+<Steps>
+  <Step title="Stage then release catalog">
+    Confirm that week's events are **`ingestStatus: published`** (after Release) with the correct **`customFields.pivot.batchWeek`**. Curate as `staged` days before the drop; **Release** before send. The push is the nudge, not the gate.
+  </Step>
+  <Step title="Read resolved drop time">
+    Open **Platform Admin** or **Pivot Lab** and note **Next drop** for the target `batchWeek` (from `resolvePivotDropInstant`). Verify timezone, day, and local time match ops intent.
+  </Step>
+  <Step title="Adjust schedule if needed">
+    If this week moved (holiday, delay, A/B timing), add or edit a `pivotDropOverrides` row — or change the tenant default — then re-read **Next drop** to confirm the displayed instant updated **without a code deploy**.
+  </Step>
+  <Step title="Send at drop instant">
+    At the resolved local instant (or manually if ops intentionally moved the slot), send the push targeting **`pushAppEdition === 'pivot'`** tokens for that `tenantKey` only.
+  </Step>
+  <Step title="Verify on a pilot device">
+    Confirm one pilot device receives the notification and tapping it lands on **PivotWeek** with the new week's deck.
+  </Step>
+</Steps>
+
+---
+
+## Send options
+
+### Option A — Backend script (recommended)
+
+From `Meridian/backend`:
+
+```bash
+# Preview recipients + payload without sending
+npm run send:pivot-weekly-push -- --tenantKey=nyc --batchWeek=2026-W22 --dry-run
+
+# Send at the configured drop window (warns if now is >30 min from dropAt)
+npm run send:pivot-weekly-push -- --tenantKey=nyc --batchWeek=2026-W22
+
+# Override timing guard (e.g. ops moved slot and already confirmed in Platform Admin)
+npm run send:pivot-weekly-push -- --tenantKey=nyc --batchWeek=2026-W22 --force
+```
+
+Script behavior:
+
+- Loads tenant drop config from global **`TenantConfig`**
+- Resolves **`dropAt`** via `resolvePivotDropInstant`
+- Warns if **`now`** is more than 30 minutes from **`dropAt`** (unless `--force`)
+- Warns if zero **published** catalog events exist for the `batchWeek`
+- Sends only to users with **`pushAppEdition: 'pivot'`** and a registered Expo push token
+- Uses Just Go copy and **`pivot_week`** navigation payload above
+
+Implementation: `Meridian/backend/migrations/sendPivotWeeklyPush.js`
+
+### Option B — Firebase / Expo console
+
+Use when script access is unavailable:
+
+1. Filter or target **pivot edition** device tokens for the city tenant (same cohort that registered with `appEdition: 'pivot'`).
+2. Use the [Push copy](#push-copy-just-go-voice) above.
+3. Include custom data: `edition: pivot`, `type: pivot_week`, `navigation.route: PivotWeek`, or deep link `meridian://pivot/week`.
+
+<Warning>
+Console sends bypass publish-count and drop-window checks. Run the [Pre-send checklist](#pre-send-checklist) manually.
+</Warning>
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause | Action |
+| --- | --- | --- |
+| Script aborts "outside drop window" | Sending far from resolved `dropAt` | Re-check Platform Admin / Lab **Next drop**; use `--force` only after confirming schedule |
+| "No pivot push tokens found" | No devices registered pivot edition | Have pilot users open Pivot app while logged in (registers token with `pushAppEdition: 'pivot'`) |
+| Push opens campus screen | Payload missing `edition: 'pivot'` or wrong route | Use script or match Task 6.2 payload shape |
+| Wrong drop day/time displayed | Stale tenant config | Update `pivotDropOverrides` or defaults in Platform Admin; re-read **Next drop** |
+| Deck empty after tap | Catalog not published for `batchWeek` | Publish events in Pivot Lab first |
+
+---
+
+## Evaluation checklist (Task 6.3)
+
+- [ ] Runbook references tenant drop config (not hardcoded day/time)
+- [ ] Steps mention Lab publish gate + Platform Admin / Lab **Next drop**
+- [ ] One test push received on pilot device
+- [ ] Moving drop via `pivotDropOverrides` changes displayed next drop without code deploy
+
+---
+
+## Changelog
+
+| Date | Change |
+| --- | --- |
+| 2026-06-29 | Initial runbook + `npm run send:pivot-weekly-push` script (Task 6.3) |
