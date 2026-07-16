@@ -65,7 +65,10 @@
         "strategy/pivot-weekly-drop-runbook",
         "strategy/pivot-mvp-implementation-plan",
         "strategy/just-go-pilot-readiness-plan",
-        "strategy/pivot-tenant-ops-dashboard-plan"
+        "strategy/pivot-tenant-ops-dashboard-plan",
+        "strategy/just-go-mobile-admin-dashboard-plan",
+        "strategy/just-go-embeddings-recommendations",
+        "strategy/just-go-explore-embeddings-plan"
       ]
     },
     {

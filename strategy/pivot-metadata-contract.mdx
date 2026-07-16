@@ -10,7 +10,10 @@ This document is the **canonical contract** for Pivot catalog events and attende
 Related docs:
 
 - [Pivot MVP implementation plan](/strategy/pivot-mvp-implementation-plan) — task-by-task build plan
+- [Just Go — Explore + embeddings groundwork](/strategy/just-go-explore-embeddings-plan) — Explore product/API contract, UX rules, design checklist
+- [Just Go — embeddings recommendations](/strategy/just-go-embeddings-recommendations) — surface/retrieval tagging, vector gates
 - [Pivot tenant ops dashboard plan](/strategy/pivot-tenant-ops-dashboard-plan) — per-tenant Overview / Curation / Journeys; batch release gate
+- [Just Go mobile admin dashboard plan](/strategy/just-go-mobile-admin-dashboard-plan) — on-device Live vs Staging deck preview + ops companion
 - [Pivot referral codes](/strategy/pivot-referral-codes) — invite codes and platform admin
 - [Pivot weekly drop runbook](/strategy/pivot-weekly-drop-runbook) — drop timing vs catalog release
 - [Events marketplace pivot — architecture](/strategy/events-marketplace-pivot) — strategic context
@@ -387,6 +390,38 @@ Pivot APIs resolve **`displayHost`** from `customFields.pivot.host` so mobile ne
 - Same `displayHost` shape applies to **`GET /pivot/week-recap`** and event detail endpoints.
 - Campus event APIs are unchanged; they continue to use org/host resolution as today.
 
+### Explore (same catalog)
+
+`GET /pivot/explore` (Phase 2) uses the **same published + `batchWeek` + pilot window** candidate set as feed, same serializer family (`displayHost`, tags, `userIntent`), and the same `PivotEventIntent` store. Canonical enums, response sketch, and non-goals: [Explore product + API contract](/strategy/just-go-explore-embeddings-plan#explore-product--api-contract-task-01). Scroll-past in Explore is not a pass; push/drop opens Week, not Explore.
+
+**Intent reconcile (Task 2.3):**
+
+| Field | Values |
+| --- | --- |
+| `events[].userIntent` | `interested` \| `registered` \| `passed` \| `null` — same as feed; week-scoped via `batchWeek` on `PivotEventIntent` |
+| `filters.excludePassed` | Default `true`; when true, passed events are omitted from `events[]` |
+| `intentBadgePriority` | `["registered", "interested", null]` — client badge precedence (going → interested → unset) |
+
+Passed on the Week deck suppresses the event in Explore by default. Interested and registered events remain listed with `userIntent` set. Pass `excludePassed=false` to include passed rows (each still carries `userIntent: "passed"`).
+
+### Event indexes for Pivot feed / Explore (Task 1.4)
+
+Defined on tenant `Event` schema (`Meridian/backend/events/schemas/event.js`). Partial on `customFields.pivot.batchWeek` (string) so campus-only rows stay out of the index.
+
+| Index name | Keys | Covers |
+| --- | --- | --- |
+| `pivot_batchWeek_ingestStatus_start_time` | `customFields.pivot.batchWeek`, `customFields.pivot.ingestStatus`, `start_time` | `GET /pivot/feed` and `GET /pivot/explore` equality on week + published, then time window / sort |
+| `pivot_batchWeek_ingestStatus_tags` | `customFields.pivot.batchWeek`, `customFields.pivot.ingestStatus`, `customFields.pivot.tags` | Explore tag filters + Lab week catalog scans |
+
+Feed query shape (same prefix as Explore v0):
+
+```text
+{ batchWeek, ingestStatus: 'published', status ∈ …, isDeleted ≠ true, host.name, pilot window on start_time / timeSlots }
+sort: registrationCount ↓, start_time ↑  (then in-process rank)
+```
+
+Expected plan: IXSCAN on `pivot_batchWeek_ingestStatus_start_time` (equality week + ingestStatus; `start_time` supports the pilot window range). Tag-filtered Explore can use `pivot_batchWeek_ingestStatus_tags`.
+
 ### Feed sort pipeline (Tasks 8.6 + 8.8)
 
 After the DB pre-sort (`registrationCount` desc, `start_time` asc), `getPivotFeed` re-sorts in-process:
@@ -496,6 +531,8 @@ When pasting events into the tenant DB (or before Lab/Curation release):
 
 | Date | Change |
 | --- | --- |
+| 2026-07-12 | Event indexes `pivot_batchWeek_ingestStatus_start_time` + `pivot_batchWeek_ingestStatus_tags` for feed/Explore (Task 1.4) |
+| 2026-07-12 | Link Explore contract (same catalog as feed; intent shared; scroll-past ≠ pass) |
 | 2026-07-09 | `batchWeek` assignment: default from event start date; `forceBatchWeek` override; multi-week crawl/import |
 | 2026-07-09 | Three-state `ingestStatus` (`draft` \| `staged` \| `published`); Choice A feed rule; ingest defaults; migration; optional `PivotBatch`; link ops dashboard plan (Task 0.1) |
 | 2026-06-29 | Tag catalog (`PivotTagCatalog`), `GET /pivot/tags`, seed script (Task 8.1) |
