@@ -116,7 +116,7 @@ Existing cron/notification infrastructure in the Meridian backend would need ext
 **Implementation phases:**
 
 1. **MVP:** Rules + weighted scores (friends attending, category match, past negative review on similar tags). No new infra.
-2. **Phase 2:** Embeddings (description + enriched fields) in a vector index; nightly batch jobs.
+2. **Phase 2:** Embeddings (description + enriched fields) in a vector index; nightly batch jobs. See [Just Go — embeddings recommendations](/strategy/just-go-embeddings-recommendations) for data readiness, shadow evaluation, and go-live gates.
 3. **Phase 3:** LLM retrospective for organizers (extends post-mortem patterns with new outcome data).
 
 The proposal’s **spatial dataset** (video, floorplan, host-submitted maps) implies **blob storage + geospatial index + media pipeline** — not in the current stack.

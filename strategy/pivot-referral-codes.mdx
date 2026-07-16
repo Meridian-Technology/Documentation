@@ -61,6 +61,21 @@ Related docs:
 
 **Indexes:** unique on `code`; compound on `(tenantKey, active)`.
 
+### PivotReferralRedemption (task 1.6)
+
+**Collection:** `pivot_referral_redemptions` (global DB)
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `globalUserId` | ObjectId | From JWT (`req.user.globalUserId`). Legacy tokens cannot redeem (`GLOBAL_USER_REQUIRED`). |
+| `code` | string | Same normalized uppercase code as `PivotReferralCode.code`. |
+| `pivotReferralCodeId` | ObjectId | FK to referral row |
+| `referredByGlobalUserId` | ObjectId (optional) | Inviter when invitee opened a link with `ref=<tenantUserId>` from share. |
+
+**Indexes:** unique compound `(globalUserId, code)` — one server-side redemption per invite per Meridian account. Index on `(referredByGlobalUserId, createdAt)` for propagation queries.
+
+Ops/R&D can reconcile `PivotReferralCode.redemptionCount` with `distinct` user counts via this collection. Query `referredByGlobalUserId` on redemption rows for **who invited whom** propagation graphs.
+
 ### When a code is redeemable
 
 A code is **redeemable** when all of the following hold:
@@ -80,6 +95,7 @@ The admin API exposes a computed `redeemable` boolean on list responses. Status 
 | One code → one city | Each document has a single `tenantKey` (e.g. `nyc`). |
 | Pivot tenants only | Platform admin referral APIs return **403** for campus tenants. |
 | Subdomain resolution | On validate, server loads `TenantConfig` for `tenantKey` and returns `subdomain` + `cityDisplayName` for the mobile HTTP client. |
+| Redeem tenant guard | On **`POST /pivot/referral/redeem`**, `req.school` (subdomain / `X-Tenant` in dev) must equal the code’s **`tenantKey`** or the server returns **`403 TENANT_MISMATCH`**. |
 
 Pivot city tenants are provisioned via [Platform Admin tenant management](/strategy/pivot-mvp-implementation-plan#task-02--provision-pilot-city-tenants) (`/platform-admin`).
 
@@ -176,28 +192,53 @@ Do not commit production pilot codes that should stay private. Prefer creating c
 
 ---
 
-## Mobile flow (planned)
-
-Implemented in [Pivot MVP implementation plan](/strategy/pivot-mvp-implementation-plan) Phase 1—not yet required for ops-only seeding.
+## Mobile flow
 
 | Step | API | Auth |
 | --- | --- | --- |
 | User enters code on Welcome | `POST /pivot/referral/validate` | None |
 | After first Pivot login | `POST /pivot/referral/redeem` | Required |
 
-### `POST /pivot/referral/validate` (planned)
+### `POST /pivot/referral/validate`
 
+- **Path:** `/pivot/referral/validate` (reachable from `www` and tenant subdomains; rate-limited 20/min/IP)
 - Normalize code: trim, uppercase
-- Load `PivotReferralCode`; enforce redeemability
+- Load `PivotReferralCode`; enforce redeemability (`active`, `expiresAt`, `redemptionCount < maxRedemptions`)
 - Resolve tenant from `TenantConfig`
-- Response: `{ tenantKey, subdomain, cohortId, cityDisplayName, batchWeek }`
+- Response: `{ success: true, data: { tenantKey, subdomain, cohortId, cityDisplayName, batchWeek } }`
+- Error responses: `{ success: false, message, code }` with HTTP 400/403/404/503 as appropriate
 
 Mobile persists `app_edition: 'pivot'` and `pivot_meta` in SecureStore, then sets API subdomain to the city host (e.g. `nyc.meridian.study`).
 
-### `POST /pivot/referral/redeem` (planned)
+### Invite link attribution (`ref` param)
 
-- Increment `redemptionCount` (idempotent per user via `PivotReferralRedemption` or equivalent)
-- Enforces `maxRedemptions` server-side
+When a pilot user shares from Profile or Friends, mobile embeds their tenant user id on the invite URL:
+
+`https://meridian.study/invite?code=NYC-PILOT-A&ref=<tenantUserId>`
+
+The `ref` survives web landing → app deep link → `pivot_meta.referredByUserId` → `POST /pivot/referral/redeem`. Manual code entry (no link) has no inviter.
+
+### Analytics events (mobile → `analytics_events`)
+
+| Event | When | Key properties |
+| --- | --- | --- |
+| `pivot_invite_share` | Native share sheet completed | `cohortId`, `tenantKey`, `hasInviterRef` |
+| `pivot_invite_copy` | Invite link copied | `cohortId`, `tenantKey`, `hasInviterRef` |
+| `pivot_invite_deep_link_open` | Invite URL parsed on app open | `cohortId`, `tenantKey`, `inviterUserId`, `hasInviterRef` |
+| `pivot_referral_redeemed` | Server redeem succeeds | `cohortId`, `tenantKey`, `inviterUserId`, `inviterAttributed`, `alreadyRedeemed` |
+
+On `pivot_referral_redeemed`, the **invitee** is the authenticated `user_id` on the event envelope; `inviterUserId` is who shared the link. Join with redemption rows for durable graphs.
+
+### `POST /pivot/referral/redeem`
+
+- **Path:** `/pivot/referral/redeem` — **`verifyToken`** (Bearer JWT with **`globalUserId`**).
+- Body: `{ "code": "<INVITE>", "referredByUserId": "<optional tenant user id from ref param>" }` (code normalized like validate).
+- **`req.school`** must equal the code’s **`tenantKey`** (`403 TENANT_MISMATCH` otherwise).
+- If **`PivotReferralRedemption`** already exists for **`(globalUserId, code)`**, returns **`200`** with **`alreadyRedeemed: true`** — no counter bump.
+- Otherwise atomically increments **`PivotReferralCode.redemptionCount`** (subject to **`maxRedemptions`**) and inserts **`PivotReferralRedemption`**.
+- Success: **`{ success: true, data: { redeemed?, alreadyRedeemed?, redemptionCount, maxRedemptions, inviterAttributed? } }`**
+
+Mobile (**`PivotReferralRedeemSync`** in **`PivotAppNavigator`**) posts once after Pivot auth; **`pivotEditionStorage.PIVOT_REFERRAL_REDEEMED_CODE_KEY`** skips repeat traffic after server success (**`clearEdition`** clears it).
 
 ---
 
@@ -205,7 +246,7 @@ Mobile persists `app_edition: 'pivot'` and `pivot_meta` in SecureStore, then set
 
 | Field | Used by | Notes |
 | --- | --- | --- |
-| `cohortId` | Analytics, Pivot Lab | Attached to swipe/funnel events from mobile `pivot_meta`. |
+| `cohortId` | Analytics, Pivot Lab, onboarding | Attached to swipe/funnel events from mobile `pivot_meta`. Codes that share a `cohortId` in the same city surface each other on the mobile **"know any of these people?"** onboarding step (Task 7.7) so pilot cohorts can connect before the first deck. Grouping is cohort-only — never by raw code string. |
 | `batchWeek` on code | Mobile bootstrap | Optional default week when user has not selected a week; catalog events still use `customFields.pivot.batchWeek` on each event. |
 
 These are independent: a referral code’s `batchWeek` does not change event ingest—it only hints the attendee’s initial week context.
@@ -226,4 +267,5 @@ These are independent: a referral code’s `batchWeek` does not change event ing
 
 | Date | Change |
 | --- | --- |
+| 2026-05-27 | Implemented **`POST /pivot/referral/redeem`**, **`PivotReferralRedemption`**, mobile sync (Task 1.6). |
 | 2026-05-26 | Initial doc — schema, admin UI/API, NYC seed (Task 0.3) |
