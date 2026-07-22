@@ -300,12 +300,12 @@ Phase 6 — Ops admin + analytics + movement polish
 | 1.4 | done | Onboarding start-a-crew step; doneAt: 2026-07-21 |
 | 1.5 | done | `PIVOT_COPY.crew` + migrate cohort step copy; doneAt: 2026-07-21 |
 | 1.6 | done | Profile: crews section (secondary to you); doneAt: 2026-07-21 |
-| 2.1 | pending | `PivotCrewWeekState` aggregation job |
-| 2.2 | pending | `GET /pivot/crews/week` progress + proposed picks |
-| 2.3 | pending | Group judgement APIs (confirm / swap) |
-| 2.4 | pending | Week UI: post-deck crew progress + judgement sheet |
-| 2.5 | pending | Nudges: unfinished swipes + solo crew CTA |
-| 2.6 | pending | Recap hero: crew pick on top of personal list |
+| 2.1 | done | `PivotCrewWeekState` aggregation job; doneAt: 2026-07-21 |
+| 2.2 | done | `GET /pivot/crews/week` progress + proposed picks; doneAt: 2026-07-21 |
+| 2.3 | done | Group judgement APIs (confirm / swap / judgement); doneAt: 2026-07-21 |
+| 2.4 | done | Week UI: post-deck crew progress + judgement sheet |
+| 2.5 | done | Nudges: unfinished swipes + solo crew CTA |
+| 2.6 | done | Recap hero: crew pick on top of personal list |
 | 3.1 | pending | Ranker: crew signal boosts from config weights |
 | 3.2 | pending | Ranker: interest bleed from crew members’ tags |
 | 3.3 | pending | Deck card copy: crew social proof |
@@ -518,7 +518,7 @@ Deep link: `meridian://pivot/crew/join?token=…` (parallel to existing invite i
 
 ### Task 2.1 — `PivotCrewWeekState` aggregation
 
-**Status:** `pending`
+**Status:** `done`
 
 **Instructions:**
 
@@ -528,28 +528,28 @@ Deep link: `meridian://pivot/crew/join?token=…` (parallel to existing invite i
 
 **Evaluation criteria:**
 
-- [ ] Aggregation matches hand-calculated fixtures in unit tests
-- [ ] Invited excluded from quorum
-- [ ] Split votes produce top-2 candidates, not auto-resolution
+- [x] Aggregation matches hand-calculated fixtures in unit tests
+- [x] Invited excluded from quorum
+- [x] Split votes produce top-2 candidates, not auto-resolution
 
 ---
 
 ### Task 2.2 — `GET /pivot/crews/week`
 
-**Status:** `pending`
+**Status:** `done`
 
 **Returns:** For each crew user belongs to: `{ crewId, name, swipedCount, activeCount, invitedCount, quorumMet, proposedEvent, runnerUp, judgementWindowEndsAt }`.
 
 **Evaluation criteria:**
 
-- [ ] Week screen can poll progress after each swipe
-- [ ] Response cached ≤30s or invalidated on intent write
+- [x] Week screen can poll progress after each swipe
+- [x] Response cached ≤30s or invalidated on intent write
 
 ---
 
 ### Task 2.3 — Group judgement APIs
 
-**Status:** `pending`
+**Status:** `done`
 
 | Method | Path | Role |
 | --- | --- | --- |
@@ -561,15 +561,15 @@ Judgement window enforced server-side from config.
 
 **Evaluation criteria:**
 
-- [ ] Confirm after window → 409 with clear error
-- [ ] Swap only among top candidates for split resolution
-- [ ] Locked pick visible in recap API
+- [x] Confirm after window → 409 with clear error
+- [x] Swap only among top candidates for split resolution
+- [x] Locked pick visible in recap API
 
 ---
 
 ### Task 2.4 — Week UI: crew progress + judgement sheet
 
-**Status:** `pending`
+**Status:** `done`
 
 **Instructions:**
 
@@ -579,15 +579,15 @@ Judgement window enforced server-side from config.
 
 **Evaluation criteria:**
 
-- [ ] Solo user sees no judgement sheet
-- [ ] Invited shown as “invited” in breakdown
-- [ ] Analytics: `pivot_crew_judgement_confirm`, `_swap`
+- [x] Solo user sees no judgement sheet
+- [x] Invited shown as “invited” in breakdown
+- [x] Analytics: `pivot_crew_judgement_confirm`, `_swap`
 
 ---
 
 ### Task 2.5 — Nudges
 
-**Status:** `pending`
+**Status:** `done`
 
 **Instructions:**
 
@@ -597,14 +597,14 @@ Judgement window enforced server-side from config.
 
 **Evaluation criteria:**
 
-- [ ] Nudge respects config thresholds
-- [ ] Solo path identical to current MVP deck behaviour
+- [x] Nudge respects config thresholds
+- [x] Solo path identical to current MVP deck behaviour
 
 ---
 
 ### Task 2.6 — Recap hero: crew on top
 
-**Status:** `pending`
+**Status:** `done`
 
 **Instructions:**
 
@@ -614,9 +614,9 @@ Judgement window enforced server-side from config.
 
 **Evaluation criteria:**
 
-- [ ] Personal interested events still fully listed
-- [ ] Crew pick visually primary when present
-- [ ] Multiple crews → stacked hero cards (user resolves each)
+- [x] Personal interested events still fully listed
+- [x] Crew pick visually primary when present
+- [x] Multiple crews → stacked hero cards (user resolves each)
 
 ---
 
