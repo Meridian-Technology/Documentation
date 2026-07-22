@@ -294,12 +294,12 @@ Phase 6 — Ops admin + analytics + movement polish
 | 0.1 | done | Open city entry — removed referral gate; doneAt: 2026-07-21 |
 | 0.2 | done | `crew` config on GET /pivot/config + defaults module; doneAt: 2026-07-21 |
 | 0.3 | done | Mobile usePivotCrewConfig + offline defaults; doneAt: 2026-07-21 |
-| 1.1 | pending | `PivotCrew` + `PivotCrewMembership` schemas |
-| 1.2 | pending | Crew CRUD + invite link APIs |
-| 1.3 | pending | Invited placeholder members |
-| 1.4 | pending | Onboarding: start a crew step |
-| 1.5 | pending | `PIVOT_COPY.crew` + migrate cohort step copy |
-| 1.6 | pending | Profile: crews section (secondary to you) |
+| 1.1 | done | `PivotCrew` + `PivotCrewMembership` schemas; doneAt: 2026-07-21 |
+| 1.2 | done | Crew CRUD + invite link APIs; doneAt: 2026-07-21 |
+| 1.3 | done | Invited placeholder members; doneAt: 2026-07-21 |
+| 1.4 | done | Onboarding start-a-crew step; doneAt: 2026-07-21 |
+| 1.5 | done | `PIVOT_COPY.crew` + migrate cohort step copy; doneAt: 2026-07-21 |
+| 1.6 | done | Profile: crews section (secondary to you); doneAt: 2026-07-21 |
 | 2.1 | pending | `PivotCrewWeekState` aggregation job |
 | 2.2 | pending | `GET /pivot/crews/week` progress + proposed picks |
 | 2.3 | pending | Group judgement APIs (confirm / swap) |
@@ -390,7 +390,7 @@ Phase 6 — Ops admin + analytics + movement polish
 
 ### Task 1.1 — `PivotCrew` + `PivotCrewMembership` schemas
 
-**Status:** `pending`
+**Status:** `done`
 
 **Instructions:**
 
@@ -402,15 +402,15 @@ Phase 6 — Ops admin + analytics + movement polish
 
 **Evaluation criteria:**
 
-- [ ] Schemas registered in getModels
-- [ ] Migrations/seed script for dev tenants
-- [ ] User can belong to multiple crews
+- [x] Schemas registered in getModels
+- [x] Migrations/seed script for dev tenants
+- [x] User can belong to multiple crews
 
 ---
 
 ### Task 1.2 — Crew CRUD + invite link APIs
 
-**Status:** `pending`
+**Status:** `done`
 
 **Routes (consumer, `/pivot/crews`):**
 
@@ -426,15 +426,15 @@ Deep link: `meridian://pivot/crew/join?token=…` (parallel to existing invite i
 
 **Evaluation criteria:**
 
-- [ ] Create/list/join flows covered by route outcome tests
-- [ ] Invite link opens app to crew join screen
-- [ ] Owner can invite; members can invite (configurable later — default **all members**)
+- [x] Create/list/join flows covered by route outcome tests
+- [x] Invite link opens app to crew join screen
+- [x] Owner can invite; members can invite (configurable later — default **all members**)
 
 ---
 
 ### Task 1.3 — Invited placeholder members
 
-**Status:** `pending`
+**Status:** `done`
 
 **Instructions:**
 
@@ -444,15 +444,15 @@ Deep link: `meridian://pivot/crew/join?token=…` (parallel to existing invite i
 
 **Evaluation criteria:**
 
-- [ ] Invited rows visible on roster before signup
-- [ ] Invited never counted in quorum (server-enforced)
-- [ ] Generic label only in API + UI
+- [x] Invited rows visible on roster before signup
+- [x] Invited never counted in quorum (server-enforced)
+- [x] Generic label only in API + UI
 
 ---
 
 ### Task 1.4 — Onboarding: start a crew step
 
-**Status:** `pending`
+**Status:** `done`
 
 **Instructions:**
 
@@ -462,15 +462,15 @@ Deep link: `meridian://pivot/crew/join?token=…` (parallel to existing invite i
 
 **Evaluation criteria:**
 
-- [ ] Onboarding completes without crew (solo path)
-- [ ] Creating crew during onboarding lands user on Week with crew roster visible
-- [ ] Skip does not block deck
+- [x] Onboarding completes without crew (solo path)
+- [x] Creating crew during onboarding lands user on Week with crew roster visible
+- [x] Skip does not block deck
 
 ---
 
 ### Task 1.5 — `PIVOT_COPY.crew` + copy migration
 
-**Status:** `pending`
+**Status:** `done`
 
 **Instructions:**
 
@@ -492,14 +492,14 @@ Deep link: `meridian://pivot/crew/join?token=…` (parallel to existing invite i
 
 **Evaluation criteria:**
 
-- [ ] All new UI strings in `pivotCopy.ts` only
-- [ ] Voice matches existing Just Go patterns
+- [x] All new UI strings in `pivotCopy.ts` only
+- [x] Voice matches existing Just Go patterns
 
 ---
 
 ### Task 1.6 — Profile: crews section
 
-**Status:** `pending`
+**Status:** `done`
 
 **Instructions:**
 
@@ -509,8 +509,8 @@ Deep link: `meridian://pivot/crew/join?token=…` (parallel to existing invite i
 
 **Evaluation criteria:**
 
-- [ ] Unlimited crews list without perf issues (paginate if >20)
-- [ ] Tap crew → roster + invite CTA
+- [x] Unlimited crews list without perf issues (paginate if >20)
+- [x] Tap crew → roster + invite CTA
 
 ---
 
