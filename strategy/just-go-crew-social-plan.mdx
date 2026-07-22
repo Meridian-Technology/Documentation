@@ -306,10 +306,10 @@ Phase 6 — Ops admin + analytics + movement polish
 | 2.4 | done | Week UI: post-deck crew progress + judgement sheet |
 | 2.5 | done | Nudges: unfinished swipes + solo crew CTA |
 | 2.6 | done | Recap hero: crew pick on top of personal list |
-| 3.1 | pending | Ranker: crew signal boosts from config weights |
-| 3.2 | pending | Ranker: interest bleed from crew members’ tags |
-| 3.3 | pending | Deck card copy: crew social proof |
-| 3.4 | pending | Log crew context on `PivotInteraction` |
+| 3.1 | done | Ranker: crew signal boosts from config weights; doneAt: 2026-07-21 |
+| 3.2 | done | Ranker: interest bleed from crew members' tags; doneAt: 2026-07-21 |
+| 3.3 | done | Deck card copy: crew social proof; doneAt: 2026-07-21 |
+| 3.4 | done | Log crew context on `PivotInteraction`; doneAt: 2026-07-21 |
 | 4.1 | pending | Cross-crew overlap detection |
 | 4.2 | pending | Surface on recap + event detail (copy only) |
 | 4.3 | pending | Explore rail: “crews going” |
@@ -624,7 +624,7 @@ Judgement window enforced server-side from config.
 
 ### Task 3.1 — Crew signal boosts in `rules_v0`
 
-**Status:** `pending`
+**Status:** `done`
 
 **Instructions:**
 
@@ -634,15 +634,15 @@ Judgement window enforced server-side from config.
 
 **Evaluation criteria:**
 
-- [ ] With config weights = 0, behaviour matches pre-change ranker
-- [ ] Unit tests for crew boost ordering
-- [ ] `rankerVersion` remains `rules_v0` until embeddings ship
+- [x] With config weights = 0, behaviour matches pre-change ranker
+- [x] Unit tests for crew boost ordering
+- [x] `rankerVersion` remains `rules_v0` until embeddings ship
 
 ---
 
 ### Task 3.2 — Interest bleed
 
-**Status:** `pending`
+**Status:** `done`
 
 **Instructions:**
 
@@ -652,14 +652,14 @@ Judgement window enforced server-side from config.
 
 **Evaluation criteria:**
 
-- [ ] Bleed never exceeds `maxWeight` impact on sort key
-- [ ] Disabled via config → zero bleed
+- [x] Bleed never exceeds `maxWeight` impact on sort key
+- [x] Disabled via config → zero bleed
 
 ---
 
 ### Task 3.3 — Deck card crew social proof
 
-**Status:** `pending`
+**Status:** `done`
 
 **Instructions:**
 
@@ -668,14 +668,14 @@ Judgement window enforced server-side from config.
 
 **Evaluation criteria:**
 
-- [ ] Counts accurate for multi-crew overlap (dedupe members)
-- [ ] Zero crews → fields omitted
+- [x] Counts accurate for multi-crew overlap (dedupe members)
+- [x] Zero crews → fields omitted
 
 ---
 
 ### Task 3.4 — Interaction logging
 
-**Status:** `pending`
+**Status:** `done`
 
 Per [embeddings doc](/strategy/just-go-embeddings-recommendations#1-unified-interaction-log-highest-leverage):
 
@@ -684,8 +684,8 @@ Per [embeddings doc](/strategy/just-go-embeddings-recommendations#1-unified-inte
 
 **Evaluation criteria:**
 
-- [ ] Deck impressions include crew context when user has crews
-- [ ] No breaking change to existing log consumers
+- [x] Deck impressions include crew context when user has crews
+- [x] No breaking change to existing log consumers
 
 ---
 

@@ -422,18 +422,25 @@ sort: registrationCount ↓, start_time ↑  (then in-process rank)
 
 Expected plan: IXSCAN on `pivot_batchWeek_ingestStatus_start_time` (equality week + ingestStatus; `start_time` supports the pilot window range). Tag-filtered Explore can use `pivot_batchWeek_ingestStatus_tags`.
 
-### Feed sort pipeline (Tasks 8.6 + 8.8)
+### Feed sort pipeline (Tasks 8.6 + 8.8 + crew 3.1)
 
-After the DB pre-sort (`registrationCount` desc, `start_time` asc), `getPivotFeed` re-sorts in-process:
+After the DB pre-sort (`registrationCount` desc, `start_time` asc), `getPivotFeed` re-sorts in-process (`rankerVersion: rules_v0`):
 
 ```text
 friend registered count ↓
 friend interested count ↓
-interest overlap count ↓        |event.tags ∩ user.pivotInterestTags|
+crew registered count × crew.feedMix.crewSignalWeight ↓
+crew interested count × crew.feedMix.crewSignalWeight ↓
+interest rank score ↓           personal overlap + min(crew-only tag overlap × maxWeight, maxWeight)
 negative-tag overlap count ↑    |event.tags ∩ tagsFromLowRatedEvents|  (fewer overlaps rank higher)
 start_time ↑
 ```
 
+- **Crew signal boosts (Task 3.1):** Count **active** crew members (excluding self and `invited` placeholders) with week-scoped `PivotEventIntent` on the feed `batchWeek`. Members in multiple shared crews dedupe to one count per event. Weights come from `GET /pivot/config` → `crew.feedMix.crewSignalWeight` (cached ≤60s in `pivotFeedService`). When weight is `0`, crew tiers are skipped — order matches the pre-crew ranker.
+- **Interest bleed (Task 3.2):** When `crew.interestBleed.enabled`, union `pivotInterestTags` from active crew members (same eligibility as crew signals). Tags already in the viewer’s personal interests are excluded from bleed. Bleed adds `min(overlap × maxWeight, maxWeight)` to the interest rank score (default `maxWeight: 0.15`), so bleed never outranks a single personal tag match. When `requiresCrewMemberSwipe` is `true`, only tags from members with any `PivotEventIntent` on the feed `batchWeek` count. Disabled bleed → zero contribution.
+- **Crew social proof (Task 3.3):** Optional `crewInterestedCount` / `crewRegisteredCount` on feed events — deduped active crew member intents for the feed `batchWeek`. Omitted when zero. Registered increments both counts (same as friends). Mobile deck cards render scrapbook chips when present.
+- **`PivotInteraction` crew eval (Task 3.4):** Deck `impression` rows optionally include `crewIds[]` (viewer’s active crew ids) and `crewConfigVersion` (shipped `crew.version`). Server-enriched on `POST /pivot/interactions/impressions`; omitted when the user has zero crews. Existing consumers ignore unknown fields.
+- **Registered vs interested:** Same as friends — `registered` increments both crew registered and crew interested counts; `interested` increments crew interested only.
 - **Interest overlap** uses exact catalog slug equality (case-normalized). Events with no tags get overlap `0` (neutral, not penalized).
 - Users with empty `pivotInterestTags` skip the interest tier — order matches friend boost + penalties + `start_time`.
 - **Negative-tag penalty** loads the user's prior `pivot_event` feedback with `rating < 3`, collects catalog slugs from those events' `customFields.pivot.tags`, and downranks feed events that share tags. Events are **never hidden** — penalty is sort-only.
