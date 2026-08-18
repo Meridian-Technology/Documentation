@@ -47,19 +47,21 @@ This is the correct marketplace loop for learning taste. Labels exist at every s
 | **AnalyticsEvent** | Tenant `analytics_events` | Funnel: `pivot_card_view`, pass/interested, external open, etc. |
 | **PivotWeeklySnapshot** | Global DB | Ops KPIs — not a feature store, but useful for go/no-go gates |
 
-### v0 ranker (rules baseline)
+### v1 drop deck (rules_v1)
 
-`getPivotFeed` in `pivotFeedService.js` re-sorts the published weekly catalog:
+`getPivotFeed` in `pivotFeedService.js` scores every eligible published event for the user, then keeps a short top-N (`softMax` 15 / `hardMax` 18 by default). Membership is frozen on first open (`PivotDeckSnapshot`).
 
 ```text
-friend registered ↓
-friend interested ↓
-|event.tags ∩ user.pivotInterestTags| ↓
-|event.tags ∩ tagsFromLowRatedEvents| ↑  (penalty)
-start_time ↑
+friendGoing × friends going
++ friendInterested × friends interested
++ crewSignal × (1.5 × crew going + crew interested)
++ personalInterest × |event.tags ∩ user.pivotInterestTags|
++ crew interest bleed
+− negativeTag × tags from events rated under 3
+then start_time ↑
 ```
 
-Same candidate set for everyone in the city-week; only **order** is personalized. This is the control system for any future model evaluation.
+The published city week is still the candidate **pool**. The **drop deck** is a per-user subset. Explore `for_you` remains the shared-catalog control surface for future model evaluation (`rules_v0` lexicographic sort).
 
 ### Signal quality (today)
 
