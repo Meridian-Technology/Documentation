@@ -71,6 +71,9 @@
         "strategy/just-go-embeddings-recommendations",
         "strategy/just-go-explore-embeddings-plan",
         "strategy/just-go-crew-social-plan",
+        "strategy/just-go-crew-mobile-experience-plan",
+        "strategy/just-go-decide-ui-rewrite-plan",
+        "strategy/pivot-ritual-deprecation-ticket",
         "strategy/just-go-organizer-identity-plan"
       ]
     },

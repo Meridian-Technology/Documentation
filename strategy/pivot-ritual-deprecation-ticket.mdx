@@ -1,0 +1,54 @@
+---
+title: "Pivot ritual — deprecated route removal ticket"
+description: "Track removal of legacy Week crew paths after ritual min store version adoption"
+---
+
+## When to execute
+
+Remove deprecated routes **only after** install base on the pre-ritual store binary is negligible (target: ≥95% on ritual-capable build).
+
+Check `config.mobile.minAppVersion` enforcement and store analytics before deleting routes.
+
+## Routes to remove
+
+| Route | Replacement | Deprecated in |
+| --- | --- | --- |
+| `GET /pivot/crews/week` | `GET /pivot/week-ritual` (`crews[]`) | Phase 12 |
+| `GET /pivot/crews/:crewId/week/judgement` | `GET /pivot/crews/week/judgements` | Phase 1 |
+| `GET /pivot/week-recap` (Week tab usage) | `GET /pivot/week-ritual` (`recap`) | Phase 12 |
+
+**Keep** `GET /pivot/week-recap` for **Plans tab** until Plans reads ritual recap or a versioned recap route ships.
+
+## Mobile cleanup (after route removal)
+
+| Client API | Action |
+| --- | --- |
+| `fetchPivotCrewWeekProgress` | Remove when no callers remain |
+| `fetchPivotCrewWeekJudgement` | Still used by live `PivotCrewDecidePanel` — keep until room moves to batch judgements |
+| `usePivotCrewWeek` | Delete dead hook |
+| `PivotWeekCrewPickHero` / `PivotWeekCrewPicksHero` | Remove unused recap hero components |
+
+### Decide UI orphans (rewrite Phase 5 — done)
+
+| Client surface | Action |
+| --- | --- |
+| `PivotWeekCrewDecide` / `PivotWeekCrewDecidePage` | **Deleted** — not primary; hub + `PivotCrewDecidePanel` is canonical |
+| `PivotCrewJudgementSheet` | **Deleted** — unused; room uses `PivotCrewDecidePanel` |
+
+## Rollback note
+
+If ritual release causes issues:
+
+1. **First:** revert `config.mobile.minAppVersion` below the broken store build (restores access for old binary).
+2. **Second:** set `forceUpdate: false` if the update gate is blocking incorrectly.
+3. **Last resort:** roll back the store binary — slow and affects all users.
+
+Never reshape `GET /pivot/week-recap` in place — old binaries depend on the current response shape.
+
+## Acceptance checklist
+
+- [ ] Ritual funnel metrics stable for 2+ drop cycles
+- [ ] `npm run dry-run:pivot-crew-ritual` green in CI
+- [ ] Staging binary validated against gated ritual API
+- [ ] Install share on pre-ritual binary below removal threshold
+- [ ] Plans tab migrated off standalone week-recap (if removing that route)

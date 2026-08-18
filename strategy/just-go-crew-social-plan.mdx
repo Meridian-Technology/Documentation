@@ -9,6 +9,10 @@ Work through tasks **in order within each phase**. Later phases assume earlier s
 
 This plan **extends** the [Pivot MVP implementation plan](/strategy/pivot-mvp-implementation-plan). It does **not** replace the weekly drop, swipe deck, Explore, or embeddings groundwork — it layers **crew coordination** on top.
 
+<Note>
+**Doc ownership:** This plan owns judgement **mechanics** (quorum, propose, confirm/swap, consensus timer, split). Mobile Week **ritual shell** (APIs, deck, recap, store cutover) is in [Just Go — crew Week experience (mobile)](/strategy/just-go-crew-mobile-experience-plan). Primary decide **surfaces** (Week hub + per-crew room) are in [Just Go — decide UI rewrite](/strategy/just-go-decide-ui-rewrite-plan) — that plan revises the experience plan’s Phase 9 pager decision for decide UX only.
+</Note>
+
 Architecture rationale: [Events marketplace pivot](/strategy/events-marketplace-pivot) (social graph as retention), [Just Go — embeddings recommendations](/strategy/just-go-embeddings-recommendations) (ranker + interaction log), [Explore + embeddings groundwork](/strategy/just-go-explore-embeddings-plan) (surface/retrieval logging).
 
 For every task:
@@ -43,7 +47,7 @@ These are **fixed** for this plan. Do not re-litigate in individual tasks unless
 | 1 | Crews per user | **Unlimited** |
 | 2 | Identity | Crew is **secondary** to individual taste / profile |
 | 3 | Deck + pick model | **One personal deck** per user per week; swipes **feed every crew** the user belongs to; **one pick surfaced per user** (aggregated view across crews — see [Pick model](#pick-model-one-user-one-surface)) |
-| 4 | Group outcome | **System proposes** → short **group judgement** phase (frictionless confirm / swap) — not silent auto-pick |
+| 4 | Group outcome | **Swipe shortlist (top 3)** → **Borda rank** by actives → **tally auto-locks** (no confirm / swap) |
 | 5–8 | Algorithm, quorum, splits, deadline | Defined in [Tunable defaults](#tunable-defaults-server-backed-client-resilient) — adjustable via config, not hard-coded |
 | 9 | Personal vs crew intent | Crew pick **sits on top** of personal interested/going; personal recap unchanged |
 | 10 | Invited placeholders | **Do not** count toward quorum or votes |
@@ -94,7 +98,7 @@ open app (no invite code gate)
   → weekly drop push
   → one personal deck (same as today)
   → each swipe feeds every crew you're in
-  → system proposes crew pick(s) + quick group judgement
+  → quorum shortlists top 3 → crew ranks (Borda) → tally locks
   → personal recap + crew pick on top
   → tickets on Partiful/Luma (unchanged)
   → cross-crew overlap surfaced when another crew is going too
@@ -102,7 +106,7 @@ open app (no invite code gate)
 
 **Primary message:** *Stop planning. Start going.*
 
-Partiful/Luma remain ticket surfaces. Meridian remains discovery + intent + **group commitment**.
+Partiful/Luma remain ticket surfaces. Meridian remains discovery + intent + **group pick**.
 
 ### What stays the same
 
@@ -121,20 +125,18 @@ Partiful/Luma remain ticket surfaces. Meridian remains discovery + intent + **gr
 | --- | --- |
 | **`PivotCrew`** | Named crew in a city tenant |
 | **`PivotCrewMembership`** | Member, owner, or **invited** placeholder |
-| **`PivotCrewWeekState`** | Per crew × `batchWeek`: swipe progress, proposed pick, judgement status |
-| **`PivotCrewJudgement`** | Lightweight confirm / swap / split resolution |
-| **`pivotCrewConfig`** | Tenant-scoped tunables (weights, quorum, deadlines) |
+| **`PivotCrewWeekState`** | Per crew × `batchWeek`: swipe progress, shortlist, ballots, locked pick |
+| **`PivotCrewJudgement`** | Borda ballot + tally lock (no confirm / swap) |
+| **`pivotCrewConfig`** | Tenant-scoped tunables (weights, quorum, ballot deadline) |
 
 ### Pick model (one user, one surface)
 
 User belongs to **unlimited crews**, but the product surfaces **one primary crew outcome per user per week**:
 
 1. User completes **one personal deck** (existing feed).
-2. For each crew, compute a **proposed event** from member swipes (active members only).
-3. User sees a **personal judgement sheet** ordered by crew priority:
-   - Default: crew with highest participation quorum first
-   - User can confirm/swap per crew in a **single frictionless pass** (not N separate flows)
-4. **Personal recap** lists all personal `interested` events; **hero card** shows confirmed crew pick(s) when applicable.
+2. For each crew, when quorum hits, freeze a **top-3 shortlist** from member swipes (active members only).
+3. Each active **ranks the shortlist once** (Borda). Tally locks when everyone has balloted or the ballot deadline hits.
+4. **Personal recap** lists all personal `interested` events; **hero card** shows locked crew pick(s) when applicable.
 
 If user is in zero crews, behaviour matches **today’s MVP** (+ nudge to invite).
 
@@ -144,13 +146,15 @@ After personal deck completion (or when quorum hits — whichever comes first fo
 
 | Step | Behaviour |
 | --- | --- |
-| **Propose** | Server returns top 1–3 events with vote breakdown (avatars on interested) |
-| **Judgement window** | Short, configurable window before event start (default **24h before earliest candidate start**, min **6h after user finishes deck**) |
-| **Confirm** | One tap **“we’re going”** locks crew pick for that week |
-| **Swap** | Pick runner-up if within judgement window |
-| **Split** | If no majority, show top two + **“split — pick one”** (user resolves in judgement UI; no silent tie-break) |
+| **Shortlist** | Server freezes top **1–3** events from weighted-majority swipe scores (`voteBreakdown`) |
+| **Balloting** | Each **active** member ranks the shortlist once (partial ranks OK). Status = `balloting`. |
+| **Borda tally** | Points = `n − rankIndex − 1` (for 3: 2 / 1 / 0). Tie-break: most #1s, then `most_registered_then_earliest_start`. |
+| **Lock** | When **all actives have balloted**, or **ballot / hard deadline** hits (non-voters abstain). Winner → `confirmed`. Single-candidate shortlist skips ballot and locks immediately. |
+| **No confirm / swap** | Ranking is the only Decide action. No shared swap budget or consensus confirm timer. |
 
-Invited members appear as **“invited”** on roster and vote breakdown but **never** affect quorum.
+Invited members appear as **“invited”** on roster and vote breakdown but **never** affect quorum or ballots.
+
+Mobile decide **surfaces** (Week hub triage + per-crew room) are tracked in [Just Go — decide UI rewrite](/strategy/just-go-decide-ui-rewrite-plan). Ritual phase / Week shell remain in [Just Go — crew Week experience (mobile)](/strategy/just-go-crew-mobile-experience-plan). This section remains the source of truth for judgement mechanics (Borda auto-lock).
 
 ---
 
@@ -188,10 +192,16 @@ Extend **`GET /pivot/config`** (existing) with a `crew` object. Optional **`PUT 
     },
     "judgement": {
       "windowHoursBeforeEvent": 24,
-      "minHoursAfterDeckComplete": 6
+      "minHoursAfterDeckComplete": 6,
+      "ballotWindowMinutes": 180,
+      "consensusWindowMinutes": 180,
+      "swapResetBonusMinutes": 15,
+      "crewSwapBudget": 2,
+      "maxPickSlots": 1
     },
     "pick": {
       "algorithm": "weighted_majority",
+      "ballotMethod": "borda",
       "interestedWeight": 1.0,
       "registeredWeight": 1.5,
       "tieBreak": "most_registered_then_earliest_start"
@@ -218,7 +228,13 @@ Extend **`GET /pivot/config`** (existing) with a `crew` object. Optional **`PUT 
 | `interestBleed.maxWeight` | 0.15 | Friends’ tags nudge order slightly |
 | `quorum.minSwipeParticipation` | 0.60 | 60% of **active** members swiped |
 | `quorum.minActiveMembers` | 2 | Solo crew = personal mode |
-| `pick.algorithm` | `weighted_majority` | `registered` > `interested`; transparent |
+| `judgement.ballotWindowMinutes` | 180 | Soft ballot clock after quorum (capped by hard window) |
+| `judgement.consensusWindowMinutes` | 180 | Deprecated (confirm/swap); kept for config compat |
+| `judgement.swapResetBonusMinutes` | 15 | Deprecated (confirm/swap); kept for config compat |
+| `judgement.crewSwapBudget` | 2 | Deprecated (confirm/swap); kept for config compat |
+| `judgement.maxPickSlots` | 1 | Tenant default pick capacity (1–2); v1 Borda locks a single winner |
+| `pick.algorithm` | `weighted_majority` | Builds top-3 shortlist (`registered` > `interested`) |
+| `pick.ballotMethod` | `borda` | Decide tally over shortlist |
 | `crossCrew.minSharedFriends` | 1 | Surface overlap only when graphs touch |
 
 ### Ranker integration (embeddings-aware)
@@ -315,10 +331,10 @@ Phase 6 — Ops admin + analytics + movement polish
 | 4.3 | done | Explore crews going rail; doneAt: 2026-07-21 |
 | 5.1 | done | Contacts permission + hash match pipeline; doneAt: 2026-07-21 |
 | 5.2 | done | Onboarding contacts accelerator UI; doneAt: 2026-07-21 |
-| 6.1 | pending | Platform Admin crew config editor |
-| 6.2 | pending | Tenant dashboard: crew funnel metrics |
-| 6.3 | pending | Push copy: “stop planning” crew ritual |
-| 6.4 | pending | End-to-end crew dry run |
+| 6.1 | done | Platform Admin crew config editor; doneAt: 2026-07-21 |
+| 6.2 | done | Tenant dashboard crew funnel metrics; doneAt: 2026-07-21 |
+| 6.3 | done | Push copy: “stop planning” crew ritual; doneAt: 2026-07-21 |
+| 6.4 | done | Ritual dry-run script + runbook section; doneAt: 2026-07-22 |
 
 ---
 
@@ -553,9 +569,10 @@ Deep link: `meridian://pivot/crew/join?token=…` (parallel to existing invite i
 
 | Method | Path | Role |
 | --- | --- | --- |
-| `POST` | `/pivot/crews/:crewId/week/confirm` | Lock pick (`eventId`) |
-| `POST` | `/pivot/crews/:crewId/week/swap` | Choose runner-up |
-| `GET` | `/pivot/crews/:crewId/week/judgement` | Proposed + breakdown |
+| `POST` | `/pivot/crews/:crewId/week/confirm` | Lock pick set (`eventId`, optional `eventIds[]`) |
+| `POST` | `/pivot/crews/:crewId/week/swap` | Replace a slot (`eventId?`, `slotIndex?`; omit event → runner-up) |
+| `GET` | `/pivot/crews/:crewId/week/judgement` | `proposedEvents[]`, `maxPickSlots`, breakdown |
+| `PATCH` | `/pivot/crews/:crewId/settings` | Owner sets `maxPickSlots` (1 \| 2 \| null inherit) |
 
 Judgement window enforced server-side from config.
 
@@ -779,7 +796,7 @@ Per [embeddings doc](/strategy/just-go-embeddings-recommendations#1-unified-inte
 
 ### Task 6.1 — Platform Admin crew config editor
 
-**Status:** `pending`
+**Status:** `done`
 
 **Instructions:**
 
@@ -788,14 +805,14 @@ Per [embeddings doc](/strategy/just-go-embeddings-recommendations#1-unified-inte
 
 **Evaluation criteria:**
 
-- [ ] Changes reflect in `GET /pivot/config` within 60s
-- [ ] Invalid weights rejected
+- [x] Changes reflect in `GET /pivot/config` within 60s
+- [x] Invalid weights rejected
 
 ---
 
 ### Task 6.2 — Tenant dashboard crew metrics
 
-**Status:** `pending`
+**Status:** `done`
 
 **Metrics:**
 
@@ -809,14 +826,14 @@ Per [embeddings doc](/strategy/just-go-embeddings-recommendations#1-unified-inte
 
 **Evaluation criteria:**
 
-- [ ] Overview tab widgets in Pivot tenant dashboard
-- [ ] Filters by `batchWeek`
+- [x] Overview tab widgets in Pivot tenant dashboard
+- [x] Filters by `batchWeek`
 
 ---
 
 ### Task 6.3 — Push copy: stop planning ritual
 
-**Status:** `pending`
+**Status:** `done`
 
 **Instructions:**
 
@@ -825,21 +842,21 @@ Per [embeddings doc](/strategy/just-go-embeddings-recommendations#1-unified-inte
 
 **Evaluation criteria:**
 
-- [ ] Push still opens Week tab only
-- [ ] Solo users get existing drop copy
+- [x] Push still opens Week tab only
+- [x] Solo users get existing drop copy
 
 ---
 
 ### Task 6.4 — End-to-end crew dry run
 
-**Status:** `pending`
+**Status:** `done`
 
-**Script:** Two test users, one crew, full week: drop → swipe → quorum → judgement → recap → external open.
+**Script:** Automated matrix via `npm run dry-run:pivot-crew-ritual` (solo, 1 / 3 crews, split, invited-only) plus manual staging checklist in [weekly drop runbook](/strategy/pivot-weekly-drop-runbook#crew-ritual-dry-run-task-64--mobile-phase-12).
 
 **Evaluation criteria:**
 
-- [ ] Runbook section added to [weekly drop runbook](/strategy/pivot-weekly-drop-runbook)
-- [ ] All Phase 0–4 tasks `done` or explicitly waived
+- [x] Runbook section added to [weekly drop runbook](/strategy/pivot-weekly-drop-runbook)
+- [x] All Phase 0–4 tasks `done` or explicitly waived
 
 ---
 
@@ -873,6 +890,8 @@ Per [embeddings doc](/strategy/just-go-embeddings-recommendations#1-unified-inte
 ## Related documentation
 
 - [Pivot MVP implementation plan](/strategy/pivot-mvp-implementation-plan) — shipped baseline
+- [Just Go — crew Week experience (mobile)](/strategy/just-go-crew-mobile-experience-plan) — ritual shell, deck, recap, cutover
+- [Just Go — decide UI rewrite](/strategy/just-go-decide-ui-rewrite-plan) — primary decide surfaces (hub + room)
 - [Just Go — embeddings recommendations](/strategy/just-go-embeddings-recommendations) — ranker eval + data plane
 - [Just Go — Explore + embeddings groundwork](/strategy/just-go-explore-embeddings-plan) — Explore rails + logging
 - [Pivot metadata contract](/strategy/pivot-metadata-contract) — intent + feed fields

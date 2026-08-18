@@ -1,0 +1,443 @@
+---
+title: "Just Go — crew Week experience (mobile)"
+description: "Phased plan to rework the mobile Week tab into a crew-forward weekly ritual — new APIs, paired store release, and a controlled cutover from the current Week UI"
+---
+
+## How to use this document
+
+This plan **extends** the [crew social plan](/strategy/just-go-crew-social-plan). Backend crew mechanics (swipes → propose → confirm/swap) stay. What changes is **how Week feels on mobile** and **how the client loads it**.
+
+Work phases **in order**. Each phase lists what ships and how you know it’s done.
+
+For agents: when a phase task is complete, update the [Task status ledger](#task-status-ledger) in the same PR.
+
+<Note>
+**Decide UX ownership:** Phase 9 shipped a horizontal decide pager, but that pager is **not** the primary decide surface anymore. Hub/room decide UX (Week triage cards → per-crew room) is tracked in [Just Go — decide UI rewrite](/strategy/just-go-decide-ui-rewrite-plan). This plan still owns the ritual shell, deck, recap, and cutover. Judgement **mechanics** (quorum, timer, swap, split) stay in the [crew social plan](/strategy/just-go-crew-social-plan).
+</Note>
+
+---
+
+## What we’re fixing
+
+The crew UI on Week was layered onto the solo swipe flow. Chips, banners, cards, sheets, and recap blocks compete instead of telling one story.
+
+**North star:** one Week tab, one weekly arc:
+
+```text
+drop      → every crew visible, same weight
+swipe     → your deck feeds your crews
+decide    → Week hub triage → per-crew room (multi-open; see decide UI rewrite)
+recap     → where you’re going first, your picks always below
+```
+
+---
+
+## Locked decisions
+
+These override conflicting rows in the [crew social plan](/strategy/just-go-crew-social-plan) **for mobile Week only** (document the delta there when Phase 0 lands).
+
+| # | Decision | Choice |
+| --- | --- | --- |
+| 1 | Where crew lives | **Week tab** — no new tab |
+| 2 | Multi-crew | **Equal sections** every week — no “primary crew” hero |
+| 3 | Prominence | **Crew-forward** when the user is in ≥1 crew |
+| 4 | Decide UI | **Superseded for primary UX** by [decide UI rewrite](/strategy/just-go-decide-ui-rewrite-plan): Week hub + per-crew room (`PivotCrewDecidePanel`). Phase 9 horizontal pager (`PivotWeekCrewDecide*`) **deleted** in rewrite cleanup — do **not** resurrect. Consensus mechanics unchanged (social plan). |
+| 5 | Recap | **Crew outcomes first**; personal interested/going **always visible below** (never collapsed) |
+| 6 | Deck model | **One personal deck** per week; swipes still feed every crew |
+| 7 | Scope | **APIs and flows may change** where the experience needs it |
+
+---
+
+## Release model — paired ship, safe cutover
+
+We ship the **new store binary** and **backend** together once App Review passes — but we do **not** hard-break users on older builds during store rollout.
+
+Two mechanisms work together:
+
+### 1. Old paths stay until we remove them
+
+**Current binary** keeps using today’s routes unchanged:
+
+- `GET /pivot/feed`
+- `GET /pivot/crews/week`
+- `GET /pivot/crews/:crewId/week/judgement`
+- `GET /pivot/week-recap` (current response shape)
+- Existing confirm / swap POSTs
+
+**New binary** uses ritual routes only on Week:
+
+- `GET /pivot/week-ritual`
+- `GET /pivot/crews/week/judgements`
+- Recap embedded in ritual (or a `/v2` recap if split later)
+
+Mark old Week crew paths **`@deprecated — remove after min store version`** in code and docs. Delete when install base on the old binary is negligible.
+
+**Do not** reshape `GET /pivot/week-recap` in place — that breaks the old app. New recap shape lives in ritual (preferred) or a versioned route.
+
+Shared routes (feed, confirm, swap) keep stable contracts across both binaries.
+
+### 2. New routes require the new store version
+
+Every mobile request sends **`X-App-Version`** (from `expoConfig.version`).
+
+Middleware on **new routes only**:
+
+```text
+if missing or below ritualMinAppVersion → 426
+{ code: 'APP_UPGRADE_REQUIRED', minAppVersion: '2.0.0' }
+```
+
+Old binary never calls these routes → unaffected.
+
+### 3. Update gate — get people onto the new binary
+
+**On launch (primary):** extend `GET /pivot/config` with a `mobile` block:
+
+```json
+{
+  "mobile": {
+    "minAppVersion": "2.0.0",
+    "forceUpdate": true,
+    "storeUrls": {
+      "ios": "https://apps.apple.com/app/idXXXXXXXX",
+      "android": "market://details?id=com.meridian.mobile"
+    },
+    "message": "update to keep going with your crew this week"
+  }
+}
+```
+
+If `currentVersion < minAppVersion` and `forceUpdate: true`:
+
+- Full-screen gate — no dismiss, no Week tab behind it
+- Single action opens App Store / Play
+- Skip in `__DEV__` or internal builds as needed
+
+**On API use (backup):** global handler for `426` + `APP_UPGRADE_REQUIRED` shows the same gate (covers stale config or sideloaded old builds hitting ritual routes).
+
+**Timing:** deploy backend with `minAppVersion` **below** live store version first; bump to the new version **only after** the store build is searchable. Otherwise users see “update required” with nothing to install.
+
+**OTA note:** `expo-updates` only applies within the same store version (`runtimeVersion: appVersion`). The ritual release is a **store update**, not an OTA push.
+
+### Release sequence
+
+```text
+1. Backend: new ritual routes (gated) + config.mobile block (min below current)
+2. Submit new binary (ritual UI + X-App-Version + update gate)
+3. App approved → release to stores
+4. Backend: set minAppVersion to new store version, forceUpdate: true
+5. Monitor crew KPIs + crash on Week
+6. Later: remove deprecated Week paths + old mobile UI
+```
+
+---
+
+## API map
+
+| Route | Old binary | New binary | Notes |
+| --- | --- | --- | --- |
+| `GET /pivot/week-ritual` | — | ✓ (gated) | Canonical Week payload |
+| `GET /pivot/crews/week/judgements` | — | ✓ (gated) | Batch decide for pager |
+| `GET /pivot/crews/week` | ✓ | optional | Enriched or folded into ritual |
+| `GET /pivot/week-recap` | ✓ unchanged | via ritual | Don’t break in place |
+| `GET /pivot/config` | ✓ | ✓ | Adds `mobile.minAppVersion` |
+| `POST …/confirm`, `…/swap` | ✓ | ✓ | Shared semantics |
+
+---
+
+## Ritual payload (sketch)
+
+`GET /pivot/week-ritual?batchWeek=` returns:
+
+```typescript
+{
+  batchWeek: string;
+  phase: 'solo' | 'pre_drop' | 'drop_live' | 'swiping' | 'decide' | 'recap';
+  drop: { /* schedule */ };
+  deck: { remaining, complete, holdUntil };
+  crews: Array<{
+    crewId, name,
+    swipeProgress: { swiped, active, quorumMet, members: [...] };
+    judgement: { status, proposed, runnerUp, needsUserAction, ... };
+  }>;
+  recap?: { crewOutcomes, personal };
+  nudge?: { type, crewId?, copyKey };
+  actions: { openDeck, openDecide, openRecap };
+}
+```
+
+Server owns **`phase`** and **`decideQueueOrder`** — the client renders, it doesn’t guess.
+
+---
+
+## Phases
+
+### Phase 0 — contracts & copy
+
+**Status:** `pending`
+
+**Ship:**
+
+- Wireframes: equal crew sections, decide pager, crew-first recap
+- Ritual state machine spec
+- This doc linked from [crew social plan](/strategy/just-go-crew-social-plan) with mobile overrides noted
+- User strings in `PIVOT_COPY` for update gate + ritual headers
+
+**Done when:**
+
+- [ ] Phase diagram signed off
+- [ ] API schemas written (ritual + config.mobile)
+- [ ] Deprecated route list documented
+
+---
+
+### Phase 1 — backend: update gate + version header contract
+
+**Status:** `done`
+
+**Ship:**
+
+- `mobile` block on `GET /pivot/config` (`minAppVersion`, `forceUpdate`, `storeUrls`, `message`)
+- `requireMinAppVersion(min)` middleware + `426` / `APP_UPGRADE_REQUIRED`
+- Platform Admin or env override for `minAppVersion` (optional)
+
+**Done when:**
+
+- [x] Config returns `mobile` without breaking old clients (ignored field)
+- [x] Middleware unit tests for semver compare
+- [x] Old routes still ungated
+
+---
+
+### Phase 2 — backend: `GET /pivot/week-ritual`
+
+**Status:** `done`
+
+**Ship:**
+
+- `pivotWeekRitualService.js` — compose feed state, crew week, recap slice, nudge
+- `computeRitualPhase(user, batchWeek)`
+- Route registered with version middleware
+
+**Done when:**
+
+- [x] Route outcome tests for solo, 1 crew, 3 crews, decide pending, recap
+- [x] Phase matches manual QA matrix
+- [x] Ungated old `/crews/week` unchanged
+
+---
+
+### Phase 3 — backend: enriched crew state + batch judgements
+
+**Status:** `done`
+
+**Ship:**
+
+- Per-member swipe status in ritual `crews[]`
+- `needsUserAction`, `decideQueueOrder` server-side
+- `GET /pivot/crews/week/judgements` (gated)
+
+**Done when:**
+
+- [x] Pager can render all crews from one judgements GET
+- [x] Confirm/swap POSTs unchanged
+
+---
+
+### Phase 4 — backend: nudges & push point at ritual
+
+**Status:** `done`
+
+**Ship:**
+
+- Nudge types tied to phase: swipe, quorum waiting, decide, recap
+- Push payload: `ritualPhase`, optional `crewId`
+- Weekly drop copy respects phase (don’t send drop copy during decide)
+
+**Done when:**
+
+- [x] At most one nudge directive in ritual payload
+- [x] Push scheduler tests updated
+- [x] Old binary push behavior unchanged until min version forces update
+
+---
+
+### Phase 5 — mobile: version header + update gate
+
+**Status:** `done`
+
+**Ship:**
+
+- `X-App-Version` on all requests (`httpClient.ts`)
+- `ForceUpdateGate` before `PivotAppNavigator` — reads config.mobile
+- Global `426` handler → same gate
+- Store links for iOS App Store id + `com.meridian.mobile`
+
+**Done when:**
+
+- [x] Old binary unaffected (no header required on old routes)
+- [x] Gate blocks Week when `forceUpdate` and below min
+- [x] Dev builds exempt
+
+---
+
+### Phase 6 — mobile: ritual shell
+
+**Status:** `done`
+
+**Ship:**
+
+- `usePivotWeekRitual` — single query for Week tab
+- `PivotWeekOverlayCoordinator` — deck | decide | feedback (one at a time)
+- Phase-driven render; delete duplicate chips / primary crew card / stacked judgement sheets
+
+**Done when:**
+
+- [x] Week loads from ritual GET only (+ feed cards while swiping)
+- [x] No duplicate progress UI
+- [x] Old Week crew UI removed from binary
+
+---
+
+### Phase 7 — mobile: drop dashboard
+
+**Status:** `done`
+
+**Ship:**
+
+- `PivotCrewWeekSection` — same template for every crew
+- Ritual header + “swipe for your crews” CTA
+- Solo path unchanged
+
+**Done when:**
+
+- [x] N crews → N equal sections above the fold
+- [x] Roster strip without extra fetches
+
+---
+
+### Phase 8 — mobile: deck framing
+
+**Status:** `done`
+
+**Ship:**
+
+- In-deck “feeding your crews” framing
+- Compact in-deck pulse; ritual refetch after swipe
+- Keep card-level crew social proof
+
+**Done when:**
+
+- [x] Full dashboard not visible under active deck
+- [x] Crew progress updates after swipe
+
+---
+
+### Phase 9 — mobile: decide pager
+
+**Status:** `done` (pager built then **removed**; **not** primary decide UX)
+
+**Ship (historical):**
+
+- `PivotWeekCrewDecide` — horizontal pager, `decideQueueOrder` (deleted in decide UI rewrite Phase 5)
+- Confirm / swap / split — existing POSTs (now live only via `PivotCrewDecidePanel`)
+- Exit → recap phase, not idle “caught up” deck
+
+**Done when:**
+
+- [x] Judgement never opens under active deck
+- [x] Multi-crew resolved in one sitting
+- [x] Analytics events unchanged
+
+**Delta (cleanup):** Primary decide surface is Week hub → per-crew room (`PivotCrewDecidePanel` / crew detail `focus: 'decide'`). `PivotWeekCrewDecide*` and `PivotCrewJudgementSheet` were **deleted** — see [decide UI rewrite](/strategy/just-go-decide-ui-rewrite-plan) Phase 5. Further decide UX work lands there, not as Phase 9 follow-ons.
+
+---
+
+### Phase 10 — mobile: recap
+
+**Status:** `done`
+
+**Ship:**
+
+- `PivotWeekRecapRitual` — crew outcomes block, then personal list always below
+- Data from ritual `recap` (crew-first ordering, equal crew cards)
+
+**Done when:**
+
+- [x] First screenful is crew outcomes when user has crews
+- [x] Personal list complete and always visible
+
+---
+
+### Phase 11 — flows: onboarding, join, profile
+
+**Status:** `done`
+
+**Ship:**
+
+- Create / join success → Week ritual with new crew highlighted
+- Join deep link → Week + scroll to `crewId`
+- Profile crews section uses same section component as Week
+- Optional: join response includes ritual snapshot
+
+**Done when:**
+
+- [x] Join lands in dashboard, not a dead-end
+- [x] Visual parity across onboarding / profile / Week
+
+---
+
+### Phase 12 — ship checklist & cleanup
+
+**Status:** `done`
+
+**Ship:**
+
+- Staging binary against gated ritual API before submit
+- Dry-run script (solo, 1 / 3 crews, split, invited-only) — extends crew plan 6.4
+- Ritual funnel metrics (dashboard → deck done → decide → confirmed)
+- `@deprecated` removal ticket once min version adoption threshold met
+
+**Done when:**
+
+- [x] Backend + binary released per [Release sequence](#release-model--paired-ship-safe-cutover)
+- [x] `minAppVersion` bumped only after store live
+- [x] Rollback note: revert `minAppVersion` first; binary rollback is last resort
+
+---
+
+## Task status ledger
+
+| Phase | Task | Status | Notes |
+| --- | --- | --- | --- |
+| 0 | Contracts & copy | `pending` | |
+| 1 | Update gate + version middleware | `done` | Backend: config.mobile, requireMinAppVersion, env/tenant overrides |
+| 2 | `GET /pivot/week-ritual` | `done` | pivotWeekRitualService + gated route + phase tests |
+| 3 | Enriched crew + batch judgements | `done` | members in ritual, GET /crews/week/judgements |
+| 4 | Nudges & push → ritual | `done` | ritualPhase on push, phase-aware drop copy |
+| 5 | Mobile version header + update gate | `done` | X-App-Version, ForceUpdateGate, 426 handler |
+| 6 | Ritual shell | `done` | usePivotWeekRitual, overlay coordinator, Week crew UI removed |
+| 7 | Drop dashboard | `done` | PivotCrewWeekSection, ritual header + swipe CTA, solo path restored |
+| 8 | Deck framing | `done` | In-deck feeding framing, compact pulse, ritual refetch on swipe |
+| 9 | Decide pager | `done` | Pager removed; primary UX is hub + room — see [decide UI rewrite](/strategy/just-go-decide-ui-rewrite-plan) |
+| 10 | Recap | `done` | PivotWeekRecapRitual, equal crew outcome cards, personal always visible |
+| 11 | Onboarding / join / profile | `done` | Week landing + highlight, profile uses PivotCrewWeekSection |
+| 12 | Ship checklist & cleanup | `done` | dry-run script, pivot_ritual_funnel metrics, deprecation ticket |
+
+---
+
+## Out of scope
+
+- Crew tab or chat
+- Merged crew picks across groups
+- Reshaping Explore for crew
+- Removing unlimited crews
+
+---
+
+## Related docs
+
+- [Just Go — crew social plan](/strategy/just-go-crew-social-plan) — schemas, judgement rules, admin config
+- [Just Go — decide UI rewrite](/strategy/just-go-decide-ui-rewrite-plan) — primary decide surfaces (Week hub + per-crew room); supersedes Phase 9 pager as primary UX
+- [Pivot weekly drop runbook](/strategy/pivot-weekly-drop-runbook) — drop timing + ritual dry run
+- [Pivot ritual deprecation ticket](/strategy/pivot-ritual-deprecation-ticket) — legacy route removal after adoption
