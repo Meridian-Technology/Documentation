@@ -154,6 +154,8 @@ Pivot catalog events stay on the **existing `Event` schema**. Do **not** create 
 
 **Metadata vs schema change:** Prefer `customFields.pivot.host` for the pilot. Promote to a top-level `catalogHost` sub-schema later only if you need indexes or venue dedupe—not required for MVP.
 
+Organizer identity (city-scoped `PivotOrganizer`, crawl-time attach, backfill, Catalog panel) is a later workstream — do **not** create a campus Org per venue. Implementation: [Just Go organizer identity](/strategy/just-go-organizer-identity-plan).
+
 Implementation detail: [Pivot MVP implementation plan](/strategy/pivot-mvp-implementation-plan) (Tasks 0.1, 0.2, 3.1, 4.1, 5.4–5.5). Metadata contract: [Pivot metadata contract](/strategy/pivot-metadata-contract).
 
 ---

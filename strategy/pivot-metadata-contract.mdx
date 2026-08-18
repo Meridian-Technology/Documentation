@@ -16,6 +16,8 @@ Related docs:
 - [Just Go mobile admin dashboard plan](/strategy/just-go-mobile-admin-dashboard-plan) — on-device Live vs Staging deck preview + ops companion
 - [Pivot referral codes](/strategy/pivot-referral-codes) — invite codes and platform admin
 - [Pivot weekly drop runbook](/strategy/pivot-weekly-drop-runbook) — drop timing vs catalog release
+- [Just Go creator console — Phase 1](/strategy/just-go-creator-console-phase1-plan) — host self-serve; `source: 'justgo'`, `creatorPublish` config
+- [Just Go organizer identity](/strategy/just-go-organizer-identity-plan) — `host.organizerIds` / `PivotOrganizer`; crawl-time attribution + Catalog panel
 - [Events marketplace pivot — architecture](/strategy/events-marketplace-pivot) — strategic context
 
 ---
@@ -34,7 +36,17 @@ Pivot catalog events are **normal `Event` documents** in the tenant (city) datab
   "host": {
     "name": "Brooklyn Board Game Cafe",
     "imageUrl": "https://example.com/host-avatar.jpg",
-    "profileUrl": "https://partiful.com/u/example-host"
+    "profileUrl": "https://partiful.com/u/example-host",
+    "organizerIds": [],
+    "identities": [
+      {
+        "provider": "partiful",
+        "externalId": "example-host",
+        "profileUrl": "https://partiful.com/u/example-host",
+        "name": "Brooklyn Board Game Cafe",
+        "imageUrl": "https://example.com/host-avatar.jpg"
+      }
+    ]
   },
   "tags": ["board-games", "social"],
   "ingestStatus": "staged",
@@ -43,20 +55,62 @@ Pivot catalog events are **normal `Event` documents** in the tenant (city) datab
 }
 ```
 
+Host-created (Just Go Creator Console) example:
+
+```json
+{
+  "batchWeek": "2026-W21",
+  "source": "justgo",
+  "platformManaged": false,
+  "createdByUserId": "665c00000000000000000002",
+  "creatorSubmittedAt": "2026-05-18T16:00:00.000Z",
+  "host": {
+    "name": "Maya Chen",
+    "imageUrl": "https://example.com/maya.jpg",
+    "identities": [
+      {
+        "provider": "justgo",
+        "name": "Maya Chen",
+        "imageUrl": "https://example.com/maya.jpg"
+      }
+    ]
+  },
+  "tags": ["social", "board-games"],
+  "ingestStatus": "draft"
+}
+```
+
 ### Field reference
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `batchWeek` | `string` | **Yes** (`staged` / `published`) | ISO week: `YYYY-Www` (see below). **Default at ingest:** ISO week of the event’s start date (or first time slot). Optional `forceBatchWeek` pins to an explicit week. |
-| `source` | `"luma" \| "partiful" \| "manual"` | Recommended | Where the event was imported from |
+| `source` | `"luma" \| "partiful" \| "manual" \| "justgo"` | Recommended | Where the event came from. **`justgo`** = created in Just Go Creator Console (host self-serve). Do **not** overload `manual` for host create. |
 | `sourceUrl` | `string` (URL) | Recommended | Original listing URL; often same as `externalLink` |
-| `host.name` | `string` | **Yes** (`staged` / `published`) | Display organizer — what users see in Pivot UI |
-| `host.imageUrl` | `string` (URL) | No | Avatar or logo for the display host |
-| `host.profileUrl` | `string` (URL) | No | Link to host profile on Partiful/Luma |
+| `host.name` | `string` | **Yes** (`staged` / `published`) | Display snapshot for cards. **Not a unique key** — do not unique-index this string. Different sources emit variants (`Gabe's` / `Gabes`); identity lives on `organizerIds` / `identities`. |
+| `host.imageUrl` | `string` (URL) | No | Avatar or logo for the display host. Prefer persist when a parser has one; do not clobber a known URL with `null`. |
+| `host.profileUrl` | `string` (URL) | No | Link to host profile on Partiful/Luma. Prefer persist when a parser has one. |
+| `host.organizerIds` | `string[]` | No (empty until resolved) | `PivotOrganizer._id` values. Union on event dedup merge. Absent until crawl/backfill resolve (Phase 2+). |
+| `host.identities` | `object[]` | No | Captured at preview even before an organizer exists. One row per person/org — do not collapse into the joined `host.name`. |
 | `tags` | `string[]` | Recommended (`staged` / `published`) | Catalog slugs from **Pivot tag catalog** (see below); used by ranker, Lab, and chips |
 | `ingestStatus` | `"draft" \| "staged" \| "published"` | **Yes** | Lifecycle — see [Ingest status lifecycle](#ingest-status-lifecycle) |
-| `importedAt` | ISO-8601 datetime | Recommended | When ops ingested the event |
-| `importedBy` | `string` | Recommended | Global user ID or ops email |
+| `importedAt` | ISO-8601 datetime | Recommended | When ops ingested the event (scrape / Lab) |
+| `importedBy` | `string` | Recommended | Global user ID or ops email (scrape / Lab) |
+| `platformManaged` | `boolean` | Recommended for `justgo` | **Always `false` in Phase 1.** Reserved for Phase 2 native ticketing / in-event. Consumer app must not branch on this until Phase 2. |
+| `createdByUserId` | `string` | Recommended for `justgo` | Global or tenant user id of the creator who submitted the listing |
+| `creatorSubmittedAt` | ISO-8601 datetime | Recommended for `justgo` | When the host submitted into curation |
+
+`host.identities[]` item:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `provider` | `'luma' \| 'partiful' \| 'generic-site' \| 'justgo' \| 'manual'` | Source of this identity |
+| `externalId` | `string?` | Native host id / slug when known. Do **not** invent one for `generic-site`. |
+| `profileUrl` | `string?` | Canonical profile URL (`partiful.com/u/…`, `luma.com/user/…`) |
+| `name` | `string?` | Raw name from this identity (not the joined display string) |
+| `imageUrl` | `string?` | Avatar for this identity |
+
+Curation and analytics filter host self-serve on `source === 'justgo'` (and/or `createdByUserId` present).
 
 <Warning>
 **Staged and published catalog events must have `batchWeek` and `host.name`.** Ingest QA should reject stage/release if either is missing. Draft events may omit them until ready. **New ingest must not auto-set `published`** — see [Ingest defaults](#ingest-defaults).
@@ -66,7 +120,7 @@ Pivot catalog events are **normal `Event` documents** in the tenant (city) datab
 
 | `ingestStatus` | Meaning | In `GET /pivot/feed`? | Ops UI |
 | --- | --- | --- | --- |
-| `draft` | Imported / crawled; incomplete or unreviewed | **No** | Curation / Lab review queue |
+| `draft` | Imported / crawled / host-submitted; incomplete or unreviewed | **No** | Curation / Lab review queue (includes Host-created) |
 | `staged` | Ready for the target `batchWeek`; waiting for explicit release | **No** | Curation “ready for drop” |
 | `published` | Released for that week’s live deck | **Yes** | Live catalog |
 
@@ -74,13 +128,17 @@ Pivot catalog events are **normal `Event` documents** in the tenant (city) datab
 crawl / import  →  draft
 review + tags   →  staged          (still hidden from feed)
 Release week    →  published       (bulk flip; feed-eligible)
+
+host create (Just Go Creator)  →  draft   (configurable; see below)
+                               →  never auto-published
 ```
 
 **Feed eligibility rule (Choice A — event-only):**
 
 > `GET /pivot/feed` (and `findPublishedPivotEvent` helpers) require `customFields.pivot.ingestStatus === 'published'` (plus existing `batchWeek`, `host.name`, window filters).  
 > **Release** = ops action that bulk-updates `staged` → `published` for a `(tenantKey, batchWeek)`.  
-> There is **no** separate batch flag required for feed reads in v0.
+> There is **no** separate batch flag required for feed reads in v0.  
+> Host-created (`source: 'justgo'`) events use the **same** rule — no special feed path until ops release.
 
 Choice B (batch `released` **and** event `staged|published`) was considered and **rejected for v0** — more moving parts for the same ops outcome. Optional `PivotBatch` still tracks ops progress; it does **not** gate the feed under Choice A.
 
@@ -90,10 +148,30 @@ Choice B (batch `released` **and** event `staged|published`) was considered and 
 | --- | --- |
 | New URL / explore crawl / JSON import (Lab ingest) | **`staged`** when host + tags valid (Lab requires tags); never auto-`published` |
 | Incomplete / unreviewed rows | `draft` (edit modal / future crawl without tags) |
+| **Just Go Creator Console host create / submit** | **`draft`** (tenant `creatorPublish.defaultIngestStatus`; may be overridden to `staged` for trusted pilots). **Never** auto-`published`. |
 | “Release week” API | bulk `staged` → `published` |
 | Emergency “Stage & release now” (`releaseNow` + confirm `RELEASE_NOW`) | `published` on create |
 
-Do **not** treat Lab “Stage for city” as live-deck publish — keep **Release** separate ([Pivot tenant ops dashboard plan](/strategy/pivot-tenant-ops-dashboard-plan) Phase 3). Ops sequence: [weekly drop runbook](/strategy/pivot-weekly-drop-runbook#ops-sequence-curate--release--push).
+Do **not** treat Lab “Stage for city” or Creator submit as live-deck publish — keep **Release** separate ([Pivot tenant ops dashboard plan](/strategy/pivot-tenant-ops-dashboard-plan) Phase 3). Ops sequence: [weekly drop runbook](/strategy/pivot-weekly-drop-runbook#ops-sequence-curate--release--push).
+
+### Creator publish config (`creatorPublish` on tenant)
+
+Stored on pivot tenant settings (sparse overrides; missing keys → defaults). Resolved via `resolveCreatorPublishConfig(tenant)` in `utilities/pivotCreatorPublishConfig.js` / `services/pivotCreatorPublishConfigService.js`.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `defaultIngestStatus` | `'draft' \| 'staged'` | `'draft'` | Status on host create/submit. Pilot default must remain `draft`. **Not** `'published'`. |
+| `weekAssignment` | `'event_start' \| 'force'` | `'event_start'` | How `batchWeek` is chosen |
+| `forceBatchWeek` | `string?` | unset | Only when `weekAssignment === 'force'` |
+| `requireTagsToSubmit` | `boolean` | `false` | If true, block submit until catalog tags present |
+| `notifyAdminsOnCreate` | `boolean` | `true` | Notify ops on new host draft |
+| `notifyAdminsOnLiveWeekSubmit` | `boolean` | `true` | Extra emphasis when target week already has published events / is released |
+
+**Week rule for host create (locked):**
+
+1. **Default (`weekAssignment: 'event_start'`):** `batchWeek` = ISO week of the event’s `start_time` (else first `timeSlots[].start_time`) — same as Lab ingest.
+2. **Force:** `weekAssignment: 'force'` + `forceBatchWeek` pins every create to that week.
+3. **Already-released / live week:** still land as `draft` for that `batchWeek`; never auto-`published`. Ops stage/release (or move week). Helpers: `computeCreatorBatchWeek(eventStart, config)`.
 
 ### Migration (existing catalog)
 
@@ -280,6 +358,36 @@ Pivot uses two host layers on the same `Event` document:
 
 **Do not** create a new `Org` per venue. **Do not** show “Meridian [city]” as the public host label.
 
+**Do not** unique-index `host.name`. **Do not** attribute organizers with a weekly job — crawl-time extract + resolve-once, then stamp at publish. Historical rows use the same resolver (backfill); do not re-Firecrawl `sourceUrl`s to recover dropped host ids.
+
+### Organizer identity (`PivotOrganizer`)
+
+City-scoped collection `pivotOrganizers` via `getModels` — **not** a campus `Org`. See [Just Go organizer identity](/strategy/just-go-organizer-identity-plan).
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `tenantKey` | `string` | City; denormalized for queries |
+| `canonicalName` | `string` | Best display name |
+| `normalizedName` | `string` | Lowercase, punctuation-folded; unique **when claimed as exact alias** — not globally unique |
+| `aliases[]` | `{ name, normalized, source? }` | Observed strings |
+| `kind` | `'person' \| 'brand' \| 'venue' \| 'unclear'` | Default `unclear` |
+| `identities[]` | same shape as `host.identities` + `confidence` | Hard IDs live here |
+| `imageUrl` | `string?` | |
+| `claimedByUserId` | `ObjectId?` | GlobalUser; claim is a later phase |
+| `claimStatus` | `'unclaimed' \| 'pending' \| 'claimed'` | Default `unclaimed` |
+| `lastResolvedAt` | `Date` | Last crawl or backfill touch |
+
+Do **not** store weekly audience rollups on this document in v0.
+
+#### Resolution tiers
+
+| Tier | Signal | Action |
+| --- | --- | --- |
+| 1 — hard ID | Normalized `profileUrl` or `(provider, externalId)`; `justgo` + `createdByUserId` | Auto-create / attach |
+| 2 — exact alias | `normalizedName` unique in this city | Auto-attach if unique; else ambiguous |
+| 3 — corroborated fuzzy | Name similarity + shared venue **or** recurring title **or** same image | **Propose** only — ops confirm in Catalog |
+| 4 — leftover | Co-host soup, venue-as-host, one-offs | **Leave unlinked** — do not invent a brand from a one-off string |
+
 Tickets live on `externalLink` (Partiful/Luma URL). Campus `EventCard` paths that read `hostingId.org_name` are unchanged; Pivot clients must use `displayHost` from API responses.
 
 ---
@@ -312,7 +420,16 @@ Full `Event` document (tenant DB) for manual ingest reference:
       "host": {
         "name": "Brooklyn Board Game Cafe",
         "imageUrl": "https://cdn.partiful.com/avatars/example.jpg",
-        "profileUrl": "https://partiful.com/u/bkbgcafe"
+        "profileUrl": "https://partiful.com/u/bkbgcafe",
+        "identities": [
+          {
+            "provider": "partiful",
+            "externalId": "bkbgcafe",
+            "profileUrl": "https://partiful.com/u/bkbgcafe",
+            "name": "Brooklyn Board Game Cafe",
+            "imageUrl": "https://cdn.partiful.com/avatars/example.jpg"
+          }
+        ]
       },
       "tags": ["board-games", "social"],
       "ingestStatus": "published",
@@ -351,6 +468,8 @@ Pivot APIs resolve **`displayHost`** from `customFields.pivot.host` so mobile ne
 | `name` | `customFields.pivot.host.name` (**required**) |
 | `imageUrl` | `customFields.pivot.host.imageUrl` (optional) |
 | `profileUrl` | `customFields.pivot.host.profileUrl` (optional) |
+
+Consumer `displayHost` does **not** grow `organizerIds` or `identities` in this plan. Cards still show the display snapshot only.
 
 ### `GET /pivot/feed` response (excerpt)
 
@@ -422,29 +541,38 @@ sort: registrationCount ↓, start_time ↑  (then in-process rank)
 
 Expected plan: IXSCAN on `pivot_batchWeek_ingestStatus_start_time` (equality week + ingestStatus; `start_time` supports the pilot window range). Tag-filtered Explore can use `pivot_batchWeek_ingestStatus_tags`.
 
-### Feed sort pipeline (Tasks 8.6 + 8.8 + crew 3.1)
+### Feed sort pipeline (Tasks 8.6 + 8.8 + crew 3.1 + rules_v1 decks)
 
-After the DB pre-sort (`registrationCount` desc, `start_time` asc), `getPivotFeed` re-sorts in-process (`rankerVersion: rules_v0`):
+After the DB pre-sort (`registrationCount` desc, `start_time` asc), `getPivotFeed` scores every eligible published event for the user (`rankerVersion: rules_v1`), then **selects a short deck** instead of returning the full city week.
+
+Numeric score (tenant `pivotDeckConfig` knobs; defaults shown):
 
 ```text
-friend registered count ↓
-friend interested count ↓
-crew registered count × crew.feedMix.crewSignalWeight ↓
-crew interested count × crew.feedMix.crewSignalWeight ↓
-interest rank score ↓           personal overlap + min(crew-only tag overlap × maxWeight, maxWeight)
-negative-tag overlap count ↑    |event.tags ∩ tagsFromLowRatedEvents|  (fewer overlaps rank higher)
-start_time ↑
+friendGoing × friends going                         default 1.5
++ friendInterested × friends interested             default 0.5
++ crewSignal × (1.5 × crew going + crew interested) default 0.2
++ personalInterest × |event.tags ∩ user.pivotInterestTags|  default 0.7
++ crew interest bleed                               ≤ interestBleed.maxWeight (crew config)
+− negativeTag × |event.tags ∩ tagsFromLowRatedEvents|       default 0.4
+then start_time ↑ as a tie-break
 ```
 
-- **Crew signal boosts (Task 3.1):** Count **active** crew members (excluding self and `invited` placeholders) with week-scoped `PivotEventIntent` on the feed `batchWeek`. Members in multiple shared crews dedupe to one count per event. Weights come from `GET /pivot/config` → `crew.feedMix.crewSignalWeight` (cached ≤60s in `pivotFeedService`). When weight is `0`, crew tiers are skipped — order matches the pre-crew ranker.
-- **Interest bleed (Task 3.2):** When `crew.interestBleed.enabled`, union `pivotInterestTags` from active crew members (same eligibility as crew signals). Tags already in the viewer’s personal interests are excluded from bleed. Bleed adds `min(overlap × maxWeight, maxWeight)` to the interest rank score (default `maxWeight: 0.15`), so bleed never outranks a single personal tag match. When `requiresCrewMemberSwipe` is `true`, only tags from members with any `PivotEventIntent` on the feed `batchWeek` count. Disabled bleed → zero contribution.
+Length (defaults: soft max **15**, hard max **18**):
+
+1. If fewer eligible events than `softMax`, return all of them (do not pad).
+2. Otherwise take the top `softMax`.
+3. Keep extra cards while `score >= max(Nth_score × leewayRatio, highScoreFloor)` (defaults `0.85` / `0.7`), up to `hardMax`.
+4. Never exceed `hardMax`.
+
+Membership is frozen on first `GET /pivot/feed` per `userId + batchWeek` (`PivotDeckSnapshot`). Later loads return those IDs (still published and upcoming) in frozen order. Admin `?refresh=true` rebuilds. Changing `pivotDeckConfig` does not reshuffle already-frozen decks. Ops edit knobs on the city dashboard **Drop deck** page (`PUT /admin/platform/tenants/:tenantKey` with sparse `pivotDeckConfig`). The same page can inspect a user’s deck via `GET /admin/pivot/tenants/:tenantKey/drop-deck/preview` — that preview never writes a snapshot; `rebuild=true` ignores freeze. Explore and admin next-drop preview still see the full published catalog.
+
+- **Crew signal:** Count **active** crew members (excluding self and `invited` placeholders) with week-scoped `PivotEventIntent` on the feed `batchWeek`. Members in multiple shared crews dedupe to one count per event. Deck `crewSignal` comes from `pivotDeckConfig.weights.crewSignal` (cached ≤60s). Crew `feedMix.crewSignalWeight` still drives Explore `for_you` lexicographic sort (`rules_v0`).
+- **Interest bleed (Task 3.2):** When `crew.interestBleed.enabled`, union `pivotInterestTags` from active crew members (same eligibility as crew signals). Tags already in the viewer’s personal interests are excluded from bleed. Bleed adds `min(overlap × maxWeight, maxWeight)` (default `maxWeight: 0.15`). When `requiresCrewMemberSwipe` is `true`, only tags from members with any `PivotEventIntent` on the feed `batchWeek` count. Disabled bleed → zero contribution.
 - **Crew social proof (Task 3.3):** Optional `crewInterestedCount` / `crewRegisteredCount` on feed events — deduped active crew member intents for the feed `batchWeek`. Omitted when zero. Registered increments both counts (same as friends). Mobile deck cards render scrapbook chips when present.
 - **`PivotInteraction` crew eval (Task 3.4):** Deck `impression` rows optionally include `crewIds[]` (viewer’s active crew ids) and `crewConfigVersion` (shipped `crew.version`). Server-enriched on `POST /pivot/interactions/impressions`; omitted when the user has zero crews. Existing consumers ignore unknown fields.
 - **Registered vs interested:** Same as friends — `registered` increments both crew registered and crew interested counts; `interested` increments crew interested only.
 - **Interest overlap** uses exact catalog slug equality (case-normalized). Events with no tags get overlap `0` (neutral, not penalized).
-- Users with empty `pivotInterestTags` skip the interest tier — order matches friend boost + penalties + `start_time`.
-- **Negative-tag penalty** loads the user's prior `pivot_event` feedback with `rating < 3`, collects catalog slugs from those events' `customFields.pivot.tags`, and downranks feed events that share tags. Events are **never hidden** — penalty is sort-only.
-- **Penalty weight:** one shared negative tag is one sort tier — equivalent to losing one interest-overlap point among ties. A single bad board-games night downranks other board-games events only when friend and interest scores already match; it does not override a +1 interest-overlap advantage from another tag.
+- **Negative-tag penalty** loads the user's prior `pivot_event` feedback with `rating < 3`, collects catalog slugs from those events' `customFields.pivot.tags`, and subtracts `negativeTag` per overlap. That can **drop** a card out of a capped deck (unlike `rules_v0`, which only used the penalty as a sort tier).
 - Untagged feed events always get penalty `0`.
 
 ### Mobile tag chips (Task 8.5)
@@ -538,6 +666,8 @@ When pasting events into the tenant DB (or before Lab/Curation release):
 
 | Date | Change |
 | --- | --- |
+| 2026-08-15 | Additive organizer identity: `host.organizerIds[]`, `host.identities[]`, city `PivotOrganizer`. `host.name` remains the required display snapshot and is **not** a unique key. Consumer `displayHost` unchanged. Attribution is crawl-time, not a weekly job. (Organizer identity Task 0.1) |
+| 2026-08-08 | `source: 'justgo'`; `platformManaged` / `createdByUserId` / `creatorSubmittedAt`; host-create defaults (`draft`, ISO week of start); tenant `creatorPublish` config (Creator Console Phase 1 Task 0.1) |
 | 2026-07-12 | Event indexes `pivot_batchWeek_ingestStatus_start_time` + `pivot_batchWeek_ingestStatus_tags` for feed/Explore (Task 1.4) |
 | 2026-07-12 | Link Explore contract (same catalog as feed; intent shared; scroll-past ≠ pass) |
 | 2026-07-09 | `batchWeek` assignment: default from event start date; `forceBatchWeek` override; multi-week crawl/import |
