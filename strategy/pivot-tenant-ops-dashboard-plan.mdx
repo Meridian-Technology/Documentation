@@ -39,6 +39,7 @@ If work is partial or blocked, set **`Status:`** to `blocked` and note why — d
 - [Pivot weekly drop runbook](/strategy/pivot-weekly-drop-runbook) — push timing vs catalog publish
 - [Just Go pilot readiness plan](/strategy/just-go-pilot-readiness-plan) — consumer polish (orthogonal)
 - [Just Go mobile admin dashboard plan](/strategy/just-go-mobile-admin-dashboard-plan) — on-device preview + analytics companion for the same platform admins
+- [Just Go organizer identity](/strategy/just-go-organizer-identity-plan) — Catalog page (`?page=4`) on this tenant shell; not a Curation tab
 - [Backend best practices](/backend/best-practices) — `getModels` / global models, response shape, services, tests
 - [Web client best practices](/frontend/best-practices) — `useFetch` / `postRequest` / `authenticatedRequest`, routing, SCSS
 
@@ -61,11 +62,13 @@ Today ops run Just Go from a **single cross-tenant Pivot Lab** (`Meridian/fronte
 
 ### What we are building
 
-A **Pivot Tenant Ops Dashboard** — one Dashboard shell per pivot city (or one shell with tenant switcher locked to pivot tenants), entered from Tenant Management, with three primary surfaces:
+A **Pivot Tenant Ops Dashboard** — one Dashboard shell per pivot city (or one shell with tenant switcher locked to pivot tenants), entered from Tenant Management. Primary surfaces (later pages were **appended** so `?page=0..2` bookmarks stay stable):
 
 1. **Overview** — analytics + insights for the selected city/week (and next-drop readiness).
 2. **Curation** — full-page crawl/import/review/release workflow (not a Lab tab).
 3. **User journeys** — pivot funnel/path exploration + ops actions (wipe week intents, inspect history).
+4. **Drop deck** (`?page=3`) — city deck config.
+5. **Catalog** (`?page=4`) — weekless organizer graph (backfill, merge leftovers, claim). Not a Curation tab and not fleet Lab Catalog. See [Just Go organizer identity](/strategy/just-go-organizer-identity-plan).
 
 Cross-tenant Pivot Lab can remain as a **fleet summary** later; this plan prioritizes the **per-tenant** experience.
 
@@ -75,7 +78,7 @@ Cross-tenant Pivot Lab can remain as a **fleet summary** later; this plan priori
 | --- | --- |
 | Entry point | Tenant Management detail → **Open Pivot dashboard** (pivot tenants only) |
 | Shell pattern | Reuse `Dashboard` like `Admin.jsx`: sidebar pages + **`middleItem` tenant switcher** filtered to `isPivotTenant` |
-| Routes | **Locked:** `/platform-admin/pivot/:tenantKey` + Dashboard `?page=` (`0` Overview, `1` Curation, `2` User journeys) — see [Task 0.2](#task-02--information-architecture-and-route-map) |
+| Routes | **Locked:** `/platform-admin/pivot/:tenantKey` + Dashboard `?page=` (`0` Overview, `1` Curation, `2` User journeys, `3` Drop deck, `4` Catalog) — see [Task 0.2](#task-02--information-architecture-and-route-map) |
 | Catalog events | Still normal `Event` docs; metadata under `customFields.pivot` |
 | Week label | Unchanged: `batchWeek` = `YYYY-Www` |
 | Week assignment | **Default:** each event’s `batchWeek` = ISO week of its start date (or first time slot). One crawl/import may fill many weeks. **Override:** `forceBatchWeek: true` + `batchWeek` pins every write to that week. Undated events fall back to provided `batchWeek`, else current ISO week. |
@@ -312,21 +315,23 @@ flowchart TD
 
 **Implementation notes (2026-07-09):** Decisions below are the source of truth for Phase 1+.
 
-#### Surfaces (three pages)
+#### Surfaces
 
 | `page` | Surface | Purpose | Inspired by |
 | --- | --- | --- | --- |
 | `0` (default) | **Overview** | KPIs, funnel, top events, insights, next-drop readiness summary | `PivotLabOverview` + deeper event metrics |
 | `1` | **Curation** | Saved jobs, crawl, review queue, week assignment, release | Lab Import/Catalog — **full page** |
 | `2` | **User journeys** | Funnel + user lookup + wipe week (path optional/thin) | `UserJourneyAnalytics` (more compact) + actions |
+| `3` | **Drop deck** | City deck config (appended — do not insert earlier) | Tenant drop / deck tools |
+| `4` | **Catalog** | Weekless organizer graph: list, dossier, unlinked leftovers, backfill, merge. Claim is ops-granted API. **Not** a Curation tab. | [Just Go organizer identity](/strategy/just-go-organizer-identity-plan) |
 
 #### Frontend routing (locked)
 
 | Concern | Decision |
 | --- | --- |
 | **Path** | `/platform-admin/pivot/:tenantKey` — dedicated React Router route (sibling to `/platform-admin`), **not** a `page=` tab inside the Tenants/Lab/Weekly-drop shell |
-| **Shell** | Own `Dashboard` instance: `menuItems` = Overview, Curation, User journeys; `middleItem` = pivot tenant switcher; `onBack` → `/platform-admin?page=0` (Tenants) |
-| **Page index** | Reuse Dashboard’s existing `?page=` query (`0` Overview, `1` Curation, `2` User journeys) |
+| **Shell** | Own `Dashboard` instance: `menuItems` = Overview, Curation, User journeys, Drop deck, Catalog (3 and 4 **appended**); `middleItem` = pivot tenant switcher; `onBack` → `/platform-admin?page=0` (Tenants) |
+| **Page index** | Reuse Dashboard’s existing `?page=` query (`0` Overview, `1` Curation, `2` User journeys, `3` Drop deck, `4` Catalog) |
 | **Filters** | Optional query params on Curation/Journeys, e.g. `?page=1&batchWeek=2026-W28&filter=untagged` — bookmarkable per [frontend best practices](/frontend/best-practices) |
 | **Guard** | Same platform-admin protection as `/platform-admin` |
 | **Legacy** | Keep `/admin/pivot` → `/platform-admin?page=1` (fleet Lab) unchanged |
@@ -339,6 +344,9 @@ flowchart TD
 | Tenant Management (pivot detail) primary CTA | `/platform-admin/pivot/:tenantKey` (Overview, `page=0` or omit) |
 | Optional secondary “Curation” | `/platform-admin/pivot/:tenantKey?page=1` |
 | Overview insight “fix tags” | `/platform-admin/pivot/:tenantKey?page=1&filter=untagged&batchWeek=…` |
+| Catalog (organizer graph) | `/platform-admin/pivot/:tenantKey?page=4` |
+| Catalog unlinked / ambiguous | `/platform-admin/pivot/:tenantKey?page=4&filter=unlinked` or `filter=ambiguous` |
+| Catalog dossier | `/platform-admin/pivot/:tenantKey?page=4&organizerId=` |
 | Tenant switcher | Same `page` (+ filters when safe) for the new `tenantKey` |
 
 #### Fate of cross-tenant Pivot Lab (locked — **slim**)

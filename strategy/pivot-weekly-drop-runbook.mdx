@@ -14,6 +14,8 @@ Related docs:
 - [Pivot MVP implementation plan — Task 6.3](/strategy/pivot-mvp-implementation-plan#task-63--manual-weekly-drop-push-runbook-config-driven)
 - [Pivot MVP implementation plan — Weekly drop schedule](/strategy/pivot-mvp-implementation-plan#weekly-drop-schedule-configurable)
 - [Pivot metadata contract](/strategy/pivot-metadata-contract) — `batchWeek` and catalog publish fields
+- [Native-first city discovery](/strategy/pivot-native-first-discovery-plan) — Discover finds sources; **Refresh all** recrawls them. Do not Discover on drop day.
+- [Just Go organizer identity](/strategy/just-go-organizer-identity-plan) — city Catalog (`?page=4`), backfill, merge leftovers, claim before Creator Console
 
 <Note>
 **Pilot default (suggestion only):** When provisioning a new Pivot city, seed **Thursday 18:00** in the tenant's local timezone (e.g. `America/New_York` for NYC). That gives users Thu–Sun to browse before weekend events. Change defaults or one-off weeks in **Platform Admin** — never in mobile or push copy.
@@ -63,11 +65,57 @@ If the schedule moved, update **`pivotDropOverrides`** or the default fields in 
 
 After the [release gate](/strategy/pivot-tenant-ops-dashboard-plan#batch-release-model) (Phase 3):
 
-1. **Curate early** — Import / crawl into the target `batchWeek` as **`staged`** (Lab “Stage for city”). Staged events never appear in `GET /pivot/feed`.
+1. **Curate early** — Recrawl saved jobs into the target `batchWeek` as **`staged`** (Curation → Saved jobs → **Refresh all**, or per-job **Run for week**). Do **not** re-run city **Discover** for a weekly Luma/venue refresh — that searches for new sources and spends Firecrawl search credits. Staged events never appear in `GET /pivot/feed`.
 2. **Release before drop** — Explicit **Release week** (`POST .../batches/:batchWeek/release`) flips `staged` → `published`. Emergency Lab path: “Stage & release now…” with typed `RELEASE_NOW`.
 3. **Send the push** — At the resolved drop instant (below). The push is still only a nudge; the feed already shows released events.
 
 Do **not** treat Lab “Stage” as live-deck publish.
+
+## Organizer Catalog (city graph)
+
+Curation is a **week** release queue. **Catalog** is the weekless organizer graph for the city — who we ingested, leftovers, and who can open Creator Console onto that catalog.
+
+Surface: `/platform-admin/pivot/:tenantKey?page=4`  
+Unlinked: `?page=4&filter=unlinked` · Ambiguous names: `?page=4&filter=ambiguous` · Dossier: `?page=4&organizerId=`  
+Plan: [Just Go organizer identity](/strategy/just-go-organizer-identity-plan)
+
+<Steps>
+  <Step title="Refresh / crawl first">
+    After **Refresh all** or a curation job run, new events get `host.organizerIds` at publish (resolve unique hosts **once per crawl**). Catalog updates from that attach — **no extra weekly job**. Do not run city Discover just to refresh hosts.
+  </Step>
+  <Step title="Backfill once per city">
+    First time on a city (or after merge-rule changes): Catalog **Backfill**, or from `Meridian/backend`:
+
+    ```bash
+    npm run backfill:pivot-organizers -- --tenant=nyc
+    ```
+
+    Re-run with **Force re-resolve** / `--force` only after resolver or merge rules change. Skip when `host.organizerIds` is already an array (including `[]` leftovers). **Do not** recrawl historical `sourceUrl`s or Firecrawl from this button.
+  </Step>
+  <Step title="Merge leftovers — leave soup unlinked">
+    Open **Unlinked**. Confirm a fuzzy proposal or pick source → target (path id is the **kept** organizer; body `{ sourceOrganizerId }`).
+
+    **Merge** when two rows are the same person/brand (shared profile, unique folded name, or a proposal with venue / title / image corroboration).
+
+    **Leave unlinked:** joined `Alice & Bob` display strings, venue-as-host, one-off names, and colliding `normalizedName` with no hard ID. Do not invent a brand from a soup string. Two organizers claimed by **different** users cannot merge (`ORGANIZER_ALREADY_CLAIMED`).
+  </Step>
+  <Step title="Claim before inviting a creator">
+    1. Grant the user on the tenant **Creators** allowlist (active `PivotCreatorGrant` for that city).
+    2. Claim the organizer (platform admin). Catalog has no claim form yet:
+
+    ```bash
+    POST /admin/pivot/tenants/:tenantKey/organizers/:organizerId/claim
+    { "globalUserId": "<GlobalUser id>" }
+    ```
+
+    Requires an **active** grant (`CREATOR_GRANT_REQUIRED` otherwise). Already claimed by someone else → `ORGANIZER_ALREADY_CLAIMED`. Unclaim: same path `{ "unclaim": true }`, then claim again to reassign. Does **not** rewrite scraped `source` or `createdByUserId`.
+    3. Then invite them to Creator Console. They see host-created listings **and** scraped events on claimed organizers (scraped rows are read-only + insights).
+  </Step>
+</Steps>
+
+<Warning>
+Do not re-Firecrawl history to recover dropped host ids. Audience on a dossier is a **live query**, not a weekly rollup. Consumer cards still show `host.name`.
+</Warning>
 
 ## Pre-send checklist
 
@@ -147,6 +195,61 @@ Console sends bypass publish-count and drop-window checks. Run the [Pre-send che
 
 ---
 
+## Crew ritual dry run (Task 6.4 / mobile Phase 12)
+
+Before submitting a ritual-capable store build, run the automated matrix and complete manual staging checks.
+
+### Automated
+
+From `Meridian/backend`:
+
+```bash
+npm run dry-run:pivot-crew-ritual
+```
+
+Scenarios covered: **solo**, **one crew**, **three crews**, **split decide**, **invited-only**.
+
+Print staging checklist only:
+
+```bash
+node migrations/pivotCrewRitualDryRun.js --checklist
+```
+
+### Manual staging (required before App Store submit)
+
+1. Install **staging binary** (sends `X-App-Version`, uses ritual routes on Week).
+2. Point at **staging API** with gated `GET /pivot/week-ritual`.
+3. Confirm `config.mobile.minAppVersion` is **below** staging binary version (no false force-update).
+4. Solo: drop dashboard → deck → personal recap.
+5. Crew: join/create → Week dashboard with crew highlight → swipe → Week hub decide cards → per-crew decide room → recap with crew outcomes first.
+6. Three crews: open each your-move/waiting card from the hub (async quorum; not a single pager pass).
+7. Invited-only: roster shows invited placeholders; quorum excludes them.
+
+### Release sequence reminder
+
+1. Deploy backend (ritual routes + `minAppVersion` below live store version).
+2. Submit store build.
+3. After build is searchable: set `minAppVersion` to new store version + `forceUpdate: true`.
+4. **Rollback:** revert `minAppVersion` first; binary rollback is last resort.
+
+See [Pivot ritual deprecation ticket](/strategy/pivot-ritual-deprecation-ticket) for legacy route removal after adoption.
+
+### Ritual funnel metrics (mobile)
+
+Client emits `pivot_ritual_funnel` with `step`:
+
+| Step | Meaning |
+| --- | --- |
+| `dashboard` | Drop dashboard visible (crew Week) |
+| `deck_complete` | Personal deck exhausted |
+| `decide_open` | Decide room opened (hub deep-link or room mount; per `crewId`, includes `hubState`) |
+| `decide_complete` | Viewer confirmed or crew locked (per `crewId`; `completeReason` = `confirm` \| `lock`) |
+| `recap` | Ritual recap phase rendered |
+
+Confirm/swap still emit `pivot_crew_judgement_confirm` / `pivot_crew_judgement_swap` with `hubState` + `judgementStatus`.
+
+---
+
 ## Evaluation checklist (Task 6.3)
 
 - [ ] Runbook references tenant drop config (not hardcoded day/time)
@@ -160,4 +263,6 @@ Console sends bypass publish-count and drop-window checks. Run the [Pre-send che
 
 | Date | Change |
 | --- | --- |
+| 2026-08-15 | Organizer Catalog ops path: crawl attach, one-time backfill, merge leftovers, claim before Creator Console ([identity plan](/strategy/just-go-organizer-identity-plan) Task 6.2) |
+| 2026-07-22 | Crew ritual dry run script + staging checklist (Task 6.4 / mobile Phase 12) |
 | 2026-06-29 | Initial runbook + `npm run send:pivot-weekly-push` script (Task 6.3) |
