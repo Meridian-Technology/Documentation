@@ -32,7 +32,8 @@ Axios remains an **implementation detail inside** those modules only.
 - **Signature**: `useFetch(url, options)` where `options` can include `method`, `data`, `headers`, `params` (see `useFetch.js`).
 - **Skip fetching**: pass **`url` as `null` or `undefined`** until you have an id (conditional requests).
 - **`params` stability**: `options.params` is part of the hook’s memo dependencies. **Do not pass a fresh inline object every render** (for example `useFetch('/x', { params: { a: 1 } })` recreated each render) or you can trigger a **refetch loop**. Stabilize with `useMemo` when params are objects (see comment in `NewDomain.jsx` in-repo).
-- **Returns**: `{ data, loading, error, refetch }`. Call **`refetch()`** after a successful mutation to align UI with the server.
+- **Returns**: `{ data, loading, error, errorCode, errorStatus, refetch }`. Call **`refetch()`** after a successful mutation to align UI with the server.
+- **Branching on a specific failure**: `error` is a human-readable message — do **not** parse it. Use **`errorCode`** (the backend's stable `code` from the error body) and **`errorStatus`** (HTTP status) when a surface must render a distinct state for one failure, e.g. `errorStatus === 403 && errorCode === 'CREATOR_FORBIDDEN'` rendering an access gate instead of a generic error panel.
 - **401 / refresh**: handled inside the hook (refresh then retry; hard redirect to `/login` only when refresh failure indicates invalid refresh token).
 
 Example shape:
@@ -49,7 +50,9 @@ const { data, loading, error, refetch } = useFetch('/org-management/config');
 - **Signature**: `postRequest(url, body, options)` — `body` is the JSON payload (or `FormData`); **`options.method`** defaults to **`POST`** but set **`PUT`**, **`PATCH`**, **`DELETE`** as needed.
 - **Cookies**: `withCredentials: true` is set for you.
 - **401 / refresh**: same pattern as `useFetch` — attempts `/refresh-token`, retries once; **FormData** is rebuilt on retry so the body is not consumed empty.
-- **Return value**: on HTTP success, returns **`response.data`** (the server JSON). On failure, returns **`{ error, code }`** objects rather than throwing — **check the shape** in the caller (`if (result.error) …`).
+- **Return value**: on HTTP success, returns **`response.data`** (the server JSON). On failure, returns **`{ error, code, errorCode? }`** objects rather than throwing — **check the shape** in the caller (`if (result.error) …`).
+  - **`code`** is the **HTTP status** (or a transport label such as `NETWORK_ERROR`).
+  - **`errorCode`** is the backend's stable **body `code`**, present only when the error response carried one. Branch on `errorCode` — never on the message text — when a specific failure needs its own handling, e.g. mapping a validation code onto the form field it belongs to.
 
 Example:
 
@@ -58,7 +61,7 @@ import postRequest from '../../utils/postRequest';
 
 const res = await postRequest('/api/stakeholder-role', payload);
 if (res?.error) {
-  // handle res.error, res.code
+  // res.error = message, res.code = HTTP status, res.errorCode = backend body code
   return;
 }
 // use res as success payload
