@@ -77,7 +77,14 @@
         "strategy/pivot-ritual-deprecation-ticket",
         "strategy/just-go-creator-console-phase1-plan",
         "strategy/just-go-creator-console-phase2-plan",
-        "strategy/just-go-organizer-identity-plan"
+        "strategy/just-go-organizer-identity-plan",
+        "strategy/relay-master-plan",
+        "strategy/relay-parser-plan",
+        "strategy/relay-runner-plan",
+        "strategy/relay-api-plan",
+        "strategy/relay-web-plan",
+        "strategy/relay-phone-plan",
+        "strategy/relay-cursor-plan"
       ]
     },
     {

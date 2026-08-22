@@ -1,0 +1,528 @@
+---
+title: "Relay — master plan"
+description: "Architecture lock for Relay: phased markdown, fresh agent sessions per phase, phone/laptop control plane, one preview at a time. Parent for child implementation plans."
+---
+
+## How to use this document
+
+This is the **architecture lock** and **parent** for **Relay**. It is **not** a bite-sized task ledger. Do not implement the whole system from this file.
+
+Relay is the product name. Plans have **phases** and **steps** — keep those words. Do not brand this as Meridian, Just Go, Lab, or Pivot Lab.
+
+Child implementation plans (one track or one slice) live as sibling docs in `/strategy`. They must link here and must not invent architecture.
+
+Visual target (phone): [Cursor product language — dark](https://www.figma.com/design/9VS0sCapxoA3crpmzupXnr/Just-GO---new?node-id=91-934) on the `Lab console` page of **Just GO - new** (mocks; on-screen copy should say **Relay**, not Lab). Laptop console is the same API, denser layout, built with **[BoardUI](https://www.boardui.com/)** — not a second product and not a from-scratch kit.
+
+For every **child plan**:
+
+1. Read **Locked decisions** and **Non-goals** in this file first.
+2. Cover **one track** (A–G), or one slice of a track — not the whole system.
+3. Start the child plan with the [child plan header](#child-plan-header).
+4. Work through that child plan’s tasks in order. Update **that** file when tasks complete (same [agent completion](#agent-completion) rules as other strategy plans).
+5. When a child plan is created, finished, or blocked, update the [Child plan ledger](#child-plan-ledger) here.
+
+Child plans may add schema fields, API routes, and file lists. They may **not** change Locked decisions without editing **this** file.
+
+### Child plan header
+
+Copy into the top of every child plan:
+
+```text
+Parent: /strategy/relay-master-plan
+Track: A | B | C | D | E | F | G
+Needs Mini: yes | no
+Blocked by: <track or none>
+```
+
+### Agent completion
+
+<Warning>
+**Required for agents:** When you finish a **child plan** (or change a locked decision), edit this markdown file in the same PR — do not leave the parent out of date.
+</Warning>
+
+1. In the [Child plan ledger](#child-plan-ledger), set that row to `done` / `blocked` / `skipped` (add `doneAt` or PR link in Notes).
+2. If you created a new child strategy doc, add its row and Mintlify path here.
+3. If architecture changed, edit [Locked decisions](#locked-decisions) — do not fork a second truth in the child plan.
+
+Task-level checkboxes live **only** in the child plan.
+
+### Child plan ledger
+
+| # | Child plan | Track | Away? | Status | Notes |
+| --- | --- | --- | --- | --- | --- |
+| 1 | [Plan schema + parser + fixtures](/strategy/relay-parser-plan) | A | yes | done | doneAt 2026-08-21; completed at `/strategy/relay-parser-plan` |
+| 2 | [Runner + fake adapter + brief packer + VC wrap](/strategy/relay-runner-plan) | B | yes | done | doneAt 2026-08-21; restart recovery hardened 2026-08-22 |
+| 3 | [HTTP API + approve/stop/log](/strategy/relay-api-plan) | C | yes | done | doneAt 2026-08-21; API instances rehydrate parked gates before serving requests |
+| 4a | [Web: home + new run + run + usage](/strategy/relay-web-plan) | D | yes | done | doneAt 2026-08-22; completed at `/strategy/relay-web-plan` with BoardUI |
+| 4b | [Phone: home + new run + run + gate + usage](/strategy/relay-phone-plan) | E | yes | done | doneAt 2026-08-22; completed at `/strategy/relay-phone-plan` |
+| 5 | [Cursor adapter + real `verify`](/strategy/relay-cursor-plan) | B/C | yes (laptop) | done | doneAt 2026-08-22; completed at `/strategy/relay-cursor-plan` |
+| 6 | Mini launchd + Tailscale + profiles + add-machine playbook | G | **no** | pending | After #3; needs Mini. Ship [Add a machine](#add-a-machine-playbook) as `relay/docs/add-machine.md` |
+| 7 | Claude + Codex + failover | B | either | pending | After #5 |
+| 8 | Job artifact + promote | F | staging now; Mini later | pending | |
+| 9 | Push actions + Live Activity | E | after #6 | pending | |
+
+4a and 4b are **not** order-dependent. 5 can start as soon as 2 exists. 6 cannot start until the Mini is in reach. 8’s promote path can be a CLI before any UI.
+
+<Note>
+**Product boundary:** Relay is a **private control plane** for the Mini. It is **not** Just Go, not Meridian Go, and not Pivot Lab (`/admin/pivot`). Do not put it in `Meridian-Mobile`, do not reuse Just Go bundle IDs or Google iOS clients, do not ship it on the App Store.
+</Note>
+
+### Related docs
+
+- [Relay — plan schema + parser](/strategy/relay-parser-plan) — child #1 (Track A), **done**
+- [Relay — runner + fake adapter](/strategy/relay-runner-plan) — child #2 (Track B), **done**
+- [Relay — control API](/strategy/relay-api-plan) — child #3 (Track C), **done**
+- [Relay — web console](/strategy/relay-web-plan) — child #4a (Track D), **done**
+- [Relay — phone shell](/strategy/relay-phone-plan) — child #4b (Track E), **done**
+- [Relay — Cursor adapter + verify](/strategy/relay-cursor-plan) — child #5 (Track B/C), **done**
+- [Native-first city discovery](/strategy/pivot-native-first-discovery-plan) — existing discovery/rehearsal Track F wraps; do not rewrite
+- [Pivot tenant ops dashboard](/strategy/pivot-tenant-ops-dashboard-plan) — `/admin/pivot` promote target; Relay is not this UI
+- Just Go standalone (product preview binary vs Relay binary) — `Meridian-Mobile/JUSTGO_STANDALONE.md`
+- [Meridian CLI](/meridian-cli) — **the** version-control tool for `Meridian/` + `Events-Backend/`. Relay wraps it; agents do not `git checkout`
+- [Backend best practices](/backend/best-practices) — only for Track F glue into existing admin APIs
+
+---
+
+## Overall context
+
+### Problem
+
+Long agent coding sessions and bounded staging jobs should run on a **Mac Mini M1 (16GB)** so the laptop stays for ideation and review. Today that loop is manual: write a phased markdown plan, run one step, clear the session, repeat, and kick nothing off from a phone.
+
+### What we are building
+
+**Relay** — a plan runner on the Mini, started from phone or laptop, that:
+
+1. Runs a phased markdown plan with a **fresh agent session per phase**.
+2. Serves **one** preview chosen at kickoff (Expo **or** web **or** none).
+3. Occasionally runs a **bounded staging job** (discovery/curation), then a human **promotes**.
+
+Laptop = ideation, diffs, promote. Each Mini = a worker. Phone = kickoff, gates, preview. v1 is one Mini; the control plane already names **which** machine.
+
+```text
+Phone (Relay Expo client) ──┐
+Laptop (web console)      ──┼──► machine list ──► Control API on Mini N ──► that Mini’s runner
+                            │         │
+                            │         └─ (v1: one URL; later: pick relay-1 | relay-2 | …)
+                            └── Push / Live Activity
+```
+
+### What we are not building
+
+- Another agent, RAG, memory OS, swarm scheduler
+- Queues (Temporal, Inngest, Redis) — one run at a time **per machine**
+- Docker / K8s / Coolify on this box
+- A fleet scheduler or shared run database in milestone 1 (naming the machine is enough)
+- A custom tunnel (Tailscale is the tunnel)
+- Relay UI inside Just Go or Meridian Go
+- Expo Go as the Relay app (evicts product preview)
+- Forking `Meridian-Mobile` or `eas init` over `meridian-mobile`
+- Native shell as milestone 1, before a `phase-approve` loop works (even with a fake adapter)
+- A second git orchestration layer. Do not reimplement `meridian start` / `switch` / lockfile / Events symlink in Relay
+- Letting the agent `git checkout`, `git switch`, or `git pull` in `Meridian/` or `Events-Backend/`
+- A billing product, vendor-dashboard scraper, or silent account round-robin to farm rate limits
+- A second laptop design system. Track D uses BoardUI; do not invent buttons/tables/sidebar beside it
+
+### Should you build the app first?
+
+**No.** The phone app is a remote. The TV is the runner.
+
+Away from the Mini does **not** mean “build iOS first.” It means: **build the harness on the laptop**, talk to it over localhost, treat the Mini as a later deploy target.
+
+Order of value:
+
+1. Parser + state machine + one adapter (fake is fine) + HTTP API — **laptop, now**
+2. Web console against that API — **laptop, now**
+3. Thin Expo Relay shell against the **same** API — **parallel, not critical path**
+4. Cursor adapter + real verify hooks — **laptop, now**
+5. Mini bring-up (Tailscale, launchd, profiles, Expo hostname) — **blocked until home**
+6. Claude / Codex, promote UI, Live Activities — **after 1–2 work**
+
+Track E (phone shell) in parallel is allowed. Shipping it as the first milestone is not.
+
+---
+
+## Locked decisions
+
+| Decision | Choice |
+| --- | --- |
+| Name | **Relay**. Bundle `app.relay`, scheme `relay://`. Not Meridian-branded. |
+| Mini role | Worker. One heavy thing at a time **per machine**. v1 = one Mini. See [Machines](#machines). |
+| RAM | Mutually exclusive **profiles** on that machine. No Docker Desktop. No local Mongo. Atlas staging. |
+| Network | Tailscale MagicDNS per box (`relay-<id>.tailXXXX.ts.net`). Not ngrok / Expo `--tunnel` as the primary path. |
+| Control API | Tiny TypeScript HTTP API **on each Mini**. Same contract. Clients hold a list of `{ id, url }`. |
+| Laptop UI | Web console on that API (logs, plan edit, git-adjacent review). **BoardUI** ([boardui.com](https://www.boardui.com/)) is the design system: CLI-copied source in `relay/web`. Screens compose those components; custom UI only when the gallery has no match. |
+| Phone UI | Thin **Expo dev client**, private, `app.relay`. Not Expo Go. Not Just Go. |
+| Notifications | Expo Push / APNs from the Mini (ntfy is a fallback, not the product). Live Activity later. |
+| Agents | Wrap CLIs. Default Cursor local (`@cursor/sdk`). Also Claude Code, Codex. Explicit per phase. Optional failover. No round-robin. |
+| Accounts | Named logins per tool (`cursor:work`, `claude:max`). Kickoff/phase picks one. Failover may try another **account** of the same tool, then another tool. See [Accounts and usage](#accounts-and-usage). |
+| Usage UI | Per-login tracker on Home and New run (web + phone). Same `GET /accounts` payload. |
+| Preview | User-chosen at kickoff: `expo` \| `web` \| `none`. Agent cannot start Metro. |
+| Expo preview | Just Go **or** campus **dev client** as the *product* preview (`npm run start:justgo` vs `npm start`). Relay is a different binary. |
+| Gates | `step-approve` / `phase-approve` / `full-handoff` / mixed (`approve-before` on a phase). |
+| Context | Fresh session per phase. Next phase gets plan slice + `AGENTS.md` + generated `phase-N-brief.md`. Not the prior chat. |
+| Version control | **Meridian CLI** for `Meridian/` + `Events-Backend/`. Relay’s runner calls it **before** each agent session. Agents write files and may `git add` / `git commit`. They must not checkout or switch branches. See [Version control](#version-control). |
+| Jobs | Staging first. Promote **replays registry/jobs** via existing `/admin/pivot`. Does not re-crawl Heroku. |
+| Code home | Sibling `relay/` (or private `Relay`). Must not import Just Go / Meridian app runtime. |
+| Trust, don’t build | Meridian CLI, Tailscale, `gh`, Expo, Vite, **BoardUI**, existing pivot admin APIs. |
+
+### Profiles (mutex, one at a time)
+
+| Profile | Allowed |
+| --- | --- |
+| `agent` | One CLI agent + commit-only git. No checkout. No Metro, no Vite, no discovery. |
+| `agent+expo` | Agent + Just Go/campus Metro. `REACT_NATIVE_PACKAGER_HOSTNAME=<mini tailscale ip>`. |
+| `agent+web` | Agent + Vite `--host`. |
+| `job` | Discovery/curation vs Atlas staging. `NODE_OPTIONS=--max-old-space-size=4096`. Metro/Vite off. |
+
+Watchdog: if memory pressure is critical, pause before the next phase.
+
+---
+
+## Machines
+
+Each Mini is a **machine**: own clone of the workspace, own mutex, own accounts file, own `relay/` process, own MagicDNS name. Runs never move between boxes mid-phase.
+
+| v1 | Later (no rewrite) |
+| --- | --- |
+| One entry in the client machine list | Add another `{ id, url }` |
+| New run hits that URL | New run picks a machine (or the idle one) |
+| Usage rows = logins on the **selected** machine | Optional: Home lists every machine, each with its `/accounts` |
+
+Do **not** share one git working tree across Minis. Do **not** put a queue in front of the APIs. A second Mini is another worker you install with the [playbook](#add-a-machine-playbook), then point the phone/web list at it.
+
+Identity: `RELAY_MACHINE_ID` (hostname-safe, e.g. `relay-1`). Every run record stores `machineId`. `GET /machine` returns id, profile, RAM, idle. `POST /runs` may include `machineId`; if the client is already talking to that box’s URL, the server ignores a mismatch and uses itself.
+
+---
+
+## Version control
+
+Agents in this workspace already do the wrong thing: they edit `Meridian/` and `git checkout` a branch with normal Git. That drifts `Events-Backend`, replaces the `backend/events` symlink with a submodule checkout, and can pin the lockfile to the wrong SHA. [Meridian CLI](/meridian-cli) exists to prevent that. Relay must use it.
+
+### Who does what
+
+| Actor | Allowed | Forbidden |
+| --- | --- | --- |
+| **Relay runner** (before a phase / on kickoff) | `meridian status`, `meridian start <branch>`, `meridian switch <branch>`, then `meridian symlink`. `MERIDIAN_WORKSPACE` = sibling parent. | Reimplementing checkout. Calling `meridian ship` or `meridian sync` unattended. |
+| **Agent** | Write files in the already-checked-out tree. `git add` / `git commit` (“work normally”). | `git checkout`, `git switch`, `git pull`, `git checkout -b`, checking out `backend/events` by SHA, `meridian start` / `switch` / `ship`. |
+| **Human** (laptop, after handoff) | `meridian ship`. Merge PRs. Promote. | Expecting Relay to ship. |
+
+Phase briefs must say: you are already on `<branch>` in both repos; do not change branches.
+
+### Branch names
+
+Kickoff chooses a git-safe name. Default: `relay/<slug>/<time>`. No `MER-<number>-<slug>` requirement for Relay runs.
+
+If the branch already exists on remote, Relay **resumes** (`switch` / start-resume), it does not force-create.
+
+Today `meridian start` / `switch` reject non-`MER-*` names. Track B must relax that **for these invocations** (flag or skip the regex). Do not make Relay mint fake ticket branches to appease the CLI. Human interactive `meridian start` can keep the ticket format if you still want it day to day.
+
+### Sibling repos the CLI does not own
+
+`Meridian-Mobile/`, `Meridian-Mintlify/`, `relay/` are separate git checkouts. For those, Relay may use ordinary git (create/switch a branch with the **same slug** when practical). Still the **runner**, not the agent.
+
+A plan that spans backend + mobile: CLI aligns Meridian + Events first; then Relay checks out Mobile. One mutex run, two git tools.
+
+### Unattended CLI
+
+Today `meridian start` prompts on remote branch collision and rejects non-`MER-*` names. Relay cannot sit at a TTY and does not use ticket branches. Child plan for Track B should add **non-interactive flags** on the existing CLI (e.g. `--yes` + `--resume` / fail if dirty) and **accept any git-safe branch name** on those invocations — not a parallel git wrapper. Dirty trees: fail the run (CLI does not auto-stash). After every `start`/`switch`, run `meridian symlink` so Events stays the sibling checkout.
+
+`meridian ship` stays human-only. Relay can mark a run `ready-to-ship` and show `meridian status`; it never merges, never deploys, never updates `private-deps.lock` on its own.
+
+---
+
+## Accounts and usage
+
+Same tool, more than one subscription or API key, is a **named account** in Relay config (not a second adapter). One run uses one account at a time.
+
+```text
+cursor:work     → CURSOR_API_KEY (or sdk apiKey) for that process only
+cursor:home     → a second key
+claude:max      → CLAUDE_CONFIG_DIR for that login (keep ANTHROPIC_API_KEY unset)
+claude:api      → ANTHROPIC_API_KEY on that process only
+codex:work      → process env / config dir
+```
+
+Kickoff or the phase sets `account`. Failover is an ordered list (`cursor:home`, then `claude:max`). No silent shuffle every phase.
+
+### Usage tracker (UI)
+
+Home and New run show **one row per configured login on the selected machine**, not a pooled bar across Minis.
+
+| Column | Source |
+| --- | --- |
+| Tool + account name | Relay config |
+| This Mini (attributed) | Sum of adapter reports after each phase: tokens / cost / duration when the CLI gives them |
+| Vendor remaining | Optional probe the adapter already knows (`claude` usage/status, Cursor usage API if we have a key). `unknown` is allowed |
+| Last used | Last run that picked this account |
+
+New run: pick agent **and** account; dim or warn a seat that is exhausted or `unknown`. Run live: show which login is active.
+
+Fake adapter emits fake usage so D/E can ship the strip before Cursor/Claude adapters exist. Do not scrape browser dashboards. Do not store card numbers or vendor passwords in the plan file — secrets stay in Mini config.
+
+---
+
+## Tracks
+
+Tracks **A, B, C** are the critical path and are **serial** (B needs A, C needs B).
+Tracks **D, E, F** are **independent of the Mini** and of each other, as long as they consume the API contract (mock until C exists).
+Track **G** is Mini-only.
+
+```text
+A parser ──► B state machine ──► C control API
+                                      │
+                 ┌────────────────────┼────────────────────┐
+                 ▼                    ▼                    ▼
+            D web console        E phone shell        F job+promote
+                 │                    │                    │
+                 └────────────────────┴────────────────────┘
+                                      │
+                                      ▼
+                                 G Mini ops
+```
+
+### Track A — Plan parser + schema
+
+**Needs Mini:** no. **Blocked by:** none.
+
+- Markdown fixture corpus (happy path, mixed gates, missing verify).
+- Parse frontmatter + phases + steps + `verify` / `gate` / `agent` / `preview` / `cwd` / `branch`.
+- Round-trip tests. CLI: `relay parse plans/foo.md`.
+
+Output: `relay/parser`, fixtures, tests.
+
+### Track B — Run state machine + context packer + fake adapter
+
+**Needs Mini:** no. **Blocked by:** A.
+
+- States: `queued` → `planning?` → `running` → `awaiting-approval` → `failed` | `done`.
+- Mutex: one run.
+- Persist to `runs/<id>/state.json` so a reboot can resume a **gate** (not a mid-tool-call).
+- Fake adapter that writes a file and exits 0/1. Enough to complete one `phase-approve` loop. Emits fake usage for the chosen account.
+- Packer writes `phase-N-brief.md` (includes current `meridian status` + “do not checkout”).
+- VC: wrap Meridian CLI (`start` / `switch` / `status` / `symlink`) before the agent starts. Fake adapter: no-op or record the intended `meridian` argv. Real git only after A’s `branch` field exists.
+- Commit at phase end if dirty (ordinary `git commit` in each dirty repo). Tests may no-op.
+
+Output: `relay/runner`, `relay/adapters/fake`, `relay/pack`, `relay/vc` (CLI wrapper).
+
+Cursor local adapter + real `verify` after the agent is child [Relay — Cursor adapter + verify](/strategy/relay-cursor-plan) (#5). Same `AgentAdapter` interface; do not add Claude/Codex in that child.
+
+### Track C — Control API
+
+**Needs Mini:** no (localhost). **Blocked by:** B.
+
+- Implement the [control API contract](#control-api-contract).
+- SSE log tail from adapter stdout.
+- `GET /accounts` can return fixture usage until real adapters exist.
+- Integration test: POST run → fake adapter → GET awaiting-approval → POST approve → done.
+
+Output: `relay/api`. First real target for D/E.
+
+### Track D — Web console (laptop)
+
+**Needs Mini:** no. **Blocked by:** none to **start** (mock). **Blocked by C** to be real.
+
+Screens (laptop density, **[BoardUI](https://www.boardui.com/)** components — sidebar, data-table, badge, input/select, agent-progress, notification): Home (**usage rows per login** on the selected machine; machine switcher when the list is longer than one), New run (machine if needed, branch, **agent + account**, default `relay/<slug>/<time>`), Run live, Plan ready, Job artifact. On-screen name is **Relay**. Do not ship a parallel button/table kit. Child: [Relay — web console](/strategy/relay-web-plan).
+
+Stub with MSW until C exists. Do not wait for G.
+
+### Track E — Phone shell (Expo dev client)
+
+**Needs Mini:** no to **build UI**. **Blocked by C** for a real runner. **Blocked by G** for Tailscale URLs and product Expo on the Mini.
+
+- New Expo app, slug/bundle **`app.relay`**. Not `meridian-mobile`, not `just-go`.
+- Dev client (not Expo Go). Scheme `relay://`.
+- Screens from the dark Cursor Figma: Home (**usage rows per login**; machine switcher when needed), New run (agent + account), Run, Gate sheet, Job artifact.
+- Push + notification actions after C can emit events. Live Activities last.
+- Config: `RELAY_API_URL` (localhost / simulator now; MagicDNS later).
+
+Do not put this in `Meridian-Mobile`. Do not share the Just Go Google iOS client. Child: [Relay — phone shell](/strategy/relay-phone-plan).
+
+### Track F — Job runner + promote
+
+**Needs Mini:** no to **write glue** (laptop can hit Atlas staging). **Blocked by G** for a memory-heavy city on the Mini.
+
+- Wrap existing `pivotSourceDiscoveryService` / rehearsal against **staging**.
+- Artifact JSON: sources, jobs, stats, memory.
+- Promote: existing `/admin/pivot` with a second confirmation (type city key).
+- Never Firecrawl production from the Mini or from unattended Heroku.
+
+Child plan must name the exact existing functions/routes; do not rewrite discovery.
+
+### Track G — Mini ops
+
+**Needs Mini:** yes. **Blocked by:** C. D/E optional.
+
+- Tailscale + MagicDNS + HTTPS (Tailscale cert or Caddy). Name: `relay-<id>.tailXXXX.ts.net`.
+- `RELAY_MACHINE_ID` in launchd env.
+- `launchd` + `caffeinate` + mutex **on this machine**.
+- Profile supervisor (start/stop Metro or Vite; export preview URL).
+- `REACT_NATIVE_PACKAGER_HOSTNAME` = **this** Mini’s tailnet IP.
+- Deploy the same `relay/` process already run on the laptop.
+- `MERIDIAN_WORKSPACE` set; `meridian` on PATH (`npm link` from `Meridian/`).
+- Push credentials on the Mini.
+- Client machine list: `{ id, url }` (phone + web).
+- Smoke: phone on tailnet kicks off fake run, approve, stop.
+- Write `relay/docs/add-machine.md` from the [playbook](#add-a-machine-playbook) with real hostnames filled in.
+
+G is install and wiring, not a rewrite. Adding Mini two is the playbook, not a new architecture.
+
+---
+
+## What you can do while away (no Mini)
+
+| Work | Track |
+| --- | --- |
+| Schema + parser + tests | A |
+| State machine + fake adapter + packer + meridian VC wrap | B |
+| Local control API | C |
+| Web console (mock or local API) | D |
+| Expo Relay UI against local API / simulator | E |
+| Promote script vs staging (staging only) | F |
+
+Do **not** spend away time on Tailscale / launchd / RAM profiling, Live Activities, a second visual language, product Expo on the Mini, or “agent OS” abstractions.
+
+When you get home, Track G should be “run the binary we already have,” not “start the project.”
+
+---
+
+## Plan markdown schema
+
+Formalize the files already written. Child plans must not invent a second format.
+
+```markdown
+---
+preview: expo              # expo | web | none   (kickoff can override)
+agent: cursor              # cursor | claude | codex
+account: work              # named login for that tool; default from kickoff
+gate: phase-approve        # step-approve | phase-approve | full-handoff
+cwd: Meridian-Mobile
+branch: relay/crew-invites/20260821  # git-safe; default relay/<slug>/<time> if omitted at kickoff
+failover: cursor:home, claude:max    # optional; accounts then tools
+---
+
+# Add crew invites to Just Go
+
+## Phase 1 — API contract
+gate: auto
+cwd: Meridian/backend
+### Step 1.1
+instruction: |
+  ...
+notes: |
+  ...
+verify: npm test -- workspace=backend --grep crewInvite
+
+## Phase 2 — mobile UI
+gate: approve-before
+preview: expo
+agent: cursor
+### Step 2.1
+instruction: |
+  ...
+```
+
+**Pack for the next phase** (files, not chat):
+
+1. The plan, or that phase’s slice.
+2. Repo `AGENTS.md` / project rules for `cwd`.
+3. `runs/<id>/phase-N-brief.md` — files touched, test output, user notes, “do not redo,” **branch already set — do not `git checkout`.**
+4. The step `instruction`.
+5. Snapshot of `meridian status` when the phase uses the Meridian workspace.
+
+`cwd` may still point at `Meridian-Mobile` or `Meridian/backend` — that is the **work** repo, not the product name.
+
+---
+
+## Control API (contract)
+
+All clients use this. Child plans add routes; they do not replace the resource model.
+
+| Resource | Meaning |
+| --- | --- |
+| `GET /health` | Process up. |
+| `GET /machine` | `id`, hostname, profile, RAM, idle. |
+| `GET /accounts` | Configured logins **on this machine** + usage snapshot (attributed + vendor remaining or `unknown`). |
+| `GET /runs` | List **on this machine**. |
+| `POST /runs` | Kickoff: `{ planPath, preview, agent, account?, gate, branch?, machineId? }`. Goal-to-plan generation is deferred to a future planner child; `goal` without `planPath` returns `400`. `branch` is any git-safe name (default `relay/<slug>/<time>`). |
+| `GET /runs/:id` | State, phases, preview URL, profile, branch, active account, `machineId`, `meridian status` snapshot. |
+| `GET /runs/:id/log` | SSE or poll. |
+| `POST /runs/:id/approve` | Gate: phase or plan. |
+| `POST /runs/:id/reject` | `{ note }` → appended to next brief. |
+| `POST /runs/:id/stop` | Abort agent + keep profile teardown. |
+| `POST /runs/:id/preview` | Switch expo/web/none (supervisor, not the agent). |
+| `GET /jobs/:id` | Artifact. |
+| `POST /jobs/:id/promote` | Requires typed city key (and later Face ID on phone). |
+
+Auth: Tailscale-only network + a shared bearer for the phone/laptop. No public internet.
+
+---
+
+## What to code (size)
+
+Keep it small (~1–2k lines to a useful loop):
+
+1. Plan parser
+2. Run state machine + mutex + resume
+3. VC wrapper around `meridian` CLI (plus plain git for sibling repos the CLI does not own)
+4. Adapters: `start({ cwd, promptFiles })`, `wait()`, `abort()` — fake, then Cursor, then Claude, then Codex
+5. Context packer
+6. Preview supervisor (G)
+7. Control API + web + thin native shell (Home usage rows included)
+8. Job runner + promote (F)
+
+**Adapters after fake:** Cursor local first (`@cursor/sdk` or `agent` CLI, `cwd` = package). Claude `claude -p`. Codex `codex exec`. Same interface.
+
+---
+
+## Repo sketch (when Track A starts)
+
+```text
+relay/
+  package.json
+  README.md
+  parser/
+  runner/
+  pack/
+  adapters/   fake | cursor | claude | codex
+  vc/         meridian CLI wrapper (start/switch/status/symlink)
+  api/
+  web/        laptop console
+  fixtures/plans/
+```
+
+Phone app: **separate** Expo project (`relay-mobile/`), not under `Meridian-Mobile`.
+
+Work repos stay where they are. The Mini clones `Meridian-Mono`; `cwd` in a plan may point at `Meridian-Mobile` or `Meridian/backend`.
+
+---
+
+## Definition of done (system)
+
+Without sitting at the Mini:
+
+1. Kick off a plan from phone or laptop.
+2. Get a lock-screen gate when a phase `verify` passes.
+3. Approve → next phase starts with an **empty** agent session and a brief.
+4. Open the preview chosen at kickoff.
+5. Stop.
+6. (Later) Review a staging discovery artifact and promote by typing the city key.
+
+Until (1–5) work with the **fake** adapter on localhost, do not expand scope.
+
+---
+
+## Add a machine (playbook)
+
+Copy this into `relay/docs/add-machine.md` when Track G finishes; fill the placeholders. Do not invent a second control plane.
+
+1. **Name it.** Pick `RELAY_MACHINE_ID` (`relay-2`). MagicDNS: `relay-2.tailXXXX.ts.net`.
+2. **Tailscale.** Sign the new Mini into the same tailnet. HTTPS (Tailscale cert or Caddy).
+3. **Clone.** Own workspace checkout (sibling `Meridian/`, `Events-Backend/`, `Meridian-Mobile/`, `relay/`). Do not NFS-share another Mini’s tree. `npm link` the Meridian CLI. `MERIDIAN_WORKSPACE` = that parent.
+4. **Same binary.** Run the same `relay/` as laptop / Mini 1. `launchd` + `caffeinate`. Mutex is local.
+5. **Secrets.** Per-box accounts file (Cursor keys, Claude `CLAUDE_CONFIG_DIR`s, Codex). Copy keys if this box should share a seat; do not copy a live OAuth dir from a Mini that is using it.
+6. **Push.** Expo / APNs credentials on this box if it should notify.
+7. **Clients.** Append `{ id: "relay-2", url: "https://relay-2.tailXXXX.ts.net" }` to the phone and web machine list. Shared bearer (or a new one stored on both clients).
+8. **Smoke.** From the phone on tailnet: `GET /machine` → idle, matching id. Kick off a **fake** run, approve, stop. Confirm Home usage rows are this machine’s logins.
+
+Two Minis may run two plans at once (two mutexes). They must not target the same local dirty checkout; they may push different `relay/<slug>/…` branches to GitHub.
