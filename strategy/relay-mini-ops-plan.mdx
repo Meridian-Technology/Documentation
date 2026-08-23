@@ -1,0 +1,633 @@
+---
+title: "Relay — Mini readiness + preview supervisor"
+description: "Child #6 / Track G: finish all laptop-safe preview and service preparation, then stop at a verified Mini-install checkpoint."
+---
+
+```text
+Parent: /strategy/relay-master-plan
+Track: G
+Needs Mini: no for Phases 0–2; yes for Phase 3
+Blocked by: C
+Laptop stop point: Task 2.3
+```
+
+## How to use this document
+
+This is **Relay child plan #6**. It has two explicit milestones:
+
+1. **Laptop readiness** — implement and test the preview supervisor, connect it to the existing runner/API, and prepare portable service/documentation assets.
+2. **Mini installation** — fill real machine values, install Tailscale and launchd wiring, configure secrets, and perform the physical-phone smoke.
+
+The current execution authorization stops after **Task 2.3**. Do not begin Phase 3 until James has the Mini available and asks to continue. Subsequent agents will not have this chat, so the task status ledger and handoff log are the source of truth.
+
+Read [Relay — master plan](/strategy/relay-master-plan) **Profiles**, **Track G**, **Control API**, and **Add a machine** first. Reuse the existing runner, run mutex, HTTP API, web console, and phone app. This plan adds installation and lifecycle wiring; it does not create a second control plane.
+
+<Warning>
+**Hard boundary:** Phases 0–2 may run entirely on the laptop. They must not call `tailscale`, `launchctl`, install files in `~/Library/LaunchAgents`, copy credentials, contact APNs, or use a live Cursor account. Stop after the laptop checkpoint even if the Mini appears reachable.
+</Warning>
+
+### Before you start (required)
+
+1. Read this How-to, [Engineering conventions](#engineering-conventions-required), [Decision log](#decision-log), and [Lifecycle contract](#lifecycle-contract).
+2. Read `relay/src/runner/run.ts`, `relay/src/runner/types.ts`, `relay/src/api/app.ts`, `relay/src/cli/serve.ts`, and their tests.
+3. Confirm child plans #1–#5 remain complete and the existing fake kickoff/gate/restart smoke is green.
+4. Confirm the Relay, Meridian CLI, Mintlify, and `relay-mobile` repositories are available to the Mini through pushed branches or merged commits before Phase 3. This is not required for Phases 0–2.
+5. Skim the [Task status ledger](#task-status-ledger).
+
+For every task:
+
+1. Read **Context**, **Instructions**, and the **As built** table of dependencies.
+2. Implement only that task.
+3. Run every applicable **Evaluation criterion**.
+4. Update this file in the same change ([Agent completion](#agent-completion)).
+
+### Agent completion
+
+<Warning>
+A task is not done while **Implementation notes** is `_None yet._`. When Task 2.3 passes, mark this child `blocked` in the parent with the precise note `laptop readiness complete; waiting for Mini`, not `done`.
+</Warning>
+
+1. Update the task status ledger.
+2. Make the task heading **Status** match.
+3. Check only criteria actually verified.
+4. Replace **Implementation notes** with **As built**.
+5. Append one dated line to the [Handoff log](#handoff-log).
+6. Update the parent ledger when the child becomes `in_progress`, `blocked`, or `done`.
+7. Change a parent locked decision only when the architecture truly changed.
+
+#### As built template
+
+```md
+**As built:**
+
+| Concern | Landed |
+| --- | --- |
+| Files | `path` |
+| Exports | names |
+| Choice | decision implemented |
+| Tests | exact checks run |
+| Follow-up | leftovers or next task |
+```
+
+---
+
+## Overall context
+
+### What we are building on the laptop
+
+Everything required to make the later Mini session installation rather than product development:
+
+1. A small **preview supervisor** for the existing `expo | web | none` choice.
+2. One mutually exclusive machine profile: `agent`, `agent+expo`, or `agent+web`.
+3. Machine-local preview configuration loaded from `RELAY_DATA/profiles.json`.
+4. Runner/API lifecycle integration, including `previewUrl`, dynamic `GET /machine.profile`, switching, stop teardown, and restart recovery.
+5. A launchd plist template, restricted env-file example, logs/data layout, and verification checklist.
+6. `relay/docs/add-machine.md` with placeholders and a clear Mini worksheet.
+7. A fully offline laptop smoke using the fake adapter and injected fixture preview processes.
+
+### What waits for the Mini
+
+- Real Tailscale login, tailnet name, MagicDNS, HTTPS, or Serve configuration
+- Real tailnet IPv4 value for `REACT_NATIVE_PACKAGER_HOSTNAME`
+- Real absolute paths for Node, the workspace, Relay, and the user LaunchAgents directory
+- `npm link` of the Meridian CLI on the Mini
+- Loading real bearer/API keys, Cursor account configuration, or push credentials
+- Installing, bootstrapping, enabling, disabling, or inspecting a real LaunchAgent
+- Running the real Just Go/campus Metro or Meridian web preview on the M1
+- RAM-pressure observation or tuning on the M1
+- Phone-on-tailnet kickoff, gate approval, preview opening, and stop
+- Filling real hostnames into the add-machine guide
+
+### What we are not building
+
+- Push notifications or Live Activities (child #9)
+- Claude, Codex, or failover (child #7)
+- Jobs or promote (child #8)
+- A public API bind, ngrok, Expo tunnel as the primary path, or a cloud control plane
+- Docker, a queue, a second machine registry, or a second run mutex
+- A generic process manager; the supervisor owns only Relay's configured `expo` and `web` preview
+- Preview commands supplied by phone/web requests
+- App Store/TestFlight work for the private Relay phone app
+
+---
+
+## Current baseline and gaps
+
+| Surface | Current behavior | Child #6 laptop target |
+| --- | --- | --- |
+| `RunRecord` | Has `preview` and optional `previewUrl` | Supervisor writes/clears `previewUrl` |
+| `POST /runs` | Persists preview choice; runner aligns branches and runs agent | Start selected profile after VC alignment and before the first agent step |
+| `POST /runs/:id/preview` | Persists the enum only | Switch/stop the machine-local preview with rollback-safe state |
+| `POST /runs/:id/stop` | Aborts adapter and marks run failed | Also tear down the preview process |
+| `GET /machine` | Always reports `profile: "agent"` | Report supervisor state |
+| API restart | Rehydrates parked run runtimes | Reconcile the saved preview state without duplicate children |
+| `relay serve` | Loopback on `127.0.0.1` | Keep loopback; later Tailscale HTTPS fronts it |
+| launchd | None | Valid portable template; no laptop installation |
+| profiles config | None | Strict machine-local JSON config with fixtures |
+
+---
+
+## Engineering conventions (required)
+
+| Concern | Rule |
+| --- | --- |
+| Home | Preview code in `relay/src/preview/`; ops assets in `relay/ops/`; operator docs in `relay/docs/` |
+| Interface | One injected `PreviewSupervisor`; do not scatter raw `spawn` calls through API routes |
+| Process API | Use argv arrays with `shell: false`. Client requests select only `expo`, `web`, or `none` |
+| Config | `RELAY_DATA/profiles.json`; commands are machine-local configuration, never plan fields or request body fields |
+| Paths | Profile `cwd` is workspace-relative and must resolve inside `RELAY_WORKSPACE` |
+| Secrets | No values in git, tests, plist, plan, logs, or API responses. The eventual Mini env file is mode `0600` |
+| Service | Launchd runs absolute `/usr/bin/caffeinate` + absolute Node + built Relay CLI. Do not rely on interactive shell initialization or `npx` |
+| Network | Relay keeps binding `127.0.0.1`. Phase 3 puts Tailscale HTTPS in front of it |
+| Profile mutex | At most one configured preview child per machine, consistent with the existing run mutex |
+| Child process | Separate process group; graceful `SIGTERM`, bounded wait, then `SIGKILL`; capture logs under `RELAY_DATA/previews/` |
+| Tests | Inject spawn/process handles and clocks. No real Metro, Vite, Tailscale, launchd, Mini, or vendor network in automated tests |
+| Compatibility | Existing fake/localhost API behavior remains green when `profiles.json` is absent and preview is `none` |
+
+---
+
+## Decision log
+
+| Date | Decision |
+| --- | --- |
+| 2026-08-22 | Child #6 is split at a hard laptop checkpoint. Phases 0–2 may land before the Mini session; Phase 3 is intentionally deferred. |
+| 2026-08-22 | Relay stays on `127.0.0.1`; later Tailscale HTTPS reverse-proxies to it. Do not add a public `0.0.0.0` default. |
+| 2026-08-22 | Preview commands come only from `RELAY_DATA/profiles.json`. Plans and clients continue to send the locked enum only. |
+| 2026-08-22 | `POST /runs` starts the chosen preview after branch alignment and before the first agent step. The agent never starts Metro/Vite. |
+| 2026-08-22 | Preview stays alive while awaiting approval and after `done` for review. `stop`, `failed`, explicit `preview: none`, or the next run tears it down. |
+| 2026-08-22 | A new run always reconciles the previous preview first, so a completed run cannot leave a second heavy profile beside the new run. |
+| 2026-08-22 | API restart reconciles persisted supervisor metadata before serving actions. It must fail safe to `agent`, not spawn duplicates blindly. |
+| 2026-08-22 | Push credential installation may be documented in Phase 3, but no push request, token registration, APNs call, or notification UI belongs to child #6. |
+
+---
+
+## Machine-local profiles contract
+
+The checked-in example documents the shape; the real file lives under `RELAY_DATA` and is not committed:
+
+```json
+{
+  "expo": {
+    "cwd": "Meridian-Mobile",
+    "command": "/absolute/path/to/npm",
+    "args": ["run", "start:justgo"],
+    "url": "REPLACE_ON_MINI"
+  },
+  "web": {
+    "cwd": "Meridian/frontend",
+    "command": "/absolute/path/to/npm",
+    "args": ["start"],
+    "url": "REPLACE_ON_MINI"
+  }
+}
+```
+
+Rules:
+
+- `expo` and `web` are optional; selecting an unconfigured profile returns a structured error.
+- `command` must be absolute in the real Mini file. Tests may use `process.execPath`.
+- `args` is an array, not a shell string.
+- `cwd` must stay beneath `RELAY_WORKSPACE` after resolution.
+- `url` is operator configuration returned as `previewUrl`; Relay does not guess a public URL.
+- The supervisor injects `REACT_NATIVE_PACKAGER_HOSTNAME` for `expo` from a Mini-only environment value. It does not commit the IP.
+- Profile logs must not echo the full environment.
+
+---
+
+## Lifecycle contract
+
+| Event | Required behavior |
+| --- | --- |
+| Kickoff `preview: none` | Reconcile/stop an older preview; run as profile `agent` |
+| Kickoff `preview: expo` | After VC alignment, start configured Expo process; save URL; profile `agent+expo` |
+| Kickoff `preview: web` | After VC alignment, start configured web process; save URL; profile `agent+web` |
+| Awaiting approval | Keep selected preview alive |
+| `POST preview` switch | Stop old child, start requested child, then persist preview and URL; if startup fails, restore the previous profile when possible or report `agent`, but never report the failed new profile |
+| Run `done` | Keep preview for review; release run mutex normally |
+| Run `failed` | Tear preview down and report `agent` |
+| `POST stop` | Abort adapter, tear preview down, persist failed run |
+| Next kickoff | Tear down any preview retained by a prior completed run before starting the new selection |
+| API SIGTERM/SIGINT | Gracefully stop owned child before process exit |
+| API restart | Read supervisor metadata, verify ownership safely, remove stale state, and restart only the active parked run's selected profile |
+
+Do not use PID existence alone to kill a process after restart. Persist enough identity to avoid signaling an unrelated process that reused the PID; if ownership cannot be established, fail safe and require the operator to reconcile it during Phase 3.
+
+---
+
+## Task status ledger
+
+| Task | Status | Runs on | Notes |
+| --- | --- | --- | --- |
+| 0.1 Contract and dependency audit | done | laptop | Integration points and offline fixture boundary frozen |
+| 1.1 Profiles config loader | done | laptop | Strict JSON, contained cwd, absolute argv command, placeholder example |
+| 1.2 Preview process supervisor | done | laptop | Serialized start/switch/stop, rollback, logs, atomic state |
+| 1.3 Runner and API integration | done | laptop | Kickoff ordering, switching, dynamic profile, teardown, takeover |
+| 1.4 Restart and teardown hardening | done | laptop | Verified ownership recovery and graceful service signals |
+| 2.1 Portable launchd/env assets | done | laptop | Valid placeholder-only plist, env, logs, and lifecycle worksheet |
+| 2.2 Operator docs and Mini worksheet | done | laptop | Placeholder-only inventory, Phase 3 procedure, verification, and rollback |
+| 2.3 Laptop integration smoke and checkpoint | done | laptop | Laptop readiness complete; child blocked waiting for Mini |
+| 3.1 Mini inventory and real values | in_progress | Mini | Read-only inventory resumed with Mini available |
+| 3.2 Tailscale and LaunchAgent install | pending | Mini | Deferred |
+| 3.3 Real profiles, secrets, and clients | pending | Mini + phone/laptop | Deferred |
+| 3.4 End-to-end smoke and close child #6 | pending | Mini + phone | Deferred |
+
+---
+
+## Execution order
+
+```text
+0.1
+ └─► 1.1 ─► 1.2 ─► 1.3 ─► 1.4
+                            ├─► 2.1
+                            └─► 2.2
+                                  └─► 2.3 ── STOP / WAIT FOR MINI
+                                                │
+                                                └─► 3.1 ─► 3.2 ─► 3.3 ─► 3.4
+```
+
+Tasks are serial unless their dependencies are already complete. Do not begin Phase 3 during the laptop run.
+
+---
+
+## Phase 0 — Contract
+
+### Task 0.1 — Contract and dependency audit
+
+**Status:** `done`
+
+**Context:**
+
+Child #3 intentionally left preview supervision unimplemented. Child #6 must add it without replacing the existing `RunRecord`, runtime registry, mutex, or HTTP routes.
+
+**Instructions:**
+
+1. Trace kickoff, branch alignment, drive, park, approve, fail, stop, API restart recovery, and `POST /preview`.
+2. Confirm the lifecycle table above can be implemented with one injected supervisor.
+3. Record the exact files and exports that Tasks 1.1–1.4 will touch.
+4. Add a decision-log entry only if existing code forces a different lifecycle.
+5. Do not change production code in this task.
+
+**Evaluation criteria:**
+
+- [x] No duplicate run/profile state model proposed
+- [x] Start occurs after VC alignment and before adapter execution
+- [x] Stop/failure/restart behavior is explicit
+- [x] No Mini command or credential access performed
+
+**As built:**
+
+| Concern | Landed |
+| --- | --- |
+| Files | `strategy/relay-mini-ops-plan.mdx`; parent status in `strategy/relay-master-plan.mdx` |
+| Exports | No production exports in this contract-only task; Tasks 1.1–1.4 export map frozen below |
+| Choice | Keep `RunRecord.preview` and existing `previewUrl` as the persisted client contract; keep the run mutex/runtime registry; inject one machine-scoped `PreviewSupervisor` whose separate metadata describes only the owned child process |
+| Tests | Audited child plans #1–#5 as complete; `cd relay && npm test` (102 passing) and `npm run build` (green), including the offline fake kickoff/gate/API-restart/approve/stop coverage |
+| Follow-up | Task 1.1 implements only the frozen config/types surface below; no lifecycle or parent locked-decision change is required |
+
+#### Frozen lifecycle integration map
+
+| Event | Existing integration point | Task 1.x behavior |
+| --- | --- | --- |
+| Kickoff / mutex | `startRun` calls `createRun`, which acquires the existing `RELAY_DATA/run.lock` | After the new run owns the mutex, stop any preview retained by a different terminal run; do not add a profile mutex or registry |
+| Branch alignment | `startRun` awaits injected `vc` before calling `drive` | Start `expo`/`web` only after `vc` succeeds and immediately before `drive`; `none` leaves the supervisor stopped and clears `previewUrl` |
+| Adapter execution | `drive` creates an adapter and calls `adapter.start` per step | The runner receives the same supervisor through `StartRunInput`/`RuntimeContext`; adapters never receive preview commands |
+| Gate / approve / reject | `park` persists `awaiting-approval`; `approve` re-enters `drive`; `reject` only appends a note | Keep the owned preview alive with no restart or duplicate start |
+| Done | `drive` persists `done`, releases the run mutex through `saveRun`, and deletes the runtime context | Keep the preview alive for review; supervisor status remains machine-scoped while `RunRecord` remains the API record |
+| Failure | `failRun` persists `failed` and removes the runtime context | Stop the run-owned preview before the terminal save; report the stopped `agent` profile |
+| Explicit stop | `stop` aborts `activeAdapter`, persists `failed`, and deletes the runtime context | Also await idempotent supervisor stop before returning the failed run |
+| Preview switch | `POST /runs/:id/preview` currently mutates and saves `RunRecord` directly | Call `supervisor.switch` first; persist `preview`/`previewUrl` only from its successful result; on failure retain/restore the prior successful state and return `preview-failed` |
+| Machine status | `GET /machine` currently hard-codes `profile: "agent"` | Derive `agent`, `agent+expo`, or `agent+web` from `supervisor.status()`; do not store a second profile field on the run |
+| API restart | `createApp` lazily runs `recoverRunRuntimes` before route handling; it preserves parked contexts and fails interrupted queued/running runs | Reconcile supervisor metadata in the same recovery promise before actions: restart one configured preview only for the active parked run, otherwise clear stale state without trusting PID existence alone |
+| Process exit | `runServeCli` owns the loopback listener and currently has no signal teardown | Inject signal registration and await supervisor stop on `SIGTERM`/`SIGINT`; keep `127.0.0.1` binding unchanged |
+
+#### Frozen Tasks 1.1–1.4 file and export map
+
+| Task | Files to add/change | Exports / seams |
+| --- | --- | --- |
+| 1.1 | Add `relay/src/preview/types.ts`, `config.ts`, `config.test.ts`, `index.ts`, and `relay/ops/profiles.example.json`; update `relay/package.json` | Export `PreviewProfileName`, `PreviewProfileConfig`, `PreviewProfilesConfig`, `PreviewConfigError`, and `loadPreviewProfiles` through `relay/preview` |
+| 1.2 | Add `relay/src/preview/supervisor.ts`, `supervisor.test.ts`, and a tiny fixture process under `relay/src/preview/fixtures/`; extend `relay/src/preview/index.ts` | Export `PreviewSupervisor`, `PreviewSupervisorStatus`, `PreviewSupervisorError`, `PreviewSupervisorOptions`, and `createPreviewSupervisor`; the interface owns `status`, `start`, `switch`, `stop`, and `reconcile` |
+| 1.3 | Change `relay/src/runner/run.ts`, `types.ts`, `index.ts`, `run.test.ts`; change `relay/src/api/app.ts`, `app.test.ts`, and `app.integration.test.ts` | Add the supervisor injection to `StartRunInput`, `RecoverRunRuntimesInput`, and `AppOptions`; retain `RunRecord`, `createRunRuntimeRegistry`, `startRun`, `approve`, `reject`, `stop`, and all route paths as the sole control plane |
+| 1.4 | Extend `relay/src/preview/supervisor.ts`/tests, `relay/src/runner/run.ts`/tests, `relay/src/api/app.ts`/integration tests, and `relay/src/cli/serve.ts` plus `relay/src/cli/run.test.ts` | Harden `PreviewSupervisor.reconcile`; retain `recoverRunRuntimes` as the restart seam; extend `ServeCliDependencies` with injected signal handling/teardown rather than adding a daemon API |
+
+No existing code forces a lifecycle change, so the Decision log is unchanged. No Tailscale, `launchctl`, APNs, live Cursor, credential, or Mini command was accessed.
+
+---
+
+## Phase 1 — Preview supervisor
+
+### Task 1.1 — Profiles config loader
+
+**Status:** `done`
+
+**Context:**
+
+Phone and web requests choose only `expo`, `web`, or `none`. Machine-specific commands and URLs must remain outside plan markdown and client input.
+
+**Instructions:**
+
+1. Add the preview types and strict loader under `relay/src/preview/`.
+2. Load `RELAY_DATA/profiles.json`; missing file means no configured preview profiles, not a serve failure.
+3. Validate object keys, absolute command, string-array args, nonempty URL, and workspace-contained cwd.
+4. Reject unknown keys and actionable malformed configuration without echoing environment or secrets.
+5. Add a checked-in `relay/ops/profiles.example.json` with placeholders only.
+6. Unit-test valid, missing, malformed, traversal, relative-command, and unknown-profile cases.
+
+**Evaluation criteria:**
+
+- [x] `npm run build`
+- [x] Focused config tests pass offline
+- [x] No real hostname, IP, key, bearer, or user path committed
+- [x] Existing `preview: none` behavior needs no config file
+
+**As built:**
+
+| Concern | Landed |
+| --- | --- |
+| Files | `relay/src/preview/types.ts`, `config.ts`, `config.test.ts`, `index.ts`; `relay/ops/profiles.example.json`; `relay/package.json` |
+| Exports | `PreviewProfileName`, `PreviewProfileConfig`, `PreviewProfilesConfig`, `LoadPreviewProfilesOptions`, `PreviewConfigErrorCode`, `PreviewConfigError`, and `loadPreviewProfiles` through `relay/preview` |
+| Choice | Missing `RELAY_DATA/profiles.json` returns `{}`; configured profiles allow only `expo`/`web` and exactly `cwd`, `command`, `args`, `url`; cwd is resolved beneath `RELAY_WORKSPACE`, command must be absolute, and validation errors never echo configured values |
+| Tests | `npm test -- src/preview/config.test.ts` (11 passing); `npm test` (113 passing); `npm run build`; `git diff --check` |
+| Follow-up | Task 1.2 can consume the resolved config and must return a structured failure when a requested `expo`/`web` profile is absent |
+
+### Task 1.2 — Preview process supervisor
+
+**Status:** `done`
+
+**Context:**
+
+The supervisor owns at most one configured preview child. It is a small Relay component, not a general daemon manager.
+
+**Instructions:**
+
+1. Implement an injectable `PreviewSupervisor` under `relay/src/preview/` with `status`, `start`, `switch`, `stop`, and `reconcile` behavior.
+2. Spawn argv with `shell: false`, resolved cwd, inherited safe environment, and profile-specific injected values.
+3. Capture stdout/stderr to `RELAY_DATA/previews/<run-id>-<profile>.log` without logging env.
+4. Persist minimal supervisor metadata atomically under `RELAY_DATA`; include run id, profile, URL, PID/process-group identity, command identity, and timestamps.
+5. Stop the owned process group with `SIGTERM`, bounded wait, then `SIGKILL`.
+6. Make repeated start/stop calls idempotent. A failed new start must not report the new profile as active.
+7. Test exclusively with injected process handles or a tiny Node fixture—never Metro/Vite.
+
+**Evaluation criteria:**
+
+- [x] Start/switch/stop/idempotency tests pass
+- [x] Only one preview is active at a time
+- [x] Logs and metadata use the configured data directory
+- [x] No shell interpolation or client-provided command execution
+- [x] `npm run build`
+
+**As built:**
+
+| Concern | Landed |
+| --- | --- |
+| Files | `relay/src/preview/supervisor.ts`, `supervisor.test.ts`, `fixtures/preview-process.mjs`, `index.ts` |
+| Exports | `PreviewSupervisor`, `PreviewSupervisorStatus`, `PreviewSupervisorError`, `PreviewSupervisorErrorCode`, `PreviewSupervisorOptions`, `createPreviewSupervisor`, and injected process types through `relay/preview` |
+| Choice | One serialized machine-scoped supervisor spawns configured argv with `shell: false` and a detached process group, filters sensitive inherited env values, injects `REACT_NATIVE_PACKAGER_HOSTNAME` only for Expo, appends stdout/stderr under `RELAY_DATA/previews`, writes atomic `preview.json` metadata with hashed command identity, restores the prior profile after failed switches, and escalates bounded `SIGTERM` to `SIGKILL` |
+| Tests | `npm test -- src/preview/supervisor.test.ts` (11 passing, including the local Node log fixture); `npm test` (124 passing); `npm run build`; `git diff --check` |
+| Follow-up | Task 1.3 injects this supervisor into the runner/API. Current `reconcile()` safely clears stale metadata without signaling persisted PIDs; Task 1.4 adds parked-run restart recovery and ownership verification. |
+
+### Task 1.3 — Runner and API integration
+
+**Status:** `done`
+
+**Context:**
+
+The runner already owns VC alignment and terminal transitions; the API owns the existing preview switch route and machine response. Preserve those ownership boundaries.
+
+**Instructions:**
+
+1. Inject the supervisor through runner/API dependencies; keep tests able to use a fake supervisor.
+2. Start the kickoff preview after successful branch alignment and before `drive` starts the first adapter.
+3. Persist `run.previewUrl` only after the selected profile starts successfully; clear it for `none`.
+4. Change `POST /runs/:id/preview` to switch through the supervisor and return `{ preview, previewUrl? }`.
+5. Make `GET /machine.profile` report `agent`, `agent+expo`, or `agent+web` from supervisor state.
+6. On explicit stop and failed runs, tear down the run-owned preview. Keep it through gates and successful completion.
+7. Before a new kickoff, reconcile a preview retained by an older completed run.
+8. Return existing structured error bodies for invalid input and a concise `preview-failed` error for supervisor failures.
+9. Preserve `RELAY_ADAPTER=fake`, bearer auth, loopback binding, and all existing route shapes outside additive `previewUrl`/dynamic profile behavior.
+
+**Evaluation criteria:**
+
+- [x] API tests cover kickoff `none`/`expo`/`web`
+- [x] API tests cover switch, failed switch, stop teardown, gate retention, done retention, and next-run takeover
+- [x] Runner test proves preview starts after VC and before adapter
+- [x] `GET /machine` profile follows supervisor state
+- [x] Existing root API/runner suite and build pass
+
+**As built:**
+
+| Concern | Landed |
+| --- | --- |
+| Files | `relay/src/runner/run.ts`, `run.test.ts`, `integration.test.ts`; `relay/src/api/app.ts`, `app.test.ts`, `app.integration.test.ts`; `relay/src/preview/testing.ts` |
+| Exports | `StartRunInput` and `RecoverRunRuntimesInput` accept `supervisor`; `AppOptions` accepts the same machine-scoped `PreviewSupervisor`; existing runner exports and HTTP route paths remain unchanged |
+| Choice | The new mutex owner stops a retained terminal preview, VC aligns, the selected preview switches, then `drive` starts the adapter. Successful status supplies persisted `previewUrl`; gates and `done` retain it; failures and explicit stop tear it down and clear the URL. `POST /preview` persists only a successful switch, `GET /machine.profile` follows supervisor status, and supervisor errors return `409 preview-failed`. |
+| Tests | Focused runner/API suites (30 passing); `npm test` (131 passing); `npm run build`; `git diff --check` |
+| Follow-up | Task 1.4 must reconcile persisted supervisor metadata before actions and add signal teardown; current same-process takeover/restart runtime injection is complete without trusting a persisted PID. |
+
+### Task 1.4 — Restart and teardown hardening
+
+**Status:** `done`
+
+**Context:**
+
+Relay already rehydrates parked gates after an API restart. Preview state must follow the same restart-safe boundary without killing unrelated processes.
+
+**Instructions:**
+
+1. Reconcile supervisor metadata before the API begins accepting run actions.
+2. For a persisted `awaiting-approval` run with `expo`/`web`, safely clean stale owned state and restart the configured preview once.
+3. For terminal/unknown runs, clear stale state and report profile `agent`.
+4. Register SIGTERM/SIGINT teardown in the serve entry point with injected signal handling in tests.
+5. Do not signal a PID when command/process-group ownership cannot be established.
+6. Add regression tests for parked-gate restart, terminal stale state, duplicate prevention, and safe refusal on ambiguous ownership.
+
+**Evaluation criteria:**
+
+- [x] Restart tests pass without real child services
+- [x] Parked run remains approvable after recovery
+- [x] Exactly one fixture preview exists after recovery
+- [x] Ambiguous stale metadata never kills an unrelated fixture
+- [x] Full Relay test suite and build pass
+
+**As built:**
+
+| Concern | Landed |
+| --- | --- |
+| Files | `relay/src/preview/supervisor.ts`, `supervisor.test.ts`, `testing.ts`, `index.ts`; `relay/src/api/app.ts`, `app.test.ts`; `relay/src/cli/serve.ts`, `run.test.ts` |
+| Exports | `PreviewProcessIdentity`, `PreviewProcessInspector`, and `PreviewReconcileTarget` extend `relay/preview`; `ServeSignal`, `RegisterSignal`, and `ExitProcess` provide injected serve teardown seams |
+| Choice | API recovery resolves the parked run before actions, then reconciles once. Persisted PID, process group, command hash, and start time must all match before Relay signals an old group; a verified process is TERM/KILL-stopped and restarted once, a missing process restarts, and malformed/mismatched ownership clears state to `agent` without signaling or duplicate spawning. `relay serve` now shares the loaded supervisor, stops accepting connections, awaits preview teardown on SIGTERM/SIGINT, then exits. |
+| Tests | Focused supervisor/API/serve suites (45 passing); `npm test` (137 passing); `npm run build`; `git diff --check` |
+| Follow-up | Phase 1 is complete. Task 2.1 can add portable launchd/env examples against the now-tested async serve startup and SIGTERM/SIGINT contract. |
+
+---
+
+## Phase 2 — Portable Mini readiness
+
+### Task 2.1 — Portable launchd and environment assets
+
+**Status:** `done`
+
+**Context:**
+
+The later Mini walkthrough should fill verified values into reviewed assets, not invent service wiring at the machine.
+
+**Instructions:**
+
+1. Add a valid launchd plist example under `relay/ops/launchd/` with placeholders for absolute Node, Relay, workspace, data, env-file, stdout, and stderr paths.
+2. Use `/usr/bin/caffeinate` and the built Relay CLI; do not use `npx`, an interactive shell, or a user-dependent PATH.
+3. Add `relay/ops/relay.env.example` containing names/placeholders only. The real file will live outside git with mode `0600` and load through the pinned Node runtime's env-file support.
+4. Include `RELAY_WORKSPACE`, `RELAY_DATA`, `RELAY_MACHINE_ID`, `RELAY_BEARER`, `RELAY_PORT`, adapter/model settings, and the future tailnet host value. Do not include actual secrets.
+5. Document log locations, KeepAlive/RunAtLoad behavior, and the later install/uninstall commands as placeholders—not commands to run now.
+6. Validate the example plist syntax locally with `plutil -lint` or an XML parser.
+
+**Evaluation criteria:**
+
+- [x] Plist syntax validates on the laptop
+- [x] Program arguments use absolute placeholders and `caffeinate`
+- [x] No secrets or real host-specific paths committed
+- [x] No `launchctl` command executed
+- [x] `git diff --check`
+
+**As built:**
+
+| Concern | Landed |
+| --- | --- |
+| Files | `relay/ops/launchd/com.meridian.relay.example.plist`, `relay/ops/launchd/README.md`, `relay/ops/relay.env.example` |
+| Exports | None; portable operations assets only |
+| Choice | The LaunchAgent runs `/usr/bin/caffeinate -i`, an absolute pinned Node executable, Node's absolute `--env-file` argument, and the built Relay CLI without a shell or `npx`. `RunAtLoad` and `KeepAlive` are explicit; service and preview logs stay below `RELAY_DATA`. The env example provides only names/placeholders, including an explicit minimal PATH for the linked Meridian CLI, Relay runtime/adapter/model values, bearer/API-key placeholders, and the future Mini tailnet IPv4. Install, bootstrap, bootout, and rollback commands remain a clearly deferred Phase 3 worksheet. |
+| Tests | `plutil -lint ops/launchd/com.meridian.relay.example.plist`; `xmllint --noout ops/launchd/com.meridian.relay.example.plist`; Node `--env-file` required-name smoke; `git diff --check` |
+| Follow-up | Task 2.2 can build the broader add-machine guide and Mini inventory worksheet around these reviewed assets. No LaunchAgent command was executed or installed. |
+
+### Task 2.2 — Operator docs and Mini worksheet
+
+**Status:** `done`
+
+**Context:**
+
+The master plan requires `relay/docs/add-machine.md`. Laptop work can create the procedure and inventory worksheet, but real values must wait for the Mini.
+
+**Instructions:**
+
+1. Create `relay/docs/add-machine.md` from the parent playbook.
+2. Add a **Mini inventory worksheet** for user, short hostname, machine id, macOS version, architecture, Node/npm paths and versions, workspace/data paths, Tailscale status/DNS suffix/IP, chosen HTTPS front, profile commands/ports/URLs, and phone client readiness.
+3. Separate every command into `read-only inventory`, `changes machine`, and `verification` sections.
+4. Use placeholders for all real hostnames, paths, keys, IDs, and URLs.
+5. State that Relay remains loopback-only behind Tailscale HTTPS and requires the shared bearer.
+6. State that the actual push feature is child #9; child #6 only records where credentials will later live.
+7. Include rollback steps for preview child, Relay LaunchAgent, and Tailscale forwarding without deleting run data.
+
+**Evaluation criteria:**
+
+- [x] Every Mini mutation is visibly deferred to Phase 3
+- [x] Rollback preserves `RELAY_DATA/runs`
+- [x] No credentials or real machine identifiers appear
+- [x] Parent add-machine requirements are all represented
+- [x] `git diff --check`
+
+**As built:**
+
+| Concern | Landed |
+| --- | --- |
+| Files | `relay/docs/add-machine.md` |
+| Exports | None; operator documentation only |
+| Choice | The guide preserves the one-process/one-mutex control plane and requires Relay to remain loopback-only behind one Tailscale HTTPS or Caddy front with bearer authentication. Its private Mini worksheet covers identity, OS/architecture, pinned runtimes, independent checkouts, data/config/log paths, tailnet values, Expo/web profiles, account locations, and phone/web readiness. Every shell command is grouped under read-only inventory, deferred machine changes, verification, or deferred rollback; volatile forwarding commands remain explicit placeholders to verify against the installed version during Phase 3. Client configuration names are documented without values. Push only records a future credential location and remains child #9. |
+| Tests | Guide contract scan for all required worksheet/playbook/rollback signals and balanced code fences; host-path and trailing-whitespace scans; `git diff --check` in `relay` and `Meridian-Mintlify` |
+| Follow-up | Task 2.3 runs the full laptop integration smoke and stops at the Mini checkpoint. No Mini, Tailscale, launchd, credential, client, or preview mutation was performed. |
+
+### Task 2.3 — Laptop integration smoke and checkpoint
+
+**Status:** `done`
+
+**Context:**
+
+This is the authorized stopping point. It proves the software and portable assets before any machine setup begins.
+
+**Instructions:**
+
+1. Run all Relay root tests and build.
+2. Run web tests/build and mobile tests/typecheck because both consume machine/run/preview fields.
+3. In a temporary clean workspace, start `relay serve` with fake adapter and fixture profiles that launch only local Node processes.
+4. Exercise kickoff with preview, park at a gate, API restart/recovery, approve to done, switch preview, and stop/teardown.
+5. Confirm only fixture processes ran, no real product Metro/Vite started, and no outside repo was modified.
+6. Validate plist/XML and scan tracked changes for secret-looking values and unresolved accidental user paths.
+7. Update this task and handoff log, then update parent child #6 to `blocked` with `laptop readiness complete; waiting for Mini`.
+8. **Stop. Do not begin Task 3.1.**
+
+**Evaluation criteria:**
+
+- [x] Relay tests and build pass
+- [x] Web tests and build pass
+- [x] Mobile tests and typecheck pass
+- [x] Fake end-to-end restart/gate/preview/stop smoke passes
+- [x] No fixture child remains running
+- [x] Plist/XML and `git diff --check` pass
+- [x] Parent records the Mini checkpoint, not completion
+
+**As built:**
+
+| Concern | Landed |
+| --- | --- |
+| Files | `relay/ops/smoke/laptop-checkpoint.mjs`; checkpoint status in this plan and the parent ledger |
+| Exports | None; executable offline operations smoke only |
+| Choice | The smoke launches the built `relay serve` CLI against fresh temporary workspace/data directories, fixture `meridian`/git shims, `RELAY_ADAPTER=fake`, and profiles whose only child command is the checked-in Node preview fixture. It parks a web-preview run, gracefully restarts the real API, proves exactly one recovered preview, approves to done, switches web to Expo, starts a second web run to exercise takeover, stops that parked run, and requires zero fixture children. It snapshots all six repository statuses and removes its temporary workspace on success or failure. |
+| Tests | Relay `npm test` (137 passing) and `npm run build`; web `npm test` (17 passing) and `npm run build`; mobile `npm test` (24 passing) and `npm run typecheck`; `node ops/smoke/laptop-checkpoint.mjs`; `plutil -lint`; `xmllint --noout`; fixture-process and temp-directory cleanup checks; high-confidence secret/absolute-user-path/trailing-whitespace scan; `git diff --check` in Relay and Mintlify |
+| Follow-up | Laptop readiness is complete. Child #6 is blocked with `laptop readiness complete; waiting for Mini`. Do not begin Task 3.1 until James explicitly resumes with the Mini available. |
+
+---
+
+## Phase 3 — Mini installation (deferred)
+
+<Warning>
+Do not execute this phase during the laptop milestone. James will explicitly resume child #6 with the Mini available and will be walked through each machine-changing command.
+</Warning>
+
+### Task 3.1 — Mini inventory and real values
+
+**Status:** `in_progress`
+
+Run read-only inventory from the worksheet, choose `RELAY_MACHINE_ID`, record real paths/tailnet values locally on the Mini, and replace no tracked placeholders yet.
+
+### Task 3.2 — Tailscale and LaunchAgent installation
+
+**Status:** `pending`
+
+Install/configure Tailscale HTTPS forwarding to Relay's loopback API, create the restricted env file, install the LaunchAgent, and verify health/restart behavior with explicit rollback after each mutation.
+
+### Task 3.3 — Real profiles, secrets, and clients
+
+**Status:** `pending`
+
+Configure the Mini's Expo/web commands and URLs, Cursor accounts, shared bearer, `REACT_NATIVE_PACKAGER_HOSTNAME`, Meridian CLI link, and phone/web machine lists. Validate one profile at a time and observe M1 memory.
+
+### Task 3.4 — End-to-end smoke and close child #6
+
+**Status:** `pending`
+
+From the physical phone on the tailnet: confirm machine identity, kick off a fake gated run, open its preview, approve, stop, restart Relay, and confirm no duplicate process. Fill verified non-secret hostnames into `relay/docs/add-machine.md`, mark child #6 done, and leave push actions for child #9.
+
+---
+
+## Laptop milestone success criteria
+
+| Signal | Target |
+| --- | --- |
+| Supervisor | One injected preview process; safe start/switch/stop/reconcile |
+| Runner | Preview begins after VC alignment, before agent work |
+| API | Dynamic profile and `previewUrl`; existing contract preserved |
+| Recovery | Parked gate + preview recover once after restart |
+| Service assets | Valid launchd/env examples with placeholders only |
+| Docs | Complete worksheet, install outline, rollback, add-machine guide |
+| Safety | No Mini mutation, real Metro/Vite, vendor call, credential, or public API bind |
+| Handoff | Parent child #6 says `blocked — laptop readiness complete; waiting for Mini` |
+
+---
+
+## Handoff log
+
+- 2026-08-22 — Task 0.1 complete. Audited the existing run store, mutex, runner, API recovery, preview route, and localhost serve entrypoint; froze the one-supervisor lifecycle plus Tasks 1.1–1.4 file/export map. Existing 102-test offline suite and TypeScript build pass. Next: Task 1.1 (profiles config loader).
+- 2026-08-22 — Task 1.1 complete. Added the strict machine-local profiles loader, resolved workspace containment, absolute-command/string-argv validation, safe errors, `relay/preview` exports, and placeholder-only example. Focused 11-test coverage, all 113 Relay tests, and the TypeScript build pass. Next: Task 1.2 (preview process supervisor).
+- 2026-08-22 — Task 1.2 complete. Added the serialized one-child preview supervisor with safe argv/env spawning, data-dir logs, atomic hashed metadata, idempotency, rollback-safe switching, process-group TERM/KILL teardown, and fail-safe stale reconciliation. Focused 11-test coverage, all 124 Relay tests, and the TypeScript build pass. Next: Task 1.3 (runner and API integration).
+- 2026-08-22 — Task 1.3 complete. Injected the shared supervisor through runner/API recovery, enforced VC-before-preview-before-adapter ordering, persisted successful URLs, added rollback-safe preview switching and `preview-failed`, dynamic machine profiles, failure/stop teardown, gate/done retention, and next-run takeover. All 131 Relay tests and the TypeScript build pass. Next: Task 1.4 (restart and teardown hardening).
+- 2026-08-22 — Task 1.4 complete. Added ownership-verified persisted-process reconciliation, one-time parked preview restart, fail-safe terminal/ambiguous cleanup, API-before-action recovery, and injected SIGTERM/SIGINT serve shutdown. Focused 45-test coverage, all 137 Relay tests, and the TypeScript build pass. Phase 1 is complete; next: Task 2.1 (portable launchd and environment assets).
+- 2026-08-22 — Task 2.1 complete. Added a valid placeholder-only LaunchAgent plist using caffeinate, pinned Node env-file loading, and the built Relay CLI; added the restricted env example plus deferred lifecycle/logging worksheet. Plist/XML, env-file, and whitespace checks pass; no launchctl command ran. Next: Task 2.2 (operator docs and Mini worksheet).
+- 2026-08-22 — Task 2.2 complete. Added the placeholder-only add-machine guide with a full Mini worksheet, independent-clone and shared-bearer playbook, separately classified inventory/change/verification commands, client and future-credential locations, and data-preserving rollback for previews, the LaunchAgent, and HTTPS forwarding. Contract and whitespace checks pass; no Mini mutation ran. Next: Task 2.3 (laptop integration smoke and checkpoint).
+- 2026-08-22 — Task 2.3 complete. All 178 Relay/web/mobile tests, Relay/web builds, and mobile typecheck pass. The built-server smoke used only the fake adapter and Node preview fixture to verify parked-gate restart recovery, approval, preview switching/takeover, stop teardown, repository isolation, and zero leftover children. Plist/XML, path/secret, temp cleanup, and whitespace checks pass. Laptop readiness is complete; child #6 is blocked waiting for Mini. Stop here until James explicitly resumes Phase 3.

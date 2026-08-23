@@ -56,12 +56,12 @@ Task-level checkboxes live **only** in the child plan.
 | 4a | [Web: home + new run + run + usage](/strategy/relay-web-plan) | D | yes | done | doneAt 2026-08-22; completed at `/strategy/relay-web-plan` with BoardUI |
 | 4b | [Phone: home + new run + run + gate + usage](/strategy/relay-phone-plan) | E | yes | done | doneAt 2026-08-22; completed at `/strategy/relay-phone-plan` |
 | 5 | [Cursor adapter + real `verify`](/strategy/relay-cursor-plan) | B/C | yes (laptop) | done | doneAt 2026-08-22; completed at `/strategy/relay-cursor-plan` |
-| 6 | Mini launchd + Tailscale + profiles + add-machine playbook | G | **no** | pending | After #3; needs Mini. Ship [Add a machine](#add-a-machine-playbook) as `relay/docs/add-machine.md` |
+| 6 | [Mini readiness + preview supervisor](/strategy/relay-mini-ops-plan) | G | laptop prep first; Mini later | in_progress | Task 3.1 resumed for read-only Mini inventory |
 | 7 | Claude + Codex + failover | B | either | pending | After #5 |
 | 8 | Job artifact + promote | F | staging now; Mini later | pending | |
 | 9 | Push actions + Live Activity | E | after #6 | pending | |
 
-4a and 4b are **not** order-dependent. 5 can start as soon as 2 exists. 6 cannot start until the Mini is in reach. 8’s promote path can be a CLI before any UI.
+4a and 4b are **not** order-dependent. 5 can start as soon as 2 exists. Child 6's preview supervisor and portable ops assets can be completed on the laptop; its installation and acceptance smoke cannot start until the Mini is in reach. 8’s promote path can be a CLI before any UI.
 
 <Note>
 **Product boundary:** Relay is a **private control plane** for the Mini. It is **not** Just Go, not Meridian Go, and not Pivot Lab (`/admin/pivot`). Do not put it in `Meridian-Mobile`, do not reuse Just Go bundle IDs or Google iOS clients, do not ship it on the App Store.
@@ -75,6 +75,7 @@ Task-level checkboxes live **only** in the child plan.
 - [Relay — web console](/strategy/relay-web-plan) — child #4a (Track D), **done**
 - [Relay — phone shell](/strategy/relay-phone-plan) — child #4b (Track E), **done**
 - [Relay — Cursor adapter + verify](/strategy/relay-cursor-plan) — child #5 (Track B/C), **done**
+- [Relay — Mini readiness + preview supervisor](/strategy/relay-mini-ops-plan) — child #6 (Track G), **in progress — Task 3.1 Mini inventory**
 - [Native-first city discovery](/strategy/pivot-native-first-discovery-plan) — existing discovery/rehearsal Track F wraps; do not rewrite
 - [Pivot tenant ops dashboard](/strategy/pivot-tenant-ops-dashboard-plan) — `/admin/pivot` promote target; Relay is not this UI
 - Just Go standalone (product preview binary vs Relay binary) — `Meridian-Mobile/JUSTGO_STANDALONE.md`
@@ -351,7 +352,7 @@ Child plan must name the exact existing functions/routes; do not rewrite discove
 
 ### Track G — Mini ops
 
-**Needs Mini:** yes. **Blocked by:** C. D/E optional.
+**Needs Mini:** yes for installation and acceptance; no for the preview supervisor and portable ops assets. **Blocked by:** C. D/E optional.
 
 - Tailscale + MagicDNS + HTTPS (Tailscale cert or Caddy). Name: `relay-<id>.tailXXXX.ts.net`.
 - `RELAY_MACHINE_ID` in launchd env.
@@ -379,8 +380,9 @@ G is install and wiring, not a rewrite. Adding Mini two is the playbook, not a n
 | Web console (mock or local API) | D |
 | Expo Relay UI against local API / simulator | E |
 | Promote script vs staging (staging only) | F |
+| Preview supervisor + portable ops templates | G (laptop milestone only) |
 
-Do **not** spend away time on Tailscale / launchd / RAM profiling, Live Activities, a second visual language, product Expo on the Mini, or “agent OS” abstractions.
+Do **not** spend away time on Tailscale setup, LaunchAgent installation, RAM profiling, Live Activities, a second visual language, product Expo on the Mini, or “agent OS” abstractions.
 
 When you get home, Track G should be “run the binary we already have,” not “start the project.”
 

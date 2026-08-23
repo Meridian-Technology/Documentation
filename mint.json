@@ -84,7 +84,8 @@
         "strategy/relay-api-plan",
         "strategy/relay-web-plan",
         "strategy/relay-phone-plan",
-        "strategy/relay-cursor-plan"
+        "strategy/relay-cursor-plan",
+        "strategy/relay-mini-ops-plan"
       ]
     },
     {
