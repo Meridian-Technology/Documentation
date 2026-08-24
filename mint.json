@@ -85,7 +85,10 @@
         "strategy/relay-web-plan",
         "strategy/relay-phone-plan",
         "strategy/relay-cursor-plan",
-        "strategy/relay-mini-ops-plan"
+        "strategy/relay-mini-ops-plan",
+        "strategy/relay-planning-workspace-plan",
+        "strategy/relay-checkpoint-steering-plan",
+        "strategy/relay-workspace-process-plan"
       ]
     },
     {

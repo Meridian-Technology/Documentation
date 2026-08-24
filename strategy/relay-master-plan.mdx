@@ -1,6 +1,6 @@
 ---
 title: "Relay — master plan"
-description: "Architecture lock for Relay: phased markdown, fresh agent sessions per phase, phone/laptop control plane, one preview at a time. Parent for child implementation plans."
+description: "Architecture lock for Relay: structured phone planning, phased execution, checkpoint steering, remote workspace/process control, and one worker per Mini. Parent for child implementation plans."
 ---
 
 ## How to use this document
@@ -16,7 +16,7 @@ Visual target (phone): [Cursor product language — dark](https://www.figma.com/
 For every **child plan**:
 
 1. Read **Locked decisions** and **Non-goals** in this file first.
-2. Cover **one track** (A–G), or one slice of a track — not the whole system.
+2. Cover **one track** (A–J), or one slice of a track — not the whole system.
 3. Start the child plan with the [child plan header](#child-plan-header).
 4. Work through that child plan’s tasks in order. Update **that** file when tasks complete (same [agent completion](#agent-completion) rules as other strategy plans).
 5. When a child plan is created, finished, or blocked, update the [Child plan ledger](#child-plan-ledger) here.
@@ -29,7 +29,7 @@ Copy into the top of every child plan:
 
 ```text
 Parent: /strategy/relay-master-plan
-Track: A | B | C | D | E | F | G
+Track: A | B | C | D | E | F | G | H | I | J
 Needs Mini: yes | no
 Blocked by: <track or none>
 ```
@@ -56,12 +56,15 @@ Task-level checkboxes live **only** in the child plan.
 | 4a | [Web: home + new run + run + usage](/strategy/relay-web-plan) | D | yes | done | doneAt 2026-08-22; completed at `/strategy/relay-web-plan` with BoardUI |
 | 4b | [Phone: home + new run + run + gate + usage](/strategy/relay-phone-plan) | E | yes | done | doneAt 2026-08-22; completed at `/strategy/relay-phone-plan` |
 | 5 | [Cursor adapter + real `verify`](/strategy/relay-cursor-plan) | B/C | yes (laptop) | done | doneAt 2026-08-22; completed at `/strategy/relay-cursor-plan` |
-| 6 | [Mini readiness + preview supervisor](/strategy/relay-mini-ops-plan) | G | laptop prep first; Mini later | in_progress | Task 3.1 resumed for read-only Mini inventory |
+| 6 | [Mini readiness + preview supervisor](/strategy/relay-mini-ops-plan) | G | laptop prep first; Mini later | done | doneAt 2026-08-23; physical-phone fake/restart smoke and read-only Cursor validation passed on `relay-1` |
 | 7 | Claude + Codex + failover | B | either | pending | After #5 |
 | 8 | Job artifact + promote | F | staging now; Mini later | pending | |
 | 9 | Push actions + Live Activity | E | after #6 | pending | |
+| 10 | [Phone planning workspace + laptop quick submission](/strategy/relay-planning-workspace-plan) | H | laptop implementation; phone/Mini acceptance later | done | doneAt 2026-08-23; post-close chat-first Cursor activity refinement completed 2026-08-23 |
+| 11 | [Checkpoint steering + run amendments](/strategy/relay-checkpoint-steering-plan) | I | laptop implementation; phone/Mini acceptance later | done | doneAt 2026-08-24; completed at `/strategy/relay-checkpoint-steering-plan` |
+| 12 | [Workspace status + saved process controls](/strategy/relay-workspace-process-plan) | J | laptop implementation; phone/Mini acceptance later | pending | Read-only Git state and Mini-configured Web/Just Go/Campus processes |
 
-4a and 4b are **not** order-dependent. 5 can start as soon as 2 exists. Child 6's preview supervisor and portable ops assets can be completed on the laptop; its installation and acceptance smoke cannot start until the Mini is in reach. 8’s promote path can be a CLI before any UI.
+4a and 4b are **not** order-dependent. 5 can start as soon as 2 exists. Child 6's preview supervisor and portable ops assets can be completed on the laptop; its installation and acceptance smoke cannot start until the Mini is in reach. 8’s promote path can be a CLI before any UI. Child 10 starts after the existing parser/API/Cursor/phone seams; child 11 follows child 10; child 12 may implement locally after child 6's supervisor contract and performs real acceptance on the Mini. Child 9 supplies push delivery for child 10/11 later, but polling is sufficient for their first implementation.
 
 <Note>
 **Product boundary:** Relay is a **private control plane** for the Mini. It is **not** Just Go, not Meridian Go, and not Pivot Lab (`/admin/pivot`). Do not put it in `Meridian-Mobile`, do not reuse Just Go bundle IDs or Google iOS clients, do not ship it on the App Store.
@@ -75,7 +78,10 @@ Task-level checkboxes live **only** in the child plan.
 - [Relay — web console](/strategy/relay-web-plan) — child #4a (Track D), **done**
 - [Relay — phone shell](/strategy/relay-phone-plan) — child #4b (Track E), **done**
 - [Relay — Cursor adapter + verify](/strategy/relay-cursor-plan) — child #5 (Track B/C), **done**
-- [Relay — Mini readiness + preview supervisor](/strategy/relay-mini-ops-plan) — child #6 (Track G), **in progress — Task 3.1 Mini inventory**
+- [Relay — Mini readiness + preview supervisor](/strategy/relay-mini-ops-plan) — child #6 (Track G), **done 2026-08-23**
+- [Relay — phone planning workspace + laptop quick submission](/strategy/relay-planning-workspace-plan) — child #10 (Track H), **done 2026-08-23**
+- [Relay — checkpoint steering + run amendments](/strategy/relay-checkpoint-steering-plan) — child #11 (Track I), **done 2026-08-24**
+- [Relay — workspace status + saved process controls](/strategy/relay-workspace-process-plan) — child #12 (Track J), **pending**
 - [Native-first city discovery](/strategy/pivot-native-first-discovery-plan) — existing discovery/rehearsal Track F wraps; do not rewrite
 - [Pivot tenant ops dashboard](/strategy/pivot-tenant-ops-dashboard-plan) — `/admin/pivot` promote target; Relay is not this UI
 - Just Go standalone (product preview binary vs Relay binary) — `Meridian-Mobile/JUSTGO_STANDALONE.md`
@@ -88,29 +94,34 @@ Task-level checkboxes live **only** in the child plan.
 
 ### Problem
 
-Long agent coding sessions and bounded staging jobs should run on a **Mac Mini M1 (16GB)** so the laptop stays for ideation and review. Today that loop is manual: write a phased markdown plan, run one step, clear the session, repeat, and kick nothing off from a phone.
+Long agent coding sessions and bounded staging jobs should run on a **Mac Mini M1 (16GB)** so the laptop stays available for review. Today the phone can kick off an existing plan, but creating that plan, revising it, steering implementation at a checkpoint, inspecting every repository, and starting a product preview still fall back to laptop/SSH workflows and synchronized file paths.
 
 ### What we are building
 
 **Relay** — a plan runner on the Mini, started from phone or laptop, that:
 
-1. Runs a phased markdown plan with a **fresh agent session per phase**.
-2. Serves **one** preview chosen at kickoff (Expo **or** web **or** none).
-3. Occasionally runs a **bounded staging job** (discovery/curation), then a human **promotes**.
+1. Turns a phone conversation into an explicitly accepted, structured, versioned plan rather than a free-form coding chat.
+2. Runs the accepted plan snapshot with a **fresh execution agent session per phase**.
+3. Keeps one bounded checkpoint session alive for questions and requested code edits, then resumes execution with a fresh phase agent.
+4. Serves **one** run-owned or manual preview (Expo **or** web **or** none) and exposes read-only repository state.
+5. Occasionally runs a **bounded staging job** (discovery/curation), then a human **promotes**.
 
-Laptop = ideation, diffs, promote. Each Mini = a worker. Phone = kickoff, gates, preview. v1 is one Mini; the control plane already names **which** machine.
+Phone = ideation, plan revision, kickoff, checkpoint steering, Git overview, and saved-process control. Laptop = quick paste/upload kickoff, detailed logs/diffs, and promote; it does not get the new conversational planning UI yet. Each Mini = the source of truth for drafts, runs, repositories, and processes. v1 is one Mini; the control plane already names **which** machine.
 
 ```text
-Phone (Relay Expo client) ──┐
-Laptop (web console)      ──┼──► machine list ──► Control API on Mini N ──► that Mini’s runner
+Phone (plans + runs + ops) ─┐
+Laptop (quick run + review) ┼──► machine list ──► Control API on Mini N ──► drafts / runner / supervisor
                             │         │
                             │         └─ (v1: one URL; later: pick relay-1 | relay-2 | …)
-                            └── Push / Live Activity
+                            └── Push / Live Activity (later; polling first)
 ```
 
 ### What we are not building
 
-- Another agent, RAG, memory OS, swarm scheduler
+- An unstructured general-purpose chatbot, RAG/memory OS, or swarm scheduler
+- Letting planning conversation mutate code; planning reads the selected product workspace and proposes plan revisions only
+- Invisible plan mutation: every executable revision and mid-run amendment requires explicit acceptance
+- A raw remote shell, phone-editable executable/argv, or arbitrary command endpoint
 - Queues (Temporal, Inngest, Redis) — one run at a time **per machine**
 - Docker / K8s / Coolify on this box
 - A fleet scheduler or shared run database in milestone 1 (naming the machine is enough)
@@ -137,7 +148,8 @@ Order of value:
 3. Thin Expo Relay shell against the **same** API — **parallel, not critical path**
 4. Cursor adapter + real verify hooks — **laptop, now**
 5. Mini bring-up (Tailscale, launchd, profiles, Expo hostname) — **blocked until home**
-6. Claude / Codex, promote UI, Live Activities — **after 1–2 work**
+6. Structured planning, checkpoint steering, and workspace/process controls — **after the existing runner/API/phone/Mini seams**
+7. Claude / Codex, promote UI, Live Activities — **after the core loop**
 
 Track E (phone shell) in parallel is allowed. Shipping it as the first milestone is not.
 
@@ -152,8 +164,18 @@ Track E (phone shell) in parallel is allowed. Shipping it as the first milestone
 | RAM | Mutually exclusive **profiles** on that machine. No Docker Desktop. No local Mongo. Atlas staging. |
 | Network | Tailscale MagicDNS per box (`relay-<id>.tailXXXX.ts.net`). Not ngrok / Expo `--tunnel` as the primary path. |
 | Control API | Tiny TypeScript HTTP API **on each Mini**. Same contract. Clients hold a list of `{ id, url }`. |
-| Laptop UI | Web console on that API (logs, plan edit, git-adjacent review). **BoardUI** ([boardui.com](https://www.boardui.com/)) is the design system: CLI-copied source in `relay/web`. Screens compose those components; custom UI only when the gallery has no match. |
-| Phone UI | Thin **Expo dev client**, private, `app.relay`. Not Expo Go. Not Just Go. |
+| Laptop UI | Web console on that API (quick paste/upload kickoff, logs, git-adjacent review). No conversational planner in the first expansion. **BoardUI** ([boardui.com](https://www.boardui.com/)) remains the design system. |
+| Phone UI | Thin **Expo dev client**, private, `app.relay`. The first home for structured planning, checkpoint steering, workspace status, and saved-process controls. Planning is a chat-first transcript with a fixed composer and contextual plan actions, plus only Cursor SDK-surfaced sanitized activity. Not Expo Go. Not Just Go. |
+| Planning | Choose a product, describe a goal, attach screenshots/text/plan files, and converse with a read-only planning agent. The agent may inspect relevant repositories but may only propose structured plan revisions. |
+| Plan revisions | Conversation and executable plan are distinct. Every proposed revision shows a structured/diff preview and requires **Accept revision**. Multiple drafts may exist; one planning response runs at a time per Mini. |
+| Plan storage | Drafts, transcript, attachments, and immutable revisions live in private Relay data. Starting a run snapshots one accepted revision; no plan path or Git synchronization is required. |
+| Plan publishing | Optional **Save to repository** proposes repo/path (default heavily toward `Meridian-Mintlify/strategy/`), asks once, writes and commits locally on the run branch, and never pushes. Publishing failure does not invalidate the run snapshot. |
+| Quick submission | Laptop web accepts pasted Markdown or an uploaded plan file, parses/previews it, and submits the inline plan to the Mini. It does not add laptop planning chat. |
+| Checkpoint steering | Questions are read-only; an explicit change request lets one bounded checkpoint Cursor session edit code directly. Show owned diff/tests; **Accept changes** or **Discard changes** before resuming. |
+| Run amendments | Completed history is immutable. Remaining phases may be revised; changes to completed work become corrective steps. Plan changes are separately proposed and accepted before resume. |
+| Active-step steering | **Send at next checkpoint** persists a note. **Stop and steer now** cancels the current agent, parks the current step with its partial state, and restarts that step later with a fresh execution agent plus the accepted steering brief. |
+| Workspace status | Read-only repository branch/HEAD/dirty/ahead-behind/alignment state. No fetch/switch/commit/push/discard controls. Active work is labeled as a changing snapshot. |
+| Manual processes | Phone starts only Mini-configured Meridian Web, Just Go, or Campus profiles. No shell and no phone profile editor. Manual starts are blocked while a worker is active; the active run may still switch its own preview. |
 | Notifications | Expo Push / APNs from the Mini (ntfy is a fallback, not the product). Live Activity later. |
 | Agents | Wrap CLIs. Default Cursor local (`@cursor/sdk`). Also Claude Code, Codex. Explicit per phase. Optional failover. No round-robin. |
 | Accounts | Named logins per tool (`cursor:work`, `claude:max`). Kickoff/phase picks one. Failover may try another **account** of the same tool, then another tool. See [Accounts and usage](#accounts-and-usage). |
@@ -161,7 +183,7 @@ Track E (phone shell) in parallel is allowed. Shipping it as the first milestone
 | Preview | User-chosen at kickoff: `expo` \| `web` \| `none`. Agent cannot start Metro. |
 | Expo preview | Just Go **or** campus **dev client** as the *product* preview (`npm run start:justgo` vs `npm start`). Relay is a different binary. |
 | Gates | `step-approve` / `phase-approve` / `full-handoff` / mixed (`approve-before` on a phase). |
-| Context | Fresh session per phase. Next phase gets plan slice + `AGENTS.md` + generated `phase-N-brief.md`. Not the prior chat. |
+| Context | Fresh execution session per phase. Next phase gets plan slice + `AGENTS.md` + generated `phase-N-brief.md`, including accepted steering. A bounded checkpoint session may persist only while that gate is open; recovery creates a fresh session from persisted transcript/baseline/diff and labels it recovered. |
 | Version control | **Meridian CLI** for `Meridian/` + `Events-Backend/`. Relay’s runner calls it **before** each agent session. Agents write files and may `git add` / `git commit`. They must not checkout or switch branches. See [Version control](#version-control). |
 | Jobs | Staging first. Promote **replays registry/jobs** via existing `/admin/pivot`. Does not re-crawl Heroku. |
 | Code home | Sibling `relay/` (or private `Relay`). Must not import Just Go / Meridian app runtime. |
@@ -177,6 +199,8 @@ Track E (phone shell) in parallel is allowed. Shipping it as the first milestone
 | `job` | Discovery/curation vs Atlas staging. `NODE_OPTIONS=--max-old-space-size=4096`. Metro/Vite off. |
 
 Watchdog: if memory pressure is critical, pause before the next phase.
+
+Planning is a separate read-only capacity: multiple drafts may be stored, but only one planning response runs at a time per Mini. It may coexist with one worker when memory is healthy; critical pressure queues the response. Checkpoint editing owns the worker lock and blocks manual processes until accepted or discarded.
 
 ---
 
@@ -268,6 +292,7 @@ Fake adapter emits fake usage so D/E can ship the strip before Cursor/Claude ada
 Tracks **A, B, C** are the critical path and are **serial** (B needs A, C needs B).
 Tracks **D, E, F** are **independent of the Mini** and of each other, as long as they consume the API contract (mock until C exists).
 Track **G** is Mini-only.
+Track **H** adds drafts and structured planning on the established parser/API/phone surface. Track **I** adds checkpoint editing and amendments after H. Track **J** adds read-only workspace state and saved manual processes on the established supervisor contract.
 
 ```text
 A parser ──► B state machine ──► C control API
@@ -280,6 +305,10 @@ A parser ──► B state machine ──► C control API
                                       │
                                       ▼
                                  G Mini ops
+                                      │
+                         ┌────────────┴────────────┐
+                         ▼                         ▼
+                    H planning ──► I steering   J workspace/process
 ```
 
 ### Track A — Plan parser + schema
@@ -368,6 +397,43 @@ Child plan must name the exact existing functions/routes; do not rewrite discove
 
 G is install and wiring, not a rewrite. Adding Mini two is the playbook, not a new architecture.
 
+### Track H — Structured planning workspace
+
+**Needs Mini:** no for implementation; yes for phone/Tailscale acceptance. **Blocked by:** A, C, E, and child #5. Child #6 supplies the real worker target.
+
+- Persist machine-owned `PlanDraft` records: product, goal, attachments, conversation, immutable structured revisions, and one explicitly accepted revision.
+- Product choices: Meridian full stack, Meridian web, Meridian backend, Just Go mobile, Campus mobile, Relay, and Documentation/strategy.
+- Planning agent is read-only across the selected product workspace; it may propose additional affected repositories but may not edit code.
+- Phone gets planning chat, structured revision preview/acceptance, and one final run confirmation for machine/branch/agent/account/gate/preview.
+- Laptop gets paste/upload, parsed plan preview, and inline kickoff only—no planner UI yet.
+- Optional publish proposes repo/path, defaults heavily to `Meridian-Mintlify/strategy/`, commits locally on the run branch, and never pushes.
+
+Child: [Relay — phone planning workspace + laptop quick submission](/strategy/relay-planning-workspace-plan).
+
+### Track I — Checkpoint steering and run amendments
+
+**Needs Mini:** no for implementation; yes for real Cursor/restart acceptance. **Blocked by:** B, C, H, and child #5.
+
+- Keep ordinary checkpoint questions read-only; explicit change requests let the bounded checkpoint Cursor session edit the current branch directly.
+- Persist a clean baseline, transcript, owned diff, verification, and recovery pack. Accept finalizes; discard removes only checkpoint-owned work.
+- Keep completed plan history immutable. Revise remaining work or append corrective steps through an independently accepted plan revision.
+- Allow a message to wait for the next checkpoint or stop the active agent now. Stop-now parks partial state and restarts the current step later with a fresh execution agent plus the steering brief.
+- Phone owns the first steering UI; APIs stay client-neutral for a later web surface.
+
+Child: [Relay — checkpoint steering + run amendments](/strategy/relay-checkpoint-steering-plan).
+
+### Track J — Workspace status and saved process controls
+
+**Needs Mini:** no for injected implementation; yes for real process acceptance. **Blocked by:** C, E, and G.
+
+- Read-only status for each configured repository: branch, HEAD, clean/dirty files, ahead/behind when available, active-run ownership, and Meridian/Events alignment.
+- Phone-only first UI; API remains client-neutral. Status stays available during a worker with a changing-snapshot warning.
+- Manual process controls expose only Mini-configured Meridian Web, Just Go, and Campus profiles with start/stop/status/log/open actions.
+- No raw shell, arbitrary executable entry, profile editor, branch mutation, or silent preview takeover.
+- Block manual process starts while a worker/checkpoint editor is active. The Run screen may still switch its own supervised preview.
+
+Child: [Relay — workspace status + saved process controls](/strategy/relay-workspace-process-plan).
+
 ---
 
 ## What you can do while away (no Mini)
@@ -381,6 +447,9 @@ G is install and wiring, not a rewrite. Adding Mini two is the playbook, not a n
 | Expo Relay UI against local API / simulator | E |
 | Promote script vs staging (staging only) | F |
 | Preview supervisor + portable ops templates | G (laptop milestone only) |
+| Draft store, planner injection, API, phone UI against local API, laptop inline submission | H |
+| Checkpoint state machine, injected editing agent, amendment API/UI | I |
+| Injected repository status and saved-process supervisor/API/UI | J |
 
 Do **not** spend away time on Tailscale setup, LaunchAgent installation, RAM profiling, Live Activities, a second visual language, product Expo on the Mini, or “agent OS” abstractions.
 
@@ -391,6 +460,8 @@ When you get home, Track G should be “run the binary we already have,” not �
 ## Plan markdown schema
 
 Formalize the files already written. Child plans must not invent a second format.
+
+An accepted phone draft or laptop upload compiles to this same `Plan` structure. Relay stores the accepted revision and passes it inline to the runner; a repository path is optional publication, not an execution prerequisite. The run always copies an immutable Markdown snapshot into its own data directory.
 
 ```markdown
 ---
@@ -445,14 +516,28 @@ All clients use this. Child plans add routes; they do not replace the resource m
 | `GET /health` | Process up. |
 | `GET /machine` | `id`, hostname, profile, RAM, idle. |
 | `GET /accounts` | Configured logins **on this machine** + usage snapshot (attributed + vendor remaining or `unknown`). |
+| `GET /drafts` / `POST /drafts` | List/create private planning drafts for a chosen product and planning account. Multiple drafts; one active planning response per Mini. |
+| `GET /drafts/:id` | Draft metadata, transcript, attachments, revisions, accepted revision, and async planning state. Never return secrets. |
+| `POST /drafts/:id/messages` | Persist a planning message/attachments and enqueue one read-only planning response. Questions and revisions are durable; phone may disconnect. |
+| `POST /drafts/:id/revisions/:revision/accept` | Explicitly select the executable structured revision. No auto-accept. |
+| `POST /drafts/:id/publish` | Propose/confirm repo path, then write and commit locally on the aligned run branch. Never push; run snapshot remains independent. |
 | `GET /runs` | List **on this machine**. |
-| `POST /runs` | Kickoff: `{ planPath, preview, agent, account?, gate, branch?, machineId? }`. Goal-to-plan generation is deferred to a future planner child; `goal` without `planPath` returns `400`. `branch` is any git-safe name (default `relay/<slug>/<time>`). |
+| `POST /runs` | Kickoff accepts exactly one of `planPath`, inline `plan`, or accepted `draftId`/revision plus preview, execution agent/account, gate, branch, and machine. It persists/returns `queued` immediately, then performs branch/preview/agent work asynchronously while clients poll. Existing path clients remain compatible. |
 | `GET /runs/:id` | State, phases, preview URL, profile, branch, active account, `machineId`, `meridian status` snapshot. |
 | `GET /runs/:id/log` | SSE or poll. |
 | `POST /runs/:id/approve` | Gate: phase or plan. |
 | `POST /runs/:id/reject` | `{ note }` → appended to next brief. |
+| `GET /runs/:id/checkpoint` | Persistent gate conversation, baseline, owned diff, verification, proposed remaining-plan revision, and recovery state. |
+| `POST /runs/:id/checkpoint/messages` | Ask read-only questions or explicitly request a direct code edit in the bounded checkpoint session. |
+| `POST /runs/:id/checkpoint/accept` | Accept owned code changes and any separately accepted plan amendment, then resume. |
+| `POST /runs/:id/checkpoint/discard` | Restore the checkpoint baseline for session-owned changes only; do not reset unrelated work. |
+| `POST /runs/:id/steer` | Persist `{ mode: "next-checkpoint" | "stop-now", message }`; stop-now parks partial state rather than treating it as an ordinary failure. |
 | `POST /runs/:id/stop` | Abort agent + keep profile teardown. |
 | `POST /runs/:id/preview` | Switch expo/web/none (supervisor, not the agent). |
+| `GET /workspace/repos` | Read-only configured repository status and active ownership. No Git mutations. |
+| `GET /processes` | Saved manual process profiles plus current owned session/status/log URL. |
+| `POST /processes/:profile/start` | Start one configured manual Web/Just Go/Campus profile only while no worker/checkpoint editor is active. |
+| `POST /processes/:session/stop` | Stop only the supervisor-owned manual session. |
 | `GET /jobs/:id` | Artifact. |
 | `POST /jobs/:id/promote` | Requires typed city key (and later Face ID on phone). |
 
@@ -462,7 +547,7 @@ Auth: Tailscale-only network + a shared bearer for the phone/laptop. No public i
 
 ## What to code (size)
 
-Keep it small (~1–2k lines to a useful loop):
+Keep each child narrow. The useful loop remains small; later tracks extend it through the same stores, adapter factory, runner, API, and supervisor rather than adding a second control plane:
 
 1. Plan parser
 2. Run state machine + mutex + resume
@@ -472,6 +557,9 @@ Keep it small (~1–2k lines to a useful loop):
 6. Preview supervisor (G)
 7. Control API + web + thin native shell (Home usage rows included)
 8. Job runner + promote (F)
+9. Plan drafts + planning revisions + inline kickoff (H)
+10. Checkpoint session + run amendments (I)
+11. Read-only workspace + saved process ownership (J)
 
 **Adapters after fake:** Cursor local first (`@cursor/sdk` or `agent` CLI, `cwd` = package). Claude `claude -p`. Codex `codex exec`. Same interface.
 
@@ -503,14 +591,16 @@ Work repos stay where they are. The Mini clones `Meridian-Mono`; `cwd` in a plan
 
 Without sitting at the Mini:
 
-1. Kick off a plan from phone or laptop.
-2. Get a lock-screen gate when a phase `verify` passes.
-3. Approve → next phase starts with an **empty** agent session and a brief.
-4. Open the preview chosen at kickoff.
-5. Stop.
-6. (Later) Review a staging discovery artifact and promote by typing the city key.
+1. On phone, choose a product, ideate with a read-only agent, inspect/accept a structured plan revision, and start it without a file path.
+2. On laptop, paste or upload a plan, preview its parsed structure, and start it without synchronizing Git history.
+3. Get a lock-screen gate when a phase `verify` passes.
+4. Ask questions, request direct checkpoint edits, inspect diff/tests, accept or discard, and separately approve remaining-plan amendments.
+5. Approve → next phase starts with a fresh execution agent session and an accepted steering brief.
+6. Open the run-owned preview; while idle, use the phone to start one configured manual Web/Just Go/Campus process.
+7. Inspect read-only Git state for every configured repository and stop owned work safely.
+8. (Later) Review a staging discovery artifact and promote by typing the city key.
 
-Until (1–5) work with the **fake** adapter on localhost, do not expand scope.
+The original fake-adapter localhost loop satisfied the prerequisite for these later tracks. Each new child still proves its state/API/UI contract with injected offline coverage before any live Cursor or Mini acceptance.
 
 ---
 

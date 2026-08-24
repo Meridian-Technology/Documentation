@@ -1,6 +1,6 @@
 ---
 title: "Relay — Mini readiness + preview supervisor"
-description: "Child #6 / Track G: finish all laptop-safe preview and service preparation, then stop at a verified Mini-install checkpoint."
+description: "Child #6 / Track G: prepare, install, and physically validate the Mini preview and Relay service control plane."
 ---
 
 ```text
@@ -18,7 +18,7 @@ This is **Relay child plan #6**. It has two explicit milestones:
 1. **Laptop readiness** — implement and test the preview supervisor, connect it to the existing runner/API, and prepare portable service/documentation assets.
 2. **Mini installation** — fill real machine values, install Tailscale and launchd wiring, configure secrets, and perform the physical-phone smoke.
 
-The current execution authorization stops after **Task 2.3**. Do not begin Phase 3 until James has the Mini available and asks to continue. Subsequent agents will not have this chat, so the task status ledger and handoff log are the source of truth.
+The laptop execution authorization stopped after **Task 2.3**. James resumed Phase 3 on the Mini and completed the physical-phone acceptance on 2026-08-23. Subsequent agents will not have this chat, so the task status ledger and handoff log are the source of truth.
 
 Read [Relay — master plan](/strategy/relay-master-plan) **Profiles**, **Track G**, **Control API**, and **Add a machine** first. Reuse the existing runner, run mutex, HTTP API, web console, and phone app. This plan adds installation and lifecycle wiring; it does not create a second control plane.
 
@@ -158,6 +158,11 @@ Everything required to make the later Mini session installation rather than prod
 | 2026-08-22 | A new run always reconciles the previous preview first, so a completed run cannot leave a second heavy profile beside the new run. |
 | 2026-08-22 | API restart reconciles persisted supervisor metadata before serving actions. It must fail safe to `agent`, not spawn duplicates blindly. |
 | 2026-08-22 | Push credential installation may be documented in Phase 3, but no push request, token registration, APNs call, or notification UI belongs to child #6. |
+| 2026-08-22 | Mini production audit resolves `@cursor/sdk` through `@connectrpc/connect-node` to vulnerable `undici` 5.x with no lock-compatible automatic fix. Task 3.2 proceeds fake-only with no Cursor key; real Cursor activation in Task 3.3 requires a dependency remediation or explicit residual-risk decision. |
+| 2026-08-23 | James explicitly accepted the documented private-development residual risk. Task 3.3 may install a dedicated revocable Cursor key/account while retaining `RELAY_ADAPTER=fake` through the required Task 3.4 fake-run acceptance; real Cursor selection follows that smoke. |
+| 2026-08-23 | Physical acceptance exposed that Node's `--env-file` does not replace launchd's inherited `PATH`; the portable plist now owns an explicit minimal path containing both pinned Node and the Homebrew bin that provides `meridian`. |
+| 2026-08-23 | After the fake gated/restart smoke passed, Relay switched to the dedicated Cursor account and completed one read-only real-agent run. The accepted private-development `undici` residual risk remains documented and the key remains revocable and untracked. |
+| 2026-08-23 | The phone accepted a branch name that Meridian later rejected. Track G remains closed because the runner failed safely before preview/agent work; a future phone/API slice should preflight the locked `MER-<number>-<slug>` convention before kickoff. |
 
 ---
 
@@ -226,10 +231,10 @@ Do not use PID existence alone to kill a process after restart. Persist enough i
 | 2.1 Portable launchd/env assets | done | laptop | Valid placeholder-only plist, env, logs, and lifecycle worksheet |
 | 2.2 Operator docs and Mini worksheet | done | laptop | Placeholder-only inventory, Phase 3 procedure, verification, and rollback |
 | 2.3 Laptop integration smoke and checkpoint | done | laptop | Laptop readiness complete; child blocked waiting for Mini |
-| 3.1 Mini inventory and real values | in_progress | Mini | Read-only inventory resumed with Mini available |
-| 3.2 Tailscale and LaunchAgent install | pending | Mini | Deferred |
-| 3.3 Real profiles, secrets, and clients | pending | Mini + phone/laptop | Deferred |
-| 3.4 End-to-end smoke and close child #6 | pending | Mini + phone | Deferred |
+| 3.1 Mini inventory and real values | done | Mini | Private inventory complete; no real values committed |
+| 3.2 Tailscale and LaunchAgent install | done | Mini | Pinned Node, restricted fake-only config, persistent loopback service, and tailnet HTTPS verified |
+| 3.3 Real profiles, secrets, and clients | done | Mini + phone/laptop | Web/Expo profiles, clients, dedicated Cursor account, and private config verified |
+| 3.4 End-to-end smoke and close child #6 | done | Mini + phone | Physical-phone fake gates, stop, restart recovery, and real Cursor validation passed |
 
 ---
 
@@ -574,35 +579,73 @@ This is the authorized stopping point. It proves the software and portable asset
 
 ---
 
-## Phase 3 — Mini installation (deferred)
+## Phase 3 — Mini installation
 
-<Warning>
-Do not execute this phase during the laptop milestone. James will explicitly resume child #6 with the Mini available and will be walked through each machine-changing command.
-</Warning>
+Phase 3 was deferred during the laptop milestone, then resumed with James at the Mini and completed through physical-phone checkpoints on 2026-08-23.
 
 ### Task 3.1 — Mini inventory and real values
 
-**Status:** `in_progress`
+**Status:** `done`
 
 Run read-only inventory from the worksheet, choose `RELAY_MACHINE_ID`, record real paths/tailnet values locally on the Mini, and replace no tracked placeholders yet.
 
+**As built:**
+
+| Concern | Landed |
+| --- | --- |
+| Files | Private operator inventory only; no real Mini values written to tracked files |
+| Exports | None |
+| Choice | Confirmed the unique Relay machine identity, matching future Tailscale hostname, standard private data/config locations, Tailscale Serve HTTPS front, and separate keg-only Node runtime plan. Exact identifiers, hostnames, IPs, and paths remain outside git. |
+| Tests | Read-only user/UID, hostname, macOS/architecture, Node/npm/Meridian, workspace/repository cleanliness, Relay source revision, Tailscale self identity/DNS, and Homebrew runtime availability inventory |
+| Follow-up | Task 3.2 installs and validates keg-only Node 22 without relinking Meridian's Node 20, then applies Tailscale hostname/HTTPS and LaunchAgent changes with rollback checkpoints. |
+
 ### Task 3.2 — Tailscale and LaunchAgent installation
 
-**Status:** `pending`
+**Status:** `done`
 
 Install/configure Tailscale HTTPS forwarding to Relay's loopback API, create the restricted env file, install the LaunchAgent, and verify health/restart behavior with explicit rollback after each mutation.
 
+**As built:**
+
+| Concern | Landed |
+| --- | --- |
+| Files | Private restricted env/profile files, user LaunchAgent, service logs, and timestamped pre-load plist backup on the Mini; no real values committed |
+| Exports | None |
+| Choice | Kept the interactive Homebrew Node default unchanged and pinned the LaunchAgent to a separately installed Node 22 runtime. Installed Relay with `RELAY_ADAPTER=fake`, no Cursor key, a generated bearer, loopback port binding, `caffeinate`, and one Tailscale Serve HTTPS front. The real env and empty initial profiles file are mode `0600`; the plist contains paths only and is mode `0644`. |
+| Tests | Node 22 engine and `--env-file`; Relay install, 137 tests, build, and offline smoke; production dependency audit recorded in the decision log; manual loopback start/stop; unauthenticated `401` and authenticated `200` machine checks; plist placeholder and exact-argv validation; running LaunchAgent state with clean stderr; tailnet HTTPS `401`/`200` forwarding verification |
+| Follow-up | Task 3.3 configures and validates one real preview at a time plus untracked phone/web machine settings. Cursor activation remains blocked pending dependency remediation or an explicit residual-risk decision. |
+
 ### Task 3.3 — Real profiles, secrets, and clients
 
-**Status:** `pending`
+**Status:** `done`
 
 Configure the Mini's Expo/web commands and URLs, Cursor accounts, shared bearer, `REACT_NATIVE_PACKAGER_HOSTNAME`, Meridian CLI link, and phone/web machine lists. Validate one profile at a time and observe M1 memory.
 
+**As built:**
+
+| Concern | Landed |
+| --- | --- |
+| Files | Mode-`0600` private env/accounts/profile files on the Mini; untracked phone and web client configuration; verified non-secret `relay-1` MagicDNS entry in `relay/docs/add-machine.md` |
+| Exports | None |
+| Choice | Installed Web and Just Go Expo as named machine-local profiles, kept Relay loopback-only behind Tailscale HTTPS, used one shared development bearer, and installed one dedicated revocable Cursor `home` account. James explicitly accepted the documented private-development SDK dependency risk before activation. |
+| Tests | Real Web and Expo profile start/stop checks; physical development-client load over Tailscale; laptop web proxy check; account API secret-field exclusion; config modes; machine identity/profile/memory checks; Cursor model/key presence without printing the key |
+| Follow-up | Task 3.4 proves fake gate/preview/restart behavior before switching the service default to Cursor and making one read-only vendor call. |
+
 ### Task 3.4 — End-to-end smoke and close child #6
 
-**Status:** `pending`
+**Status:** `done`
 
 From the physical phone on the tailnet: confirm machine identity, kick off a fake gated run, open its preview, approve, stop, restart Relay, and confirm no duplicate process. Fill verified non-secret hostnames into `relay/docs/add-machine.md`, mark child #6 done, and leave push actions for child #9.
+
+**As built:**
+
+| Concern | Landed |
+| --- | --- |
+| Files | Corrected portable LaunchAgent/env PATH contract; completed Mini child/parent ledgers; no secret, tailnet IP, or private path committed |
+| Exports | None |
+| Choice | Ran acceptance with `RELAY_ADAPTER=fake` first, then enabled Cursor only after fake gates, stop cleanup, and parked-preview restart recovery passed. Push, APNs, and notification work remains child #9. |
+| Tests | Physical-phone authenticated machine load; fake gated Expo run; phase approval followed by an `approve-before` stop checkpoint; deliberate stop with port `8081` released and four repositories clean; parked Expo restart from PID `19713` to one listener at PID `19801`; final stop cleanup; real Cursor read-only package inspection and clean-worktree verification; terminal `done` after approval |
+| Follow-up | Track G is complete. Phone branch-name preflight is recorded as a later UX improvement; Tracks H–J may build on this verified worker without changing the Mini control-plane architecture. |
 
 ---
 
@@ -631,3 +674,8 @@ From the physical phone on the tailnet: confirm machine identity, kick off a fak
 - 2026-08-22 — Task 2.1 complete. Added a valid placeholder-only LaunchAgent plist using caffeinate, pinned Node env-file loading, and the built Relay CLI; added the restricted env example plus deferred lifecycle/logging worksheet. Plist/XML, env-file, and whitespace checks pass; no launchctl command ran. Next: Task 2.2 (operator docs and Mini worksheet).
 - 2026-08-22 — Task 2.2 complete. Added the placeholder-only add-machine guide with a full Mini worksheet, independent-clone and shared-bearer playbook, separately classified inventory/change/verification commands, client and future-credential locations, and data-preserving rollback for previews, the LaunchAgent, and HTTPS forwarding. Contract and whitespace checks pass; no Mini mutation ran. Next: Task 2.3 (laptop integration smoke and checkpoint).
 - 2026-08-22 — Task 2.3 complete. All 178 Relay/web/mobile tests, Relay/web builds, and mobile typecheck pass. The built-server smoke used only the fake adapter and Node preview fixture to verify parked-gate restart recovery, approval, preview switching/takeover, stop teardown, repository isolation, and zero leftover children. Plist/XML, path/secret, temp cleanup, and whitespace checks pass. Laptop readiness is complete; child #6 is blocked waiting for Mini. Stop here until James explicitly resumes Phase 3.
+- 2026-08-22 — Task 3.1 complete. Synced the reviewed Relay branch to the Mini and completed read-only user, OS, architecture, runtime, workspace, repository, Tailscale identity/DNS, and Homebrew inventory. Confirmed private machine naming and path choices without committing real values. Next: Task 3.2, beginning with isolated keg-only Node validation before Tailscale or LaunchAgent mutation.
+- 2026-08-22 — Task 3.2 complete. Installed and pinned a side-by-side Node 22 runtime without relinking the interactive Node default; passed all 137 Relay tests, build, and the offline smoke on the Mini. Installed mode-restricted fake-only configuration with no Cursor key, validated the exact LaunchAgent argv from a timestamped rollback backup, left the loopback Relay service running cleanly, and verified bearer enforcement through both loopback and Tailscale HTTPS. No real hostname, IP, bearer, or private path value was committed. Next: Task 3.3 real preview and untracked client configuration; Cursor stays disabled behind the recorded audit gate.
+- 2026-08-23 — Task 3.3 checkpoint. Real Web/Expo profiles, laptop clients, Tailscale phone access, and the physical Relay development client are verified. James reviewed and explicitly accepted the documented transitive `undici` residual risk for this private development Mini. Next: install a dedicated revocable Cursor key/account without exposing it, keep the service forced fake through Task 3.4 acceptance, then enable real Cursor selection.
+- 2026-08-23 — Task 3.3 complete. Installed the dedicated Cursor `home` account/key in mode-restricted Mini configuration without exposing secret fields, retained the fake default through profile/client acceptance, and verified real Web/Expo profiles, phone/laptop clients, Tailscale HTTPS, physical Just Go preview loading, account metadata, and memory observations. Next: Task 3.4 physical-phone fake gate/restart acceptance before Cursor activation.
+- 2026-08-23 — Task 3.4 complete. Physical-phone acceptance verified authenticated machine identity, a fake Expo run, phase approval, an `approve-before` stop checkpoint, port and repository cleanup, and one-time parked-preview recovery across a Relay restart with no duplicate listener. Corrected the portable launchd PATH contract discovered during the first run, enabled the dedicated Cursor adapter, and completed a read-only real Cursor run with clean-worktree verification. Child #6 / Track G is done; push remains child #9.

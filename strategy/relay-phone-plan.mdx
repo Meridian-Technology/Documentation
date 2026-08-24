@@ -118,6 +118,8 @@ On-screen name is **Relay**. Phone is a **remote**, not a second product. Visual
 | --- | --- |
 | 2026-08-22 | New Expo app in `relay-mobile/`. Bundle `app.relay`, scheme `relay://`, slug `relay`. |
 | 2026-08-22 | Dev client, not Expo Go. No App Store submission in this plan. |
+| 2026-08-23 | New Run navigates as soon as Relay returns a durable queued record; the Run screen owns ongoing visibility. Awaiting gates retain automatic presentation but also expose an explicit, repeatable Review approval action after dismissal. |
+| 2026-08-23 | Phase rows are inspectable controls. Gate review fetches the current run/log and explains what completed or will run next, verification, branch/agent/preview context, and recent activity before Approve or Reject. |
 | 2026-08-22 | Routes: Home, New run, Run, Gate sheet (modal on Run), Jobs stub. Same API as #4a. |
 | 2026-08-22 | New run requires `planPath`. Default preview `none`, agent `cursor`. Branch empty → server default. |
 | 2026-08-22 | Run polls `GET /runs/:id` every 2s and `GET /runs/:id/log?after=` for a short tail (last ~40 lines). SSE not required. |
@@ -427,6 +429,20 @@ flowchart TD
 
 ---
 
+## Post-closeout operational UX refinement
+
+**Status:** `done`
+
+**As built:**
+
+| Concern | Landed |
+| --- | --- |
+| Files | `relay/src/runner/run.ts`, `relay/src/api/app.ts`, focused runner/API tests; `relay-mobile/src/screens/NewRunScreen.tsx`, `RunScreen.tsx`, `GateSheetScreen.tsx`, navigation types, and screen tests |
+| Exports | `enqueueRun`; existing `POST /runs`, run/log polling, and Gate sheet routes remain the public control plane |
+| Choice | Return the persisted queued run immediately instead of holding the New Run form through branch/agent work. Show live run-stage copy and runner log transitions; keep gates auto-presented once but add a persistent Review approval button; make phases expandable and load current phase/step/verify/context/activity into every gate review. |
+| Tests | Relay: 139 tests plus TypeScript build; phone: 26 tests plus strict typecheck; web: 17 tests plus production build. Coverage includes durable queued response, stop during branch alignment, queued-status explanation, repeatable gate reopening, gate detail context, and expandable step verification. |
+| Follow-up | Physical-device smoke after syncing Relay and the phone bundle to `relay-1`; push, Live Activities, arbitrary shell/process controls, and planner work remain in their existing child plans. |
+
 ## Out of scope / next plan
 
 | Item | When |
@@ -459,3 +475,5 @@ flowchart TD
 - 2026-08-22 — Task 1.5 complete. Run now polls state and byte-offset logs every 2s while focused, keeps a short rolling log tail, renders status/header metadata and resolved phase/step progress, and exposes Stop while running or awaiting approval. Awaiting runs automatically present the native Gate sheet with phase/gate copy; Approve and note-required Reject call the selected origin and refresh on focus return; Dismiss performs no action and does not immediately reopen the same gate. Verified all 23 mobile tests, strict TypeScript, iOS Metro export, all 99 current `relay/` tests, and the forbidden push/SSE/product boundary scan. Next: Task 1.6.
 - 2026-08-22 — Task 1.6 complete. Home now opens Jobs on the selected machine, and Jobs calls the existing GET stub and displays its structured `501 · not-implemented` code plus server message without a promote form or request. README now lists the API URL, bearer, and machine JSON variables; pairs the app with `npx relay serve`; and distinguishes iOS Simulator, Android Emulator, physical LAN, and future Tailscale origins without implementing Tailscale. Verified all 24 mobile tests, strict TypeScript, iOS Metro export, all 99 current `relay/` tests, forbidden Google/push/promote boundaries, and a clean `Meridian-Mobile/` worktree. Next: Task 1.7.
 - 2026-08-22 — Task 1.7 complete. Audited tasks 0.1–1.6 as done, marked this closure task done, and updated the parent child-plan ledger row 4b to `done` with `doneAt 2026-08-22` and `/strategy/relay-phone-plan`. No code or locked architecture changed, and no push, Live Activity, App Store, Tailscale, or promote work was started. Child 4b / Track E phone shell is complete.
+- 2026-08-22 — Post-close visual refinement. Reworked the five surfaces toward the supplied Cursor iOS references: removed the universal card and uppercase eyebrow, changed dashboard and phase cards into flat hairline-separated rows, replaced outlined status pills with colored dots, simplified selectors to quiet text treatments, and retained filled surfaces only for actions and text entry. The API, navigation, and locked five-surface scope are unchanged. Verified all 24 mobile tests, strict TypeScript, and an iOS Metro export.
+- 2026-08-23 — Post-close operational UX refinement. Kickoff now returns a durable queued run immediately and moves branch/preview/agent visibility to the polled Run screen. Dismissed gates can always be reopened with Review approval; gate review shows the current phase/step, approval semantics, verification, run context, and recent activity; phase rows expand into step notes and verify commands. Verified 139 Relay tests/build, 26 phone tests/typecheck, and 17 web tests/build. Next: sync the Relay service and phone bundle to `relay-1` for a physical-device smoke.

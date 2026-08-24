@@ -114,6 +114,7 @@ A **localhost HTTP API** (`relay/src/api`) so laptop web and the phone share one
 | 2026-08-21 | `GET /accounts`: read `RELAY_DATA/accounts.json` (list of `{ tool, account }`). Sum `usage[]` from listed runs. `vendorRemaining: "unknown"`. Empty file → empty array (not an error). |
 | 2026-08-21 | `GET /runs/:id/log?after=` byte offset poll. `Accept: text/event-stream` → SSE of new lines. |
 | 2026-08-21 | Jobs routes exist as stubs (`501`). |
+| 2026-08-23 | Kickoff now persists and returns the durable `queued` `RunRecord` immediately after plan parsing/mutex acquisition. Branch alignment, preview selection, and agent execution continue in the registered background runtime; clients poll the existing run/log routes for progress. Stop during queued setup fails the run and prevents preview/agent startup. This supersedes the earlier wait-for-first-park behavior. |
 
 ---
 
@@ -127,7 +128,7 @@ Implement every parent row. Status codes as below.
 | `GET` | `/machine` | 200 | `{ id, hostname, profile, ram: { totalBytes, freeBytes }, idle }` — `idle` true when no run is `queued`/`running`/`awaiting-approval`. `profile` is `"agent"` until Track G |
 | `GET` | `/accounts` | 200 | `{ accounts: [{ tool, account, attributed: { tokens, costUsd, durationMs }, vendorRemaining, lastUsedAt? }] }` |
 | `GET` | `/runs` | 200 | `{ runs: RunRecord[] }` newest first |
-| `POST` | `/runs` | 201 | `RunRecord`. `400` if `goal` without `planPath` or missing `planPath` |
+| `POST` | `/runs` | 201 | Durable `queued` `RunRecord`; setup/execution continues asynchronously. `400` if `goal` without `planPath` or missing `planPath` |
 | `GET` | `/runs/:id` | 200 | `RunRecord` |
 | `GET` | `/runs/:id/log` | 200 | Poll: `{ offset, chunk }`. SSE: `text/event-stream` |
 | `POST` | `/runs/:id/approve` | 200 | `RunRecord` after `approve` |
@@ -431,3 +432,4 @@ flowchart TD
 - 2026-08-21 — Task 1.5 complete. Added `relay serve` with injectable listening, fixed `127.0.0.1` binding, port `8787` default, complete Relay env wiring, machine/URL startup output, help and missing-workspace errors, and README usage. Full Relay suite passes (74 tests), the TypeScript build is green, and compiled parse/help smokes pass. Next: Task 1.6.
 - 2026-08-21 — Task 1.6 complete. Marked child #3 / Track C done in the Relay master ledger, confirmed all child tasks are complete, and rechecked the no-web/no-phone boundary. No locked decisions changed. Track C is closed; next work belongs to its separate child plans.
 - 2026-08-22 — Post-close restart hardening. Each `createApp` instance now owns a runtime registry and completes persisted-run recovery before handling requests. Parked gates resume through approve/reject/stop after a process restart; interrupted queued/running records fail closed and release the machine mutex. The integration loop now recreates the API between gate and approval.
+- 2026-08-23 — Post-close observable kickoff. `POST /runs` now returns the persisted `queued` record before branch alignment/preview/agent work and continues through the existing registered runtime in the background. Runner logs expose accepted, branch-alignment, preview-selection, and execution-start transitions; stop during queued setup fails closed before preview/agent startup. All 139 Relay tests and the TypeScript build pass.
