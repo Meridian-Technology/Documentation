@@ -57,13 +57,13 @@ Task-level checkboxes live **only** in the child plan.
 | 4b | [Phone: home + new run + run + gate + usage](/strategy/relay-phone-plan) | E | yes | done | doneAt 2026-08-22; completed at `/strategy/relay-phone-plan` |
 | 5 | [Cursor adapter + real `verify`](/strategy/relay-cursor-plan) | B/C | yes (laptop) | done | doneAt 2026-08-22; completed at `/strategy/relay-cursor-plan` |
 | 6 | [Mini readiness + preview supervisor](/strategy/relay-mini-ops-plan) | G | laptop prep first; Mini later | done | doneAt 2026-08-23; physical-phone fake/restart smoke and read-only Cursor validation passed on `relay-1` |
-| 7 | [Post-core agents, jobs, and notifications](/strategy/relay-post-core-integrations-plan) | B/E/F | laptop phases first; live acceptance later | pending | Absorbs former #8/#9 before implementation; after #5/#6 |
-| 8 | Job artifact + promote | F | — | skipped | Folded into child #7 Phase 2 before implementation |
-| 9 | Push actions + Live Activity | E | — | skipped | Folded into child #7 Phase 3 before implementation |
+| 7 | [Post-core agents, jobs, and notifications](/strategy/relay-post-core-integrations-plan) | B/E/F | laptop phases first; live acceptance later | done | doneAt 2026-08-24; completed at `/strategy/relay-post-core-integrations-plan`. Injected Claude/Codex/failover, staging jobs/promote, and push/Live Activity. Live CLI/staging/APNs/device not authorized. Former #8/#9 were folded in and were not separately implemented. |
+| 8 | Job artifact + promote | F | — | skipped | Folded into child #7 Phase 2 before implementation; not separately implemented |
+| 9 | Push actions + Live Activity | E | — | skipped | Folded into child #7 Phase 3 before implementation; not separately implemented |
 | 10 | [Phone planning workspace + laptop quick submission](/strategy/relay-planning-workspace-plan) | H | laptop implementation; phone/Mini acceptance later | done | doneAt 2026-08-23; post-close chat-first Cursor activity refinement completed 2026-08-23 |
 | 11 | [Checkpoint steering + run amendments](/strategy/relay-checkpoint-steering-plan) | I | laptop implementation; phone/Mini acceptance later | done | doneAt 2026-08-24; completed at `/strategy/relay-checkpoint-steering-plan` |
 | 12 | [Workspace status + saved process controls](/strategy/relay-workspace-process-plan) | J | laptop implementation; phone/Mini acceptance later | done | doneAt 2026-08-24; completed at `/strategy/relay-workspace-process-plan` with physical-phone and Mini rollback acceptance |
-| 13 | [Interaction modes + feature workspaces](/strategy/relay-interaction-modes-plan) | B/E/H/I/J | laptop implementation; phone/Mini acceptance later | pending | After child #7 Phase 1; adds Ask/Plan/Freeform and multi-repository feature scope |
+| 13 | [Interaction modes + feature workspaces](/strategy/relay-interaction-modes-plan) | B/E/H/I/J | laptop implementation; phone/Mini acceptance later | pending | Child #7 Phase 1 complete 2026-08-24; adds Ask/Plan/Freeform and multi-repository feature scope |
 
 4a and 4b are **not** order-dependent. 5 can start as soon as 2 exists. Child 6's preview supervisor and portable ops assets can be completed on the laptop; its installation and acceptance smoke cannot start until the Mini is in reach. Child 7 combines the formerly separate #8/#9 scopes; its agent, job, and notification phases may land independently after their shared contract task, while live vendor/staging/device acceptance remains separately gated. Child 10 starts after the existing parser/API/Cursor/phone seams; child 11 follows child 10; child 12 may implement locally after child 6's supervisor contract and performs real acceptance on the Mini. Child 13 consumes child 7 Phase 1's mode-neutral adapters and completed H/I/J surfaces; it need not wait for jobs, push, or Live Activity. Polling remains sufficient when child 7 push delivery is unavailable.
 
@@ -80,7 +80,7 @@ Task-level checkboxes live **only** in the child plan.
 - [Relay — phone shell](/strategy/relay-phone-plan) — child #4b (Track E), **done**
 - [Relay — Cursor adapter + verify](/strategy/relay-cursor-plan) — child #5 (Track B/C), **done**
 - [Relay — Mini readiness + preview supervisor](/strategy/relay-mini-ops-plan) — child #6 (Track G), **done 2026-08-23**
-- [Relay — post-core agents, jobs, and notifications](/strategy/relay-post-core-integrations-plan) — child #7 (Tracks B/E/F), **pending**; absorbs former #8/#9
+- [Relay — post-core agents, jobs, and notifications](/strategy/relay-post-core-integrations-plan) — child #7 (Tracks B/E/F), **done 2026-08-24**; absorbs former #8/#9. Injected implementation landed; live CLI/staging/APNs/device remain operator-gated
 - [Relay — phone planning workspace + laptop quick submission](/strategy/relay-planning-workspace-plan) — child #10 (Track H), **done 2026-08-23**
 - [Relay — checkpoint steering + run amendments](/strategy/relay-checkpoint-steering-plan) — child #11 (Track I), **done 2026-08-24**
 - [Relay — workspace status + saved process controls](/strategy/relay-workspace-process-plan) — child #12 (Track J), **done 2026-08-24**
@@ -117,7 +117,7 @@ Phone (Ask + Plan + Freeform + ops) ─┐
 Laptop (quick run + review) ┼──► machine list ──► Control API on Mini N ──► drafts / runner / supervisor
                             │         │
                             │         └─ (v1: one URL; later: pick relay-1 | relay-2 | …)
-                            └── Push / Live Activity (later; polling first)
+                            └── Push / Live Activity (injected in #7; polling remains complete; live Mini/device later)
 ```
 
 ### What we are not building
@@ -183,7 +183,7 @@ Track E (phone shell) in parallel is allowed. Shipping it as the first milestone
 | Active-step steering | **Send at next checkpoint** persists a note. **Stop and steer now** cancels the current agent, parks the current step with its partial state, and restarts that step later with a fresh execution agent plus the accepted steering brief. |
 | Workspace status | Read-only repository branch/HEAD/dirty/ahead-behind/alignment state. No fetch/switch/commit/push/discard controls. Active work is labeled as a changing snapshot. |
 | Manual processes | Phone starts only Mini-configured Meridian Web, Just Go, or Campus profiles. No shell and no phone profile editor. Manual starts are blocked while a worker is active; the active run may still switch its own preview. |
-| Notifications | Expo Push / APNs from the Mini (ntfy is a fallback, not the product). Live Activity later. |
+| Notifications | Expo Push / APNs from the Mini (ntfy is a fallback, not the product). Polling remains complete. Live Activity is an iOS status surface, not a control surface. Child #7 landed injected delivery and ActivityKit; live Mini/APNs/device remains operator-gated. |
 | Agents | Wrap CLIs. Default Cursor local (`@cursor/sdk`). Also Claude Code, Codex. Explicit per phase/session. Optional failover. Execution, planning, question answering, revision, checkpoint edit, steering, and recovery interactions have feature parity through one vendor-neutral interface. No round-robin or hidden Cursor fallback. |
 | Accounts | Named logins per tool (`cursor:work`, `claude:max`). Kickoff/phase picks one. Failover may try another **account** of the same tool, then another tool. See [Accounts and usage](#accounts-and-usage). |
 | Usage UI | Per-login tracker on Home and New run (web + phone). Same `GET /accounts` payload. |
@@ -613,7 +613,7 @@ Without sitting at the Mini:
 5. Approve → next phase starts with a fresh execution agent session and an accepted steering brief.
 6. Open the run-owned preview; while idle, use the phone to start one configured manual Web/Just Go/Campus process.
 7. Inspect read-only Git state for every configured repository and stop owned work safely.
-8. (Later) Review a staging discovery artifact and promote by typing the city key.
+8. Review a staging discovery artifact and promote by typing the city key on laptop web. Child #7 landed injected jobs/promote; live staging remains operator-gated. Phone stays read-only for jobs.
 
 The original fake-adapter localhost loop satisfied the prerequisite for these later tracks. Each new child still proves its state/API/UI contract with injected offline coverage before any live Cursor or Mini acceptance.
 
