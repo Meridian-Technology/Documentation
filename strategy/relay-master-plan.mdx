@@ -166,19 +166,19 @@ Track E (phone shell) in parallel is allowed. Shipping it as the first milestone
 | Network | Tailscale MagicDNS per box (`relay-<id>.tailXXXX.ts.net`). Not ngrok / Expo `--tunnel` as the primary path. |
 | Control API | Tiny TypeScript HTTP API **on each Mini**. Same contract. Clients hold a list of `{ id, url }`. |
 | Laptop UI | Web console on that API (quick paste/upload kickoff, logs, git-adjacent review). No conversational planner in the first expansion. **BoardUI** ([boardui.com](https://www.boardui.com/)) remains the design system. |
-| Phone UI | Thin **Expo dev client**, private, `app.relay`. The first home for structured planning, checkpoint steering, workspace status, and saved-process controls. Planning is a chat-first transcript with a fixed composer and contextual plan actions, plus only Cursor SDK-surfaced sanitized activity. Not Expo Go. Not Just Go. |
-| Planning | Choose a product, describe a goal, attach screenshots/text/plan files, and converse with a read-only planning agent. The agent may inspect relevant repositories but may only propose structured plan revisions. |
+| Phone UI | Thin **Expo dev client**, private, `app.relay`. The first home for structured planning, checkpoint steering, workspace status, and saved-process controls. Planning is a chat-first transcript with a fixed composer and contextual plan actions, plus vendor-neutral sanitized activity from the selected Cursor, Claude, or Codex adapter. Not Expo Go. Not Just Go. |
+| Planning | Choose a product, describe a goal, attach screenshots/text/plan files, and converse with a read-only planning agent. Every planning interaction—including questions/answers, follow-ups, and structured revision proposals—must work through the same interface for Cursor, Claude, and Codex. The agent may inspect relevant repositories but may only propose structured plan revisions. |
 | Plan revisions | Conversation and executable plan are distinct. Every proposed revision shows a structured/diff preview and requires **Accept revision**. Multiple drafts may exist; one planning response runs at a time per Mini. |
 | Plan storage | Drafts, transcript, attachments, and immutable revisions live in private Relay data. Starting a run snapshots one accepted revision; no plan path or Git synchronization is required. |
 | Plan publishing | Optional **Save to repository** proposes repo/path (default heavily toward `Meridian-Mintlify/strategy/`), asks once, writes and commits locally on the run branch, and never pushes. Publishing failure does not invalidate the run snapshot. |
 | Quick submission | Laptop web accepts pasted Markdown or an uploaded plan file, parses/previews it, and submits the inline plan to the Mini. It does not add laptop planning chat. |
-| Checkpoint steering | Questions are read-only; an explicit change request lets one bounded checkpoint Cursor session edit code directly. Show owned diff/tests; **Accept changes** or **Discard changes** before resuming. |
+| Checkpoint steering | Questions are read-only; an explicit change request lets one bounded checkpoint session using the selected Cursor, Claude, or Codex adapter edit code directly. All agent types use the same question/edit/recovery interface. Show owned diff/tests; **Accept changes** or **Discard changes** before resuming. |
 | Run amendments | Completed history is immutable. Remaining phases may be revised; changes to completed work become corrective steps. Plan changes are separately proposed and accepted before resume. |
 | Active-step steering | **Send at next checkpoint** persists a note. **Stop and steer now** cancels the current agent, parks the current step with its partial state, and restarts that step later with a fresh execution agent plus the accepted steering brief. |
 | Workspace status | Read-only repository branch/HEAD/dirty/ahead-behind/alignment state. No fetch/switch/commit/push/discard controls. Active work is labeled as a changing snapshot. |
 | Manual processes | Phone starts only Mini-configured Meridian Web, Just Go, or Campus profiles. No shell and no phone profile editor. Manual starts are blocked while a worker is active; the active run may still switch its own preview. |
 | Notifications | Expo Push / APNs from the Mini (ntfy is a fallback, not the product). Live Activity later. |
-| Agents | Wrap CLIs. Default Cursor local (`@cursor/sdk`). Also Claude Code, Codex. Explicit per phase. Optional failover. No round-robin. |
+| Agents | Wrap CLIs. Default Cursor local (`@cursor/sdk`). Also Claude Code, Codex. Explicit per phase/session. Optional failover. Execution, planning, question answering, revision, checkpoint edit, steering, and recovery interactions have feature parity through one vendor-neutral interface. No round-robin or hidden Cursor fallback. |
 | Accounts | Named logins per tool (`cursor:work`, `claude:max`). Kickoff/phase picks one. Failover may try another **account** of the same tool, then another tool. See [Accounts and usage](#accounts-and-usage). |
 | Usage UI | Per-login tracker on Home and New run (web + phone). Same `GET /accounts` payload. |
 | Preview | User-chosen at kickoff: `expo` \| `web` \| `none`. Agent cannot start Metro. |
@@ -293,7 +293,7 @@ Fake adapter emits fake usage so D/E can ship the strip before Cursor/Claude ada
 Tracks **A, B, C** are the critical path and are **serial** (B needs A, C needs B).
 Tracks **D, E, F** are **independent of the Mini** and of each other, as long as they consume the API contract (mock until C exists).
 Track **G** is Mini-only.
-Track **H** adds drafts and structured planning on the established parser/API/phone surface. Track **I** adds checkpoint editing and amendments after H. Track **J** adds read-only workspace state and saved manual processes on the established supervisor contract.
+Track **H** adds drafts and structured planning on the established parser/API/phone surface. Track **I** adds checkpoint editing and amendments after H. Child #7 upgrades both established interaction surfaces to Cursor/Claude/Codex parity without a second UI contract. Track **J** adds read-only workspace state and saved manual processes on the established supervisor contract.
 
 ```text
 A parser ──► B state machine ──► C control API
@@ -410,6 +410,7 @@ G is install and wiring, not a rewrite. Adding Mini two is the playbook, not a n
 - Persist machine-owned `PlanDraft` records: product, goal, attachments, conversation, immutable structured revisions, and one explicitly accepted revision.
 - Product choices: Meridian full stack, Meridian web, Meridian backend, Just Go mobile, Campus mobile, Relay, and Documentation/strategy.
 - Planning agent is read-only across the selected product workspace; it may propose additional affected repositories but may not edit code.
+- Planning questions, answers, follow-ups, and revision proposals use one vendor-neutral interface for Cursor, Claude, and Codex; child #7 owns adapter parity and recovery.
 - Phone gets planning chat, structured revision preview/acceptance, and one final run confirmation for machine/branch/agent/account/gate/preview.
 - Laptop gets paste/upload, parsed plan preview, and inline kickoff only—no planner UI yet.
 - Optional publish proposes repo/path, defaults heavily to `Meridian-Mintlify/strategy/`, commits locally on the run branch, and never pushes.
@@ -418,9 +419,9 @@ Child: [Relay — phone planning workspace + laptop quick submission](/strategy/
 
 ### Track I — Checkpoint steering and run amendments
 
-**Needs Mini:** no for implementation; yes for real Cursor/restart acceptance. **Blocked by:** B, C, H, and child #5.
+**Needs Mini:** no for implementation; yes for real agent/restart acceptance. **Blocked by:** B, C, H, and child #5.
 
-- Keep ordinary checkpoint questions read-only; explicit change requests let the bounded checkpoint Cursor session edit the current branch directly.
+- Keep ordinary checkpoint questions read-only; explicit change requests let the bounded checkpoint session for the selected Cursor, Claude, or Codex agent edit the current branch directly. Child #7 provides the shared interaction adapter and parity coverage.
 - Persist a clean baseline, transcript, owned diff, verification, and recovery pack. Accept finalizes; discard removes only checkpoint-owned work.
 - Keep completed plan history immutable. Revise remaining work or append corrective steps through an independently accepted plan revision.
 - Allow a message to wait for the next checkpoint or stop the active agent now. Stop-now parks partial state and restarts the current step later with a fresh execution agent plus the steering brief.

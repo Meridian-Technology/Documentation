@@ -14,14 +14,14 @@ Blocked by: C, E, G and child #5 (all complete)
 
 This is **Relay child plan #7**. It absorbs the previously proposed children **#8** (job artifact + promote) and **#9** (push actions + Live Activity) before either began. The combined child has three independently landable phases:
 
-1. Claude Code, Codex, and ordered agent/account failover.
+1. Claude Code, Codex, ordered agent/account failover, and full planning/checkpoint interaction parity across Cursor, Claude, and Codex.
 2. Bounded staging jobs, durable artifacts, and explicit promote.
 3. Expo Push/APNs delivery and an iOS Live Activity for run status.
 
 Read [Relay — master plan](/strategy/relay-master-plan), [child #3](/strategy/relay-api-plan), [child #4b](/strategy/relay-phone-plan), [child #5](/strategy/relay-cursor-plan), and [child #6](/strategy/relay-mini-ops-plan). Work the shared contract first; after that, the three phases may land independently, but tasks inside each phase stay ordered. Child #7 closes only after all three phases and the integrated closeout pass.
 
 <Warning>
-**Hard boundary:** no arbitrary shell endpoint, client-supplied executable or filesystem path, silent account rotation, automatic second agent over a partially edited workspace, production discovery crawl, unattended promote, direct lock-screen mutation, App Store work, or changes inside `Meridian-Mobile`. Secrets, auth directories, staging credentials, APNs keys, and device tokens remain private machine state.
+**Hard boundary:** no arbitrary shell endpoint, client-supplied executable or filesystem path, silent account rotation, Cursor-only planning/checkpoint capability, hidden fallback to Cursor for interaction, automatic second agent over a partially edited workspace, production discovery crawl, unattended promote, direct lock-screen mutation, App Store work, or changes inside `Meridian-Mobile`. Secrets, auth directories, staging credentials, APNs keys, and device tokens remain private machine state.
 </Warning>
 
 ### Before you start (required)
@@ -51,7 +51,11 @@ When a task finishes, pauses, or blocks, update this file in the same PR. A task
 
 ### Phase 1 — agents and failover
 
-Claude Code and Codex implement the existing `AgentAdapter` contract beside fake and Cursor. A plan names a primary agent/account and an ordered `failover` list. Relay may move to the next candidate only when the current candidate is unavailable **before work starts**—for example missing configuration, missing executable, or preflight authentication failure. Once a candidate starts an editing session, exit/abort/verification failure is surfaced for recovery or human review; Relay does not stack another agent over unknown partial edits.
+Claude Code and Codex implement the existing execution `AgentAdapter` contract beside fake and Cursor. They must also implement the shared interactive-agent contract used by the planning workspace and checkpoint steering. Every agent interaction available through Relay—planning questions and answers, follow-up messages, structured revision proposals, read-only checkpoint questions, explicit checkpoint edit requests, steering context, and recovery—must work with Cursor, Claude, and Codex through the same client/API surface.
+
+A plan or interactive session names its agent/account explicitly. Relay must not route a Claude or Codex interaction through Cursor behind the scenes. When a CLI has durable native session/resume support, the adapter may use it; otherwise Relay reconstructs a fresh bounded session from the persisted sanitized transcript, accepted plan/revision, workspace context, and checkpoint baseline. Vendor-specific events are normalized into the same safe transcript/activity model, and unsupported optional telemetry degrades honestly without removing the interaction itself.
+
+A plan names a primary agent/account and an ordered `failover` list. Relay may move to the next candidate only when the current candidate is unavailable **before work starts**—for example missing configuration, missing executable, or preflight authentication failure. Once a candidate starts an editing session, exit/abort/verification failure is surfaced for recovery or human review; Relay does not stack another agent over unknown partial edits.
 
 ### Phase 2 — jobs and promote
 
@@ -76,7 +80,10 @@ The Mini emits durable notification events for actionable run/checkpoint/job sta
 
 | Concern | Rule |
 | --- | --- |
-| Adapter contract | Reuse `start({ cwd, promptFiles })`, `wait()`, and `abort()`; extend shared output/usage types rather than branching the runner per vendor |
+| Execution adapter | Reuse `start({ cwd, promptFiles })`, `wait()`, and `abort()`; extend shared output/usage types rather than branching the runner per vendor |
+| Interactive adapter | One vendor-neutral planning/checkpoint session contract supports message/answer, structured revision proposals, explicit edit requests, streamed safe activity, abort, and recovery for Cursor, Claude, and Codex |
+| Interaction parity | Any interaction exposed by the planning interface must be supported for every real agent type. Optional vendor telemetry may be `unknown`; the question/revision/edit interaction itself may not be Cursor-only |
+| Session recovery | Prefer a verified native session ID when available; otherwise rebuild a fresh bounded session from persisted sanitized transcript/context. Never claim continuity that the vendor cannot provide |
 | CLI execution | Spawn an explicit executable/argv without a shell; verify current CLI contracts in Task 0.1; inject spawn and event streams in tests |
 | Accounts | Stable `tool:account` IDs resolve only machine-private env/config names; public account payloads never expose secret values or private roots |
 | Failover | Ordered and explicit; pre-start availability only. Once editing starts, no automatic second agent |
@@ -100,6 +107,8 @@ The Mini emits durable notification events for actionable run/checkpoint/job sta
 | --- | --- |
 | 2026-08-24 | Former children #8 and #9 are folded into child #7 before implementation. The three phases may land independently; the child closes after all three. |
 | 2026-08-24 | Fake remains the explicit offline/test default and Cursor remains the established real adapter. Claude/Codex never silently substitute for a missing selection. |
+| 2026-08-24 | Cursor, Claude, and Codex must all support every planning and checkpoint interaction through one vendor-neutral interface, including answering questions, proposing revisions, explicit checkpoint edits, steering, and recovery. No hidden Cursor fallback. |
+| 2026-08-24 | Interactive recovery may use verified native resume support or deterministic transcript/context replay; the UI must label recovered sessions honestly and normalize vendor activity into one safe model. |
 | 2026-08-24 | Failover is ordered candidate selection before editing begins. After a process starts work, failure parks/fails for review instead of launching another agent over partial edits. |
 | 2026-08-24 | Job artifacts and notification outbox state live in private `RELAY_DATA` and recover across API/LaunchAgent restarts. |
 | 2026-08-24 | Promote replays artifact-derived registry/jobs through existing Pivot admin seams, requires exact city-key confirmation, and never re-crawls. |
@@ -115,7 +124,7 @@ The Mini emits durable notification events for actionable run/checkpoint/job sta
 | 0.1 | pending | Confirm current CLI, Pivot, notification, and native contracts; no code or live mutation |
 | 1.1 | pending | Claude adapter and named accounts |
 | 1.2 | pending | Codex adapter and named accounts |
-| 1.3 | pending | Ordered pre-start failover and shared runner integration |
+| 1.3 | pending | Shared execution/interactive routing, parity, recovery, and ordered pre-start failover |
 | 1.4 | pending | Offline adapter matrix and separately authorized live smoke |
 | 2.1 | pending | Durable bounded-job runner and artifact store |
 | 2.2 | pending | Authenticated jobs API and idempotent promote |
@@ -152,15 +161,18 @@ flowchart TD
 
 **Instructions:**
 
-1. Inspect the installed `claude` and `codex` help plus official documentation for non-interactive invocation, structured/streamed output, cwd, exit status, usage, cancellation, authentication, and resume behavior. Record exact supported argv/events; do not guess or pin a stale contract.
-2. Name the existing adapter factory, account configuration, runner output/recovery, log redaction, and plan `failover` seams.
-3. Name exact existing Pivot discovery/rehearsal functions and `/admin/pivot` registry/job routes used by run and promote. Record staging environment and idempotency boundaries.
-4. Confirm the installed Expo SDK's notification plugin, permission, project/token, category, deep-link, native build, APNs, and Live Activity path. Record whether a maintained module or a small ActivityKit extension is required.
-5. Confirm all live acceptance stop points, backup/rollback artifacts, and private configuration locations. Make no product-code change or live vendor/staging/device mutation.
+1. Inspect the installed `claude` and `codex` help plus official documentation for non-interactive invocation, multi-turn input, structured/streamed output, cwd, exit status, usage, cancellation, authentication, session identity, and resume behavior. Record exact supported argv/events; do not guess or pin a stale contract.
+2. Name the existing execution adapter factory, planning agent, checkpoint session, account configuration, transcript/activity normalization, runner output/recovery, log redaction, and plan `failover` seams.
+3. Define the vendor-neutral interactive contract and parity matrix for planning questions/answers, follow-ups, structured revision proposals, read-only checkpoint questions, explicit checkpoint edit requests, steering, abort, and recovery. For each CLI, record native-session versus transcript-replay recovery.
+4. Name exact existing Pivot discovery/rehearsal functions and `/admin/pivot` registry/job routes used by run and promote. Record staging environment and idempotency boundaries.
+5. Confirm the installed Expo SDK's notification plugin, permission, project/token, category, deep-link, native build, APNs, and Live Activity path. Record whether a maintained module or a small ActivityKit extension is required.
+6. Confirm all live acceptance stop points, backup/rollback artifacts, and private configuration locations. Make no product-code change or live vendor/staging/device mutation.
 
 **Evaluation criteria:**
 
 - [ ] Exact current CLI contracts and parser fixtures are recorded
+- [ ] One interaction-parity matrix covers Cursor, Claude, and Codex across planning and checkpoints
+- [ ] Native resume versus transcript-replay recovery is explicit and honestly represented
 - [ ] Existing Pivot functions/routes and staging-only boundary are named
 - [ ] Expo/APNs/Live Activity implementation route and native-build impact are named
 - [ ] No product code, live login, staging mutation, Mini configuration, or device build occurred
@@ -179,14 +191,16 @@ _None yet._
 
 **Instructions:**
 
-1. Implement an injected `ClaudeAdapter` through the shared interface using only the Task 0.1 verified non-interactive structured-output contract.
+1. Implement an injected `ClaudeAdapter` through the shared execution interface using only the Task 0.1 verified non-interactive structured-output contract.
 2. Resolve named Claude accounts from private configuration names; validate executable/config/auth readiness without exposing paths or values publicly.
 3. Stream redacted progress/log events, capture supported usage/duration, persist a vendor-neutral result plus Claude transcript artifacts, and implement owned-process abort.
-4. Add offline tests for success, structured event fragmentation, stderr/nonzero exit, missing executable/config, abort, redaction, and unavailable usage.
+4. Implement the Claude side of the shared interactive contract for planning questions/answers, follow-ups, revision proposals, checkpoint questions/edit requests, abort, and native-or-replayed recovery.
+5. Add offline tests for execution success, multi-turn interaction, structured event fragmentation, stderr/nonzero exit, missing executable/config, abort, recovery, redaction, and unavailable usage.
 
 **Evaluation criteria:**
 
 - [ ] Claude conforms to the shared adapter lifecycle and output schema
+- [ ] Claude supports every planning/checkpoint interaction in the parity matrix
 - [ ] Named accounts remain private and public summaries contain no secrets/paths
 - [ ] Abort and restart behavior cannot kill or duplicate an unrelated process
 - [ ] Tests invoke no live Claude account
@@ -204,11 +218,13 @@ _None yet._
 1. Implement an injected `CodexAdapter` using only the Task 0.1 verified `codex exec` non-interactive structured-output contract.
 2. Preserve Relay ownership of cwd, version-control alignment, approvals, verification, and recovery. Do not add cloud tasks, interactive TTY dependence, branch switching, or approval bypasses.
 3. Resolve named Codex accounts from private configuration names without copying or exposing a live OAuth/config directory.
-4. Add the same structured output, usage, transcript, abort, error, redaction, and offline fixture coverage as Claude.
+4. Implement the Codex side of the shared interactive contract for planning questions/answers, follow-ups, revision proposals, checkpoint questions/edit requests, abort, and native-or-replayed recovery.
+5. Add the same structured output, usage, transcript, abort, error, recovery, redaction, and offline fixture coverage as Claude.
 
 **Evaluation criteria:**
 
 - [ ] Codex conforms to the shared lifecycle without a vendor-specific runner branch
+- [ ] Codex supports every planning/checkpoint interaction in the parity matrix
 - [ ] Relay retains cwd/VC/gate/verification ownership
 - [ ] Named account configuration is private and safely reported as available/unavailable
 - [ ] Tests invoke no live Codex account
@@ -217,21 +233,27 @@ _None yet._
 
 _None yet._
 
-### Task 1.3 — Add ordered pre-start failover
+### Task 1.3 — Unify execution and interactive routing with ordered pre-start failover
 
 **Status:** `pending`
 
 **Instructions:**
 
-1. Extend adapter selection/factory support to fake, Cursor, Claude, and Codex while preserving existing defaults.
-2. Build a stable candidate list from the primary `agent/account` and ordered plan `failover`; reject malformed or duplicate candidates deterministically.
-3. Preflight candidates in order. Advance only for a classified pre-start availability failure and persist each redacted attempt/reason.
-4. Mark the candidate as started before handing it editable work. After that boundary, exit/abort/verification failure parks or fails the run and never triggers another automatic candidate.
-5. Attribute usage/transcripts to the selected candidate and ensure restart recovery neither repeats candidate selection over a started step nor spawns duplicates.
+1. Extend execution and interactive adapter selection/factory support to fake, Cursor, Claude, and Codex while preserving existing defaults.
+2. Route planning drafts and checkpoint sessions through the selected real agent/account using one API/client contract. Questions, follow-ups, revisions, explicit edits, steering, streamed activity, abort, and recovery must not branch at the UI or silently fall back to Cursor.
+3. Normalize vendor events into the existing sanitized planning/checkpoint transcript and activity schema. Preserve vendor identity/account in durable state; represent unavailable optional telemetry as `unknown`.
+4. Implement native-session or deterministic transcript/context replay recovery for every real agent. Recovered sessions must retain accepted revisions, checkpoint baseline/owned diff, and agent identity without replaying a completed mutation.
+5. Build a stable candidate list from the primary `agent/account` and ordered plan `failover`; reject malformed or duplicate candidates deterministically.
+6. Preflight candidates in order. Advance only for a classified pre-start availability failure and persist each redacted attempt/reason.
+7. Mark the candidate as started before handing it editable work. After that boundary, exit/abort/verification failure parks or fails the run and never triggers another automatic candidate.
+8. Attribute usage/transcripts to the selected candidate and ensure restart recovery neither repeats candidate selection over a started step nor spawns duplicates.
 
 **Evaluation criteria:**
 
 - [ ] Primary success does not touch failover candidates
+- [ ] Cursor, Claude, and Codex pass the same planning/checkpoint interaction contract
+- [ ] Agent identity is explicit end to end and no hidden Cursor fallback exists
+- [ ] Native or replay recovery preserves transcript, accepted revision, baseline, and ownership honestly
 - [ ] Missing account/executable/preflight auth advances in declared order
 - [ ] Runtime or verification failure never launches a second editing agent
 - [ ] Attempts, chosen account, usage, and recovery state are durable and redacted
@@ -246,7 +268,7 @@ _None yet._
 
 **Instructions:**
 
-1. Run an offline matrix covering every adapter, account selection, candidate exhaustion, structured logs, abort, verification, checkpoint gates, and restart recovery.
+1. Run an offline matrix covering every adapter and account across execution plus planning questions/answers, follow-ups, revision proposal/acceptance, checkpoint questions, explicit checkpoint edits, steering, candidate exhaustion, structured logs, abort, verification, and restart recovery.
 2. Scan API/log/artifact output for keys, tokens, private config roots, prompts marked secret, and bearer values.
 3. Stop and request explicit authorization for live CLI smoke. If authorized, back up private config and run one harmless fixture task per configured CLI with bounded time/cost; do not use a production workspace.
 4. Restore private configuration and prove the fixture workspace is clean. Live smoke is optional for landing injected implementation but required before declaring that vendor operational on the Mini.
@@ -254,6 +276,7 @@ _None yet._
 **Evaluation criteria:**
 
 - [ ] Offline adapter/failover/recovery matrix passes
+- [ ] The same planning-interface tests pass for Cursor, Claude, and Codex without vendor-specific client behavior
 - [ ] Secret and boundary scans pass
 - [ ] No live call occurs without explicit authorization and bounded fixture scope
 - [ ] Any authorized smoke records rollback and post-state without printing credentials
@@ -460,7 +483,7 @@ _None yet._
 
 **Instructions:**
 
-1. Run one offline scenario where primary agent preflight fails, the declared fallback reaches a gate, a notification event is deduped, and restart recovers the gate without a second agent or notification.
+1. Run one offline scenario where each real agent type answers a planning question, proposes a revision, answers a checkpoint question, and processes an explicit checkpoint edit through the same interface; then primary preflight fails, the declared fallback reaches a gate, a notification event is deduped, and restart recovers the gate without a second agent or notification.
 2. Run one offline job scenario from bounded start through artifact, notification, typed-confirm promote, ambiguous-response handling, restart, and idempotent review.
 3. Prove run/job/manual ownership conflicts and memory policy permit only the intended heavy owner.
 4. Run Relay unit/integration/build/typecheck plus web and mobile suites. Scan for shell execution, arbitrary client paths/argv, secrets/tokens, production discovery, direct push mutation, `Meridian-Mobile`, and unrelated surface changes.
@@ -469,6 +492,7 @@ _None yet._
 **Evaluation criteria:**
 
 - [ ] Integrated adapter/gate/push/restart scenario passes without duplicates
+- [ ] Planning and checkpoint interaction parity passes for Cursor, Claude, and Codex
 - [ ] Integrated job/artifact/promote/restart scenario passes idempotently
 - [ ] Heavy ownership, abort, redaction, and scope scans pass
 - [ ] Relay, web, and mobile verification is green or every exception is recorded
