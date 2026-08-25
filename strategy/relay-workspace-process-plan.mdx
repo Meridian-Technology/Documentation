@@ -147,7 +147,7 @@ Process ownership must be stronger than PID existence: persist owner/session/pro
 | 1.5 | done | doneAt 2026-08-24; saved-process catalog/actions, conflict blocking, bounded logs, and Run handoff |
 | 1.6 | done | doneAt 2026-08-24; offline fixture/restart/ownership matrix and security boundaries verified |
 | 1.7 | done | doneAt 2026-08-24; physical-phone saved-process, worker ownership, restart recovery, and rollback acceptance passed |
-| 1.8 | pending | Close child #12 and update parent ledger |
+| 1.8 | done | doneAt 2026-08-24; child #12 audited, parent ledger updated, and adjacent scope excluded |
 
 ## Execution order
 
@@ -445,7 +445,7 @@ flowchart TD
 
 ### Task 1.8 — Close child #12
 
-**Status:** `pending`
+**Status:** `done`
 
 **Instructions:**
 
@@ -456,13 +456,16 @@ flowchart TD
 
 **Evaluation criteria:**
 
-- [ ] Child ledger and task statuses agree
-- [ ] Parent child #12 row is current
-- [ ] No adjacent/unapproved surface entered closeout
+- [x] Child ledger and task statuses agree
+- [x] Parent child #12 row is current
+- [x] No adjacent/unapproved surface entered closeout
 
-**Implementation notes:**
+**As built:**
 
-_None yet._
+- Audited Tasks 0.1–1.7 against the child ledger, task statuses, evaluation checkboxes, As built tables, handoff entries, offline boundaries, and the completed physical-Mini acceptance/rollback evidence. Every prior task is aligned and no implementation note remains open.
+- Re-ran the current implementation verification: all 276 Relay tests passed with one worker and the Relay TypeScript build passed; all 71 phone tests passed and phone typecheck passed. Closeout consistency, diff, and changed-file boundary checks also passed.
+- Marked parent child #12 done with `doneAt 2026-08-24` and the canonical `/strategy/relay-workspace-process-plan` Mintlify path in both the child-plan ledger and Related docs.
+- This closeout changed documentation only. It did not begin push/Live Activities (#9), arbitrary process or shell controls, a backend profile, web Workspace/Processes UI, Git mutation actions, or any other unapproved adjacent surface.
 
 ---
 
@@ -485,3 +488,4 @@ _None yet._
 - 2026-08-24 — Task 1.7 saved-process matrix passed. Just Go ran alone on port 8081 with its development-client link and live logs working, retained 83% macOS available memory, then stopped with all managed ports free. James also verified the equivalent isolated Campus lifecycle. Web, Just Go, and Campus now satisfy the one-at-a-time start/open/log/stop/port-release criterion. Next: controlled fake-worker blocking, read-only Workspace visibility, and Run-owned preview switching.
 - 2026-08-24 — Before the fake-worker checkpoint, found and closed a phone integration gap: Processes already handed run ownership to Run, but Run lacked controls for the existing run-preview switch API. Added active-run Off/Expo/Web controls with machine-scoped requests and server-returned Open only. Focused 28 tests, all 71 phone tests, and typecheck pass; no arbitrary preview, command, profile editing, or manual-process takeover surface was added. Next: deploy the phone commit and execute the controlled fake-worker matrix.
 - 2026-08-24 — Task 1.7 complete. With James's authorization, the physical phone passed read-only Workspace and the isolated Meridian Web/Just Go/Campus start/open/log/stop matrix; the scoped Meridian JSON and macOS memory-gate repairs were deployed and verified. A private mode-`0600` backup protected the temporary fake-adapter change. A harmless `approve-before` run blocked every manual Start while Workspace stayed available, switched its owned preview Web-to-Expo from Run, and survived a Relay restart with the same run ID and exactly one listener after readiness polling. Off plus fake completion returned the machine to idle. Rollback restored the private environment byte-for-byte, original clean branches, no temporary branch, and all managed ports free; private backup/evidence stayed off-Git. Placeholder-only operator guidance now records the procedure. Next: Task 1.8 closeout audit; do not begin adjacent scope.
+- 2026-08-24 — Task 1.8 complete. Audited Tasks 0.1–1.7, aligned the child ledger, statuses, evaluations, As built records, handoffs, offline boundaries, and physical-Mini rollback evidence, then re-ran all 276 Relay tests/build and all 71 phone tests/typecheck. Marked parent child #12 done with `doneAt 2026-08-24` and `/strategy/relay-workspace-process-plan`. This documentation-only closeout did not begin push/Live Activities (#9), arbitrary process or shell controls, a backend profile, web Workspace/Processes UI, Git mutation actions, or another adjacent child. Child #12 is closed.
