@@ -89,7 +89,8 @@
         "strategy/relay-planning-workspace-plan",
         "strategy/relay-checkpoint-steering-plan",
         "strategy/relay-workspace-process-plan",
-        "strategy/relay-post-core-integrations-plan"
+        "strategy/relay-post-core-integrations-plan",
+        "strategy/relay-interaction-modes-plan"
       ]
     },
     {
