@@ -1,6 +1,6 @@
 ---
 title: "Relay — master plan"
-description: "Architecture lock for Relay: structured phone planning, phased execution, checkpoint steering, remote workspace/process control, and one worker per Mini. Parent for child implementation plans."
+description: "Architecture lock for Relay: structured planning, phased execution, checkpoint steering, persistent per-user workspaces, and bounded concurrency on each Mini. Parent for child implementation plans."
 ---
 
 ## How to use this document
@@ -16,7 +16,7 @@ Visual target (phone): [Cursor product language — dark](https://www.figma.com/
 For every **child plan**:
 
 1. Read **Locked decisions** and **Non-goals** in this file first.
-2. Cover **one track** (A–J), or one slice of a track — not the whole system.
+2. Cover **one track** (A–K), or one slice of a track — not the whole system.
 3. Start the child plan with the [child plan header](#child-plan-header).
 4. Work through that child plan’s tasks in order. Update **that** file when tasks complete (same [agent completion](#agent-completion) rules as other strategy plans).
 5. When a child plan is created, finished, or blocked, update the [Child plan ledger](#child-plan-ledger) here.
@@ -29,7 +29,7 @@ Copy into the top of every child plan:
 
 ```text
 Parent: /strategy/relay-master-plan
-Track: A | B | C | D | E | F | G | H | I | J
+Track: A | B | C | D | E | F | G | H | I | J | K
 Needs Mini: yes | no
 Blocked by: <track or none>
 ```
@@ -63,9 +63,10 @@ Task-level checkboxes live **only** in the child plan.
 | 10 | [Phone planning workspace + laptop quick submission](/strategy/relay-planning-workspace-plan) | H | laptop implementation; phone/Mini acceptance later | done | doneAt 2026-08-23; post-close chat-first Cursor activity refinement completed 2026-08-23 |
 | 11 | [Checkpoint steering + run amendments](/strategy/relay-checkpoint-steering-plan) | I | laptop implementation; phone/Mini acceptance later | done | doneAt 2026-08-24; completed at `/strategy/relay-checkpoint-steering-plan` |
 | 12 | [Workspace status + saved process controls](/strategy/relay-workspace-process-plan) | J | laptop implementation; phone/Mini acceptance later | done | doneAt 2026-08-24; completed at `/strategy/relay-workspace-process-plan` with physical-phone and Mini rollback acceptance |
-| 13 | [Interaction modes + feature workspaces](/strategy/relay-interaction-modes-plan) | B/E/H/I/J | laptop implementation; phone/Mini acceptance later | pending | Child #7 Phase 1 complete 2026-08-24; adds Ask/Plan/Freeform and multi-repository feature scope |
+| 13 | [Interaction modes + feature workspaces](/strategy/relay-interaction-modes-plan) | B/E/H/I/J | laptop implementation; live Mini/phone later | done | doneAt 2026-08-25; completed at `/strategy/relay-interaction-modes-plan`. Injected Ask/Plan/Freeform and configured-ID feature workspaces. Offline Mini-shaped acceptance landed. Live Mini/phone/agents not authorized. |
+| 14 | [Multi-user workspaces + bounded concurrency](/strategy/relay-multi-workspace-plan) | K | laptop implementation; Mini migration/device acceptance later | in_progress | 2026-09-14: Tasks 0.1–7.1 complete; 7.2 and 7.3 **blocked** on Mini SSH host key / live two-user acceptance. Push/PR still flag-off. |
 
-4a and 4b are **not** order-dependent. 5 can start as soon as 2 exists. Child 6's preview supervisor and portable ops assets can be completed on the laptop; its installation and acceptance smoke cannot start until the Mini is in reach. Child 7 combines the formerly separate #8/#9 scopes; its agent, job, and notification phases may land independently after their shared contract task, while live vendor/staging/device acceptance remains separately gated. Child 10 starts after the existing parser/API/Cursor/phone seams; child 11 follows child 10; child 12 may implement locally after child 6's supervisor contract and performs real acceptance on the Mini. Child 13 consumes child 7 Phase 1's mode-neutral adapters and completed H/I/J surfaces; it need not wait for jobs, push, or Live Activity. Polling remains sufficient when child 7 push delivery is unavailable.
+4a and 4b are **not** order-dependent. 5 can start as soon as 2 exists. Child 6's preview supervisor and portable ops assets can be completed on the laptop; its installation and acceptance smoke cannot start until the Mini is in reach. Child 7 combines the formerly separate #8/#9 scopes; its agent, job, and notification phases may land independently after their shared contract task, while live vendor/staging/device acceptance remains separately gated. Child 10 starts after the existing parser/API/Cursor/phone seams; child 11 follows child 10; child 12 may implement locally after child 6's supervisor contract and performs real acceptance on the Mini. Child 13 consumed child 7 Phase 1's mode-neutral adapters and completed H/I/J surfaces (done 2026-08-25); it did not wait for jobs, push, or Live Activity. Live Mini/phone for Ask/Plan/Freeform remains operator-gated. Polling remains sufficient when child 7 push delivery is unavailable.
 
 <Note>
 **Product boundary:** Relay is a **private control plane** for the Mini. It is **not** Just Go, not Meridian Go, and not Pivot Lab (`/admin/pivot`). Do not put it in `Meridian-Mobile`, do not reuse Just Go bundle IDs or Google iOS clients, do not ship it on the App Store.
@@ -84,7 +85,8 @@ Task-level checkboxes live **only** in the child plan.
 - [Relay — phone planning workspace + laptop quick submission](/strategy/relay-planning-workspace-plan) — child #10 (Track H), **done 2026-08-23**
 - [Relay — checkpoint steering + run amendments](/strategy/relay-checkpoint-steering-plan) — child #11 (Track I), **done 2026-08-24**
 - [Relay — workspace status + saved process controls](/strategy/relay-workspace-process-plan) — child #12 (Track J), **done 2026-08-24**
-- [Relay — interaction modes + feature workspaces](/strategy/relay-interaction-modes-plan) — child #13 (Tracks B/E/H/I/J), **pending**
+- [Relay — interaction modes + feature workspaces](/strategy/relay-interaction-modes-plan) — child #13 (Tracks B/E/H/I/J), **done 2026-08-25**; injected implementation landed; live Mini/phone/agents remain operator-gated
+- [Relay — multi-user workspaces + bounded concurrency](/strategy/relay-multi-workspace-plan) — child #14 (Track K), **in progress** (7.2 and 7.3 Mini/live blocked); changes the original one-heavy-owner-per-Mini decision
 - [Native-first city discovery](/strategy/pivot-native-first-discovery-plan) — existing discovery/rehearsal Track F wraps; do not rewrite
 - [Pivot tenant ops dashboard](/strategy/pivot-tenant-ops-dashboard-plan) — `/admin/pivot` promote target; Relay is not this UI
 - Just Go standalone (product preview binary vs Relay binary) — `Meridian-Mobile/JUSTGO_STANDALONE.md`
@@ -107,10 +109,10 @@ Long agent coding sessions, quick fixes, repository questions, and bounded stagi
 2. Turns a phone conversation into an explicitly accepted, structured, versioned **Plan** for larger work.
 3. Performs quick fixes and small features in **Freeform** on a dedicated multi-repository branch without plan ceremony.
 4. Runs accepted plans with a **fresh execution agent session per phase** and keeps a bounded checkpoint session for questions/edits.
-5. Serves **one** worker-owned or manual preview (Expo **or** web **or** none) and exposes read-only repository state.
+5. Serves task-owned Expo/web previews from bounded port leases and exposes principal-scoped read-only repository state.
 6. Occasionally runs a **bounded staging job** (discovery/curation), then a human **promotes**.
 
-Phone = Ask/Plan/Freeform conversation, plan revision/kickoff, checkpoint steering, Git overview, and saved-process control. Laptop = quick paste/upload kickoff, detailed logs/diffs, and promote; it does not get the new conversational UI yet. Each Mini = the source of truth for sessions, drafts, runs, repositories, and processes. v1 is one Mini; the control plane already names **which** machine.
+Phone = Ask/Plan/Freeform conversation, plan revision/kickoff, checkpoint steering, Git overview, and saved-process control. Laptop = quick paste/upload kickoff, detailed logs/diffs, repository/queue management, and promote. Each Mini = the source of truth for its principals, persistent workspaces, queue, leases, sessions, drafts, runs, repositories, and processes. Child #14 keeps one Mini while admitting bounded work for two trusted users.
 
 ```text
 Phone (Ask + Plan + Freeform + ops) ─┐
@@ -126,7 +128,7 @@ Laptop (quick run + review) ┼──► machine list ──► Control API on M
 - Letting planning conversation mutate code; planning reads the selected product workspace and proposes plan revisions only
 - Invisible plan mutation: every executable revision and mid-run amendment requires explicit acceptance
 - A raw remote shell, phone-editable executable/argv, or arbitrary command endpoint
-- Queues (Temporal, Inngest, Redis) — one run at a time **per machine**
+- External/distributed queues such as Temporal, Inngest, or Redis. Child #14 adds one small durable local queue for bounded work on one Mini
 - Docker / K8s / Coolify on this box
 - A fleet scheduler or shared run database in milestone 1 (naming the machine is enough)
 - A custom tunnel (Tailscale is the tunnel)
@@ -165,16 +167,16 @@ Track E (phone shell) in parallel is allowed. Shipping it as the first milestone
 | Decision | Choice |
 | --- | --- |
 | Name | **Relay**. Bundle `app.relay`, scheme `relay://`. Not Meridian-branded. |
-| Mini role | Worker. One heavy thing at a time **per machine**. v1 = one Mini. See [Machines](#machines). |
-| RAM | Mutually exclusive **profiles** on that machine. No Docker Desktop. No local Mongo. Atlas staging. |
+| Mini role | Bounded multi-workspace worker. Child #14 starts with two trusted users and two configurable execution units on one Mini. See [Machines](#machines). |
+| RAM | Weighted admission plus observed memory/swap pressure. Repository ownership and compute capacity are separate. No Docker Desktop. No local Mongo. Atlas staging. |
 | Network | Tailscale MagicDNS per box (`relay-<id>.tailXXXX.ts.net`). Not ngrok / Expo `--tunnel` as the primary path. |
-| Control API | Tiny TypeScript HTTP API **on each Mini**. Same contract. Clients hold a list of `{ id, url }`. |
+| Control API | One TypeScript HTTP API **on each Mini**. It authenticates individual device sessions, resolves a principal workspace, and owns the local durable queue/lease coordinators. Clients still hold a list of `{ id, url }`. |
 | Laptop UI | Web console on that API (quick paste/upload kickoff, logs, git-adjacent review). No conversational planner in the first expansion. **BoardUI** ([boardui.com](https://www.boardui.com/)) remains the design system. |
 | Phone UI | Thin **Expo dev client**, private, `app.relay`. The first home for Ask, Plan, Freeform, checkpoint steering, workspace status, and saved-process controls. Agent interaction is a chat-first transcript with a fixed composer, contextual actions, and vendor-neutral sanitized activity from the selected Cursor, Claude, or Codex adapter. Not Expo Go. Not Just Go. |
 | Interaction modes | **Ask** is repository-aware and permanently read-only. **Plan** keeps explicit structured revisions/phases/gates. **Freeform** performs immediate quick-fix/feature work on a dedicated Relay-aligned branch without plan ceremony while retaining worker/VC/secret/recovery invariants. |
-| Feature workspace | Goal first; optional starting area ranks initial context but is not a repository boundary. Sessions record configured readable repositories and an explicit reasoned writable set. Plan scope is accepted with its revision; Freeform pauses before adding and mutating another repository. |
+| Feature workspace | Each principal has one persistent workspace bundle with independent GitHub clones. Goal first; optional starting area ranks context. Sessions record readable repositories and an explicit writable set. Repositories can be added through UI from validated GitHub URLs. |
 | Planning | Describe a goal, optionally choose a starting area, attach screenshots/text/plan files, and converse with a read-only planning agent across the configured feature workspace. Every planning interaction—including questions/answers, follow-ups, scope proposals, and structured revision proposals—must work through the same interface for Cursor, Claude, and Codex. The agent may inspect relevant repositories but may only propose structured plan revisions. |
-| Plan revisions | Conversation and executable plan are distinct. Every proposed revision shows a structured/diff preview and requires **Accept revision**. Multiple drafts may exist; one planning response runs at a time per Mini. |
+| Plan revisions | Conversation and executable plan are distinct. Every proposed revision shows a structured/diff preview and requires **Accept revision**. Responses enter the shared bounded queue; confirmed Plan repository intent may retain repository leases without retaining compute capacity. |
 | Plan storage | Drafts, transcript, attachments, and immutable revisions live in private Relay data. Starting a run snapshots one accepted revision; no plan path or Git synchronization is required. |
 | Plan publishing | Optional **Save to repository** proposes repo/path (default heavily toward `Meridian-Mintlify/strategy/`), asks once, writes and commits locally on the run branch, and never pushes. Publishing failure does not invalidate the run snapshot. |
 | Quick submission | Laptop web accepts pasted Markdown or an uploaded plan file, parses/previews it, and submits the inline plan to the Mini. It does not add laptop planning chat. |
@@ -182,46 +184,45 @@ Track E (phone shell) in parallel is allowed. Shipping it as the first milestone
 | Run amendments | Completed history is immutable. Remaining phases may be revised; changes to completed work become corrective steps. Plan changes are separately proposed and accepted before resume. |
 | Active-step steering | **Send at next checkpoint** persists a note. **Stop and steer now** cancels the current agent, parks the current step with its partial state, and restarts that step later with a fresh execution agent plus the accepted steering brief. |
 | Workspace status | Read-only repository branch/HEAD/dirty/ahead-behind/alignment state. No fetch/switch/commit/push/discard controls. Active work is labeled as a changing snapshot. |
-| Manual processes | Phone starts only Mini-configured Meridian Web, Just Go, or Campus profiles. No shell and no phone profile editor. Manual starts are blocked while a worker is active; the active run may still switch its own preview. |
+| Manual processes | Phone starts only Mini-configured profiles. No shell and no phone command editor. Starts use the same capacity/port admission as task previews and cannot take ports or repository state owned by another task. |
 | Notifications | Expo Push / APNs from the Mini (ntfy is a fallback, not the product). Polling remains complete. Live Activity is an iOS status surface, not a control surface. Child #7 landed injected delivery and ActivityKit; live Mini/APNs/device remains operator-gated. |
 | Agents | Wrap CLIs. Default Cursor local (`@cursor/sdk`). Also Claude Code, Codex. Explicit per phase/session. Optional failover. Execution, planning, question answering, revision, checkpoint edit, steering, and recovery interactions have feature parity through one vendor-neutral interface. No round-robin or hidden Cursor fallback. |
-| Accounts | Named logins per tool (`cursor:work`, `claude:max`). Kickoff/phase picks one. Failover may try another **account** of the same tool, then another tool. See [Accounts and usage](#accounts-and-usage). |
-| Usage UI | Per-login tracker on Home and New run (web + phone). Same `GET /accounts` payload. |
-| Preview | User-chosen at kickoff: `expo` \| `web` \| `none`. Agent cannot start Metro. |
+| Accounts | Named logins are principal-scoped. Kickoff/phase picks one of that user's Cursor/Claude/Codex accounts. Missing credentials never fall back to another principal. See [Accounts and usage](#accounts-and-usage). |
+| Usage UI | Per-login tracker on Home and New run (web + phone). Same `GET /accounts` payload. A fresh five-hour window below 10% remaining pauses a run only after a completed step and resumes it after that window recovers. |
+| Preview | User-chosen at kickoff: `expo` \| `web` \| `none`. Each active task owns a persisted port lease and workspace-bound preview; agents cannot start Metro/Vite directly. |
 | Expo preview | Just Go **or** campus **dev client** as the *product* preview (`npm run start:justgo` vs `npm start`). Relay is a different binary. |
 | Gates | `step-approve` / `phase-approve` / `full-handoff` / mixed (`approve-before` on a phase). |
 | Context | Fresh execution session per phase. Next phase gets plan slice + `AGENTS.md` + generated `phase-N-brief.md`, including accepted steering. A bounded checkpoint session may persist only while that gate is open; recovery creates a fresh session from persisted transcript/baseline/diff and labels it recovered. |
-| Version control | **Meridian CLI** for `Meridian/` + `Events-Backend/`. Relay aligns every explicitly writable repository in a feature session to one branch slug before mutation; other siblings use the existing Git wrapper. Agents write files and may `git add` / `git commit`. They must not checkout or switch branches. See [Version control](#version-control). |
+| Version control | **Meridian CLI** for `Meridian/` + `Events-Backend/`. Relay aligns each task's explicitly writable repository set from a persisted exact starting commit. Agents may edit/add/commit but not switch branches or receive GitHub credentials. Relay may explicitly push its validated feature branch and open/update a PR; merge, force push, and protected-branch push remain unavailable. |
 | Jobs | Staging first. Promote **replays registry/jobs** via existing `/admin/pivot`. Does not re-crawl Heroku. |
 | Code home | Sibling `relay/` (or private `Relay`). Must not import Just Go / Meridian app runtime. |
 | Trust, don’t build | Meridian CLI, Tailscale, `gh`, Expo, Vite, **BoardUI**, existing pivot admin APIs. |
 
-### Profiles (mutex, one at a time)
+### Resource profiles and leases
 
-| Profile | Allowed |
-| --- | --- |
-| `agent` | One CLI agent + commit-only git. No checkout. No Metro, no Vite, no discovery. |
-| `agent+expo` | Agent + Just Go/campus Metro. `REACT_NATIVE_PACKAGER_HOSTNAME=<mini tailscale ip>`. |
-| `agent+web` | Agent + Vite `--host`. |
-| `job` | Discovery/curation vs Atlas staging. `NODE_OPTIONS=--max-old-space-size=4096`. Metro/Vite off. |
+| Profile | Initial capacity | Allowed |
+| --- | ---: | --- |
+| `planning` | 1 unit | One Ask/Plan response. No mutation or preview. |
+| `agent` | 1 unit | CLI agent + commit-only Git in its leased repository set. |
+| `agent+expo` | 2 units | Agent + task-owned Metro preview and port lease. |
+| `agent+web` | 2 units | Agent + task-owned web preview and port lease. |
+| `job` | 2 units | Global discovery/curation/export work; per-kind weight may be configured. |
 
-Watchdog: if memory pressure is critical, pause before the next phase.
-
-Ask and Plan use the separate read-only planning capacity: multiple sessions may be stored, but only one read-only response runs at a time per Mini. They may coexist with one worker when memory is healthy; critical pressure queues the response. Freeform and checkpoint editing own the worker lock and block runs/jobs/manual processes until stopped or closed/accepted.
+Child #14 initially configures two total units and raises the limit only after measured Mini memory and swap acceptance. A task must hold its complete workspace-scoped repository lease set before mutation. Capacity is separate: an approval gate retains repository leases but releases capacity until approved. Critical pressure stops new admission without killing healthy active work.
 
 ---
 
 ## Machines
 
-Each Mini is a **machine**: own clone of the workspace, own mutex, own accounts file, own `relay/` process, own MagicDNS name. Runs never move between boxes mid-phase.
+Each Mini is a **machine**: one Relay API/process, one MagicDNS name, a global bounded scheduler, and persistent per-principal workspace bundles. Every principal has independent repository clones and credentials. Runs never move between boxes mid-phase or between principal workspaces.
 
 | v1 | Later (no rewrite) |
 | --- | --- |
 | One entry in the client machine list | Add another `{ id, url }` |
-| New run hits that URL | New run picks a machine (or the idle one) |
+| New run hits that URL and enters its local queue | New run picks a machine (or the best available one) |
 | Usage rows = logins on the **selected** machine | Optional: Home lists every machine, each with its `/accounts` |
 
-Do **not** share one git working tree across Minis. Do **not** put a queue in front of the APIs. A second Mini is another worker you install with the [playbook](#add-a-machine-playbook), then point the phone/web list at it.
+Do **not** share one Git working tree across users or Minis. Child #14's queue is local to one Mini and is part of its API process; it is not a fleet scheduler or external service. A second Mini remains another worker installed with the [playbook](#add-a-machine-playbook), then added to the phone/web list.
 
 Identity: `RELAY_MACHINE_ID` (hostname-safe, e.g. `relay-1`). Every run record stores `machineId`. `GET /machine` returns id, profile, RAM, idle. `POST /runs` may include `machineId`; if the client is already talking to that box’s URL, the server ignores a mismatch and uses itself.
 
@@ -292,6 +293,8 @@ New run: pick agent **and** account; dim or warn a seat that is exhausted or `un
 
 Fake adapter emits fake usage so D/E can ship the strip before Cursor/Claude adapters exist. Do not scrape browser dashboards. Do not store card numbers or vendor passwords in the plan file — secrets stay in Mini config.
 
+For accounts that expose a normalized **five-hour (300-minute)** window, Relay checks usage after persisting each completed run step. If strictly less than 10% remains and another executable step remains, the run enters `waiting-for-usage-reset`: repository leases stay held, agent capacity is released, and Relay polls the usage source without invoking a model. At a phase approval gate, the gate remains authoritative and approval cannot dispatch the next phase until usage recovers. Relay resumes the next unstarted step through normal queue/capacity admission only after the same account reports at least 10% remaining. Never interrupt an active step, replay the completed step, silently change accounts, or use the weekly window to drive this pause. Unknown/stale probes remain visible but do not wait forever. Child #14 owns the implementation and recovery contract.
+
 ---
 
 ## Tracks
@@ -299,7 +302,7 @@ Fake adapter emits fake usage so D/E can ship the strip before Cursor/Claude ada
 Tracks **A, B, C** are the critical path and are **serial** (B needs A, C needs B).
 Tracks **D, E, F** are **independent of the Mini** and of each other, as long as they consume the API contract (mock until C exists).
 Track **G** is Mini-only.
-Track **H** adds drafts and structured planning on the established parser/API/phone surface. Track **I** adds checkpoint editing and amendments after H. Child #7 upgrades both established interaction surfaces to Cursor/Claude/Codex parity without a second UI contract. Track **J** adds read-only workspace state and saved manual processes on the established supervisor contract. Child #13 composes B/E/H/I/J into feature-scoped Ask/Plan/Freeform sessions.
+Track **H** adds drafts and structured planning on the established parser/API/phone surface. Track **I** adds checkpoint editing and amendments after H. Child #7 upgrades both established interaction surfaces to Cursor/Claude/Codex parity without a second UI contract. Track **J** adds read-only workspace state and saved manual processes on the established supervisor contract. Child #13 composes B/E/H/I/J into feature-scoped Ask/Plan/Freeform sessions (injected implementation done 2026-08-25; live Mini/phone remains operator-gated). Track **K** replaces the single-user workspace/mutex with principal workspaces, repository leases, local queued admission, concurrent previews, individual credentials, controlled push/PR, and Face ID.
 
 ```text
 A parser ──► B state machine ──► C control API
@@ -316,6 +319,8 @@ A parser ──► B state machine ──► C control API
                          ┌────────────┴────────────┐
                          ▼                         ▼
                     H planning ──► I steering   J workspace/process
+
+              B/C/E/G/H/I/J established contracts ──► K multi-workspace
 ```
 
 ### Track A — Plan parser + schema
@@ -333,7 +338,7 @@ Output: `relay/parser`, fixtures, tests.
 **Needs Mini:** no. **Blocked by:** A.
 
 - States: `queued` → `planning?` → `running` → `awaiting-approval` → `failed` | `done`.
-- Mutex: one run.
+- Historical Track B baseline: one run under one global mutex. Track K replaces this with durable queued admission, workspace-scoped repository leases, and separate capacity leases; do not extend the old mutex.
 - Persist to `runs/<id>/state.json` so a reboot can resume a **gate** (not a mid-tool-call).
 - Fake adapter that writes a file and exits 0/1. Enough to complete one `phase-approve` loop. Emits fake usage for the chosen account.
 - Packer writes `phase-N-brief.md` (includes current `meridian status` + “do not checkout”).
@@ -423,7 +428,7 @@ G is install and wiring, not a rewrite. Adding Mini two is the playbook, not a n
 
 Child: [Relay — phone planning workspace + laptop quick submission](/strategy/relay-planning-workspace-plan).
 
-Ask/Plan/Freeform and feature-workspace expansion are child [Relay — interaction modes + feature workspaces](/strategy/relay-interaction-modes-plan) (#13); child #10 remains the historical initial Plan implementation.
+Ask/Plan/Freeform and feature-workspace expansion are child [Relay — interaction modes + feature workspaces](/strategy/relay-interaction-modes-plan) (#13, doneAt 2026-08-25); child #10 remains the historical initial Plan implementation. Live Mini/phone/agent acceptance for the three modes remains operator-gated.
 
 ### Track I — Checkpoint steering and run amendments
 
@@ -449,6 +454,22 @@ Child: [Relay — checkpoint steering + run amendments](/strategy/relay-checkpoi
 
 Child: [Relay — workspace status + saved process controls](/strategy/relay-workspace-process-plan).
 
+### Track K — Multi-user workspaces and bounded concurrency
+
+**Needs Mini:** no for injected implementation; yes for migration, capacity tuning, and physical two-user acceptance. **Blocked by:** the established B/C/E/G/H/I/J and child #13 contracts.
+
+- One persistent workspace bundle per trusted principal, with independent clones and private application records/credentials.
+- Add GitHub repositories dynamically through safe URL normalization and a recoverable asynchronous provisioner.
+- Replace the global machine mutex with atomic workspace-scoped repository leases plus a separate weighted capacity coordinator.
+- Persist a FIFO queue that either trusted user may reorder. Parked approval retains repositories and releases compute capacity.
+- Monitor each selected account's five-hour usage window and durably pause only between completed steps below 10% remaining; release capacity, retain repositories, poll without a model, and resume exactly once after reset.
+- Allocate previews and ports per task; keep global jobs on the same capacity scheduler without binding them to user clones.
+- Inject each user's vendor/GitHub credentials only into the appropriate narrow operation.
+- Allow validated Relay feature-branch push and PR creation. Remove merge and reject force/protected-branch pushes.
+- Pair individual phone/web device sessions. Gate the phone on cold/expired access with Face ID or passcode for a six-hour window.
+
+Child: [Relay — multi-user workspaces + bounded concurrency](/strategy/relay-multi-workspace-plan).
+
 ---
 
 ## What you can do while away (no Mini)
@@ -465,6 +486,7 @@ Child: [Relay — workspace status + saved process controls](/strategy/relay-wor
 | Draft store, planner injection, API, phone UI against local API, laptop inline submission | H |
 | Checkpoint state machine, injected editing agent, amendment API/UI | I |
 | Injected repository status and saved-process supervisor/API/UI | J |
+| Multi-user schemas, scoped stores, provisioner, queue/leases, web/phone UI, and offline migration harness | K (Mini rollout remains deferred) |
 
 Do **not** spend away time on Tailscale setup, LaunchAgent installation, RAM profiling, Live Activities, a second visual language, product Expo on the Mini, or “agent OS” abstractions.
 
@@ -536,6 +558,12 @@ All clients use this. Child plans add routes; they do not replace the resource m
 | `POST /drafts/:id/messages` | Persist a planning message/attachments and enqueue one read-only planning response. Questions and revisions are durable; phone may disconnect. |
 | `POST /drafts/:id/revisions/:revision/accept` | Explicitly select the executable structured revision. No auto-accept. |
 | `POST /drafts/:id/publish` | Propose/confirm repo path, then write and commit locally on the aligned run branch. Never push; run snapshot remains independent. |
+| `GET /sessions` / `POST /sessions` | Mode-neutral Ask/Plan/Freeform. Plan create still makes a compatible `PlanDraft`. Clients send configured repository IDs only—never paths, argv, or env. |
+| `GET /sessions/:id` | Session, feature scope, transcript, Ask changing-snapshot label, Freeform per-repo review. Never return secrets or `storedPath`. |
+| `POST /sessions/:id/messages` | Follow-up. Ask stays read-only on planning capacity. Freeform may mutate after alignment. |
+| `POST /sessions/:id/link` | New linked Plan/Freeform from Ask; requires `confirmed`. Never elevates `mode` in place. |
+| `POST /sessions/:id/scope-decisions` | Freeform park/accept/reject another configured ID before write. Ask is `403 ask-mutation`. |
+| `POST /sessions/:id/stop` / `close` / `recover` / `preview` | Stop/close leave branch changes and never merge/push/discard. Recover does not replay a completed turn. Preview is Freeform supervisor ownership. |
 | `GET /runs` | List **on this machine**. |
 | `POST /runs` | Kickoff accepts exactly one of `planPath`, inline `plan`, or accepted `draftId`/revision plus preview, execution agent/account, gate, branch, and machine. It persists/returns `queued` immediately, then performs branch/preview/agent work asynchronously while clients poll. Existing path clients remain compatible. |
 | `GET /runs/:id` | State, phases, preview URL, profile, branch, active account, `machineId`, `meridian status` snapshot. |
@@ -556,7 +584,7 @@ All clients use this. Child plans add routes; they do not replace the resource m
 | `GET /jobs/:id` | Artifact. |
 | `POST /jobs/:id/promote` | Requires typed city key (and later Face ID on phone). |
 
-Auth: Tailscale-only network + a shared bearer for the phone/laptop. No public internet.
+Auth: Tailscale-only network + individual, revocable device sessions resolved to a Relay principal. The phone stores its token in Keychain and gates cold/expired access with Face ID or device passcode for a six-hour local unlock window. The web uses a secure HTTP-only session cookie. No public internet and no bearer embedded in `EXPO_PUBLIC_*` / `VITE_*` configuration.
 
 ---
 
@@ -575,6 +603,8 @@ Keep each child narrow. The useful loop remains small; later tracks extend it th
 9. Plan drafts + planning revisions + inline kickoff (H)
 10. Checkpoint session + run amendments (I)
 11. Read-only workspace + saved process ownership (J)
+12. Ask/Plan/Freeform sessions + feature-scoped writable IDs (#13)
+13. Persistent per-user workspaces + repository leases + bounded queue + concurrent previews + individual auth + controlled push/PR + Face ID (#14)
 
 **Adapters after fake:** Cursor local first (`@cursor/sdk` or `agent` CLI, `cwd` = package). Claude `claude -p`. Codex `codex exec`. Same interface.
 
@@ -614,6 +644,7 @@ Without sitting at the Mini:
 6. Open the run-owned preview; while idle, use the phone to start one configured manual Web/Just Go/Campus process.
 7. Inspect read-only Git state for every configured repository and stop owned work safely.
 8. Review a staging discovery artifact and promote by typing the city key on laptop web. Child #7 landed injected jobs/promote; live staging remains operator-gated. Phone stays read-only for jobs.
+9. On phone, start Ask (read-only, no branch), Plan (revisions then kickoff), or Freeform (aligned branch, no Accept-changes) across configured repository IDs. Child #13 landed injected sessions; live Mini/phone remains operator-gated. Laptop stays paste/upload, not a planning chat.
 
 The original fake-adapter localhost loop satisfied the prerequisite for these later tracks. Each new child still proves its state/API/UI contract with injected offline coverage before any live Cursor or Mini acceptance.
 
@@ -626,10 +657,10 @@ Copy this into `relay/docs/add-machine.md` when Track G finishes; fill the place
 1. **Name it.** Pick `RELAY_MACHINE_ID` (`relay-2`). MagicDNS: `relay-2.tailXXXX.ts.net`.
 2. **Tailscale.** Sign the new Mini into the same tailnet. HTTPS (Tailscale cert or Caddy).
 3. **Clone.** Own workspace checkout (sibling `Meridian/`, `Events-Backend/`, `Meridian-Mobile/`, `relay/`). Do not NFS-share another Mini’s tree. `npm link` the Meridian CLI. `MERIDIAN_WORKSPACE` = that parent.
-4. **Same binary.** Run the same `relay/` as laptop / Mini 1. `launchd` + `caffeinate`. Mutex is local.
-5. **Secrets.** Per-box accounts file (Cursor keys, Claude `CLAUDE_CONFIG_DIR`s, Codex). Copy keys if this box should share a seat; do not copy a live OAuth dir from a Mini that is using it.
+4. **Same binary.** Run the same `relay/` as laptop / Mini 1. `launchd` + `caffeinate`. Queue, repository leases, and capacity leases are local to that machine.
+5. **Secrets.** Enroll each principal's accounts on that box (Cursor keys, Claude `CLAUDE_CONFIG_DIR`s, Codex, GitHub). Do not copy a live OAuth directory from a Mini that is using it and do not expose one principal's credentials to another.
 6. **Push.** Expo / APNs credentials on this box if it should notify.
-7. **Clients.** Append `{ id: "relay-2", url: "https://relay-2.tailXXXX.ts.net" }` to the phone and web machine list. Shared bearer (or a new one stored on both clients).
-8. **Smoke.** From the phone on tailnet: `GET /machine` → idle, matching id. Kick off a **fake** run, approve, stop. Confirm Home usage rows are this machine’s logins.
+7. **Clients.** Append `{ id: "relay-2", url: "https://relay-2.tailXXXX.ts.net" }` to the phone and web machine list. Pair each device/browser to an individual principal on the new machine.
+8. **Smoke.** From each paired client on tailnet: `GET /machine` → matching id and capacity state. Kick off a **fake** run, approve, stop. Confirm private workspace/account rows and global jobs have the correct visibility.
 
-Two Minis may run two plans at once (two mutexes). They must not target the same local dirty checkout; they may push different `relay/<slug>/…` branches to GitHub.
+Each Mini schedules its own bounded workload. Never share a physical working copy across principals or Minis. Different workspace clones may push distinct validated `relay/<slug>/…` branches and open PRs; merge and protected-branch push remain unavailable.
