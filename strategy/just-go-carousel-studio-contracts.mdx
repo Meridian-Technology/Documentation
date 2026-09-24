@@ -23,6 +23,11 @@ Every admin route below requires `verifyToken` and `requirePlatformAdmin`, then 
 | POST | `/admin/pivot/carousel-accounts/:accountId/curation/search` | Account-scoped catalog search. Body is the filter spec |
 | GET, POST | `/admin/pivot/carousel-accounts/:accountId/curation/saved-searches` | List or save a named query |
 | DELETE | `/admin/pivot/carousel-accounts/:accountId/curation/saved-searches/:searchId` | Remove a saved query |
+| POST | `/admin/pivot/carousel-accounts/:accountId/curation/drafts` | Create a curation draft. No issue yet |
+| GET, PATCH | `/admin/pivot/carousel-accounts/:accountId/curation/drafts/:draftId` | Load or update the draft |
+| POST | `/admin/pivot/carousel-accounts/:accountId/curation/drafts/:draftId/revalidate` | Refresh snapshots and report missing/changed/unavailable |
+| POST | `/admin/pivot/carousel-accounts/:accountId/curation/drafts/:draftId/create` | Name the issue and create it. Idempotent |
+| POST | `/admin/pivot/carousel-accounts/:accountId/curation/drafts/:draftId/apply` | Apply an edit-selection draft to an existing issue |
 | POST | `/admin/pivot/tenants/:tenantKey/carousels/:deckId/slides/:slideId/image` | Multipart `image`. No file clears the override |
 | GET | `/admin/pivot/carousel-voice/catalog` | Voice keys derived from the slide manifest |
 | GET | `/admin/pivot/tenants/:tenantKey/carousel-voice` | Shipped, city, deck, and effective layers |
@@ -57,6 +62,9 @@ Current limits, unchanged by this spike:
 | Curation provider | `catalog` v1. `vector` is reserved and returns 501 |
 | Curation concurrency | 3 source tenants. Partial source failures set `continuation.complete` false |
 | Saved searches | 50 per account, unique name |
+| Curation draft | Account-scoped. Status `open` or `consumed`. Unique idempotency key |
+| Curation create | Cover + selected events, no back slide. 19 events max. Repeat key returns the same issue |
+| Curation apply | Retained event slides kept. Removed events stay as `detached` slides |
 | Slide image upload | JPEG, PNG, GIF, WebP, 5 MB, prefix `pivot-carousel/<tenantKey>` |
 | Export pixels | 1080 × 1350 |
 | Export artifacts | 21 files, 64 MiB each, 256 MiB total, PNG and ZIP only, 20 warnings |
