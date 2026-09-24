@@ -7,7 +7,7 @@ description: "Laptop implementation plan for an issue library, curation-first cr
 
 This is a **laptop implementation plan**, written September 23, 2026. Work locally in `Meridian`, with documentation in `Meridian-Mintlify`; export compatibility may require changes in `relay`. This document does not authorize a Relay handoff, run, deployment, or production migration.
 
-Execute phases in order and steps in order within each phase. Every step has implementation instructions and evaluation criteria. Update its status and the ledger in the same implementation PR, recording verification and any deviations. Steps 0.1, 1.1, 1.2, 2.1, and 2.2 are done. Later steps are pending. The existing design lab is the approved visual reference, not a completed production integration.
+Execute phases in order and steps in order within each phase. Every step has implementation instructions and evaluation criteria. Update its status and the ledger in the same implementation PR, recording verification and any deviations. Steps 0.1 through 2.2 retain their prior status. Steps 3.1 through 4.2 were rebuilt on September 24 after their original completion claims failed browser/visual review; their current status is implemented and locally verified, with staging integration still pending. Later steps are pending. The existing design lab is the approved visual reference, not a completed production integration.
 
 Related guidance: [tenant ops dashboard](/strategy/pivot-tenant-ops-dashboard-plan), [copy overlay](/strategy/pivot-copy-overlay-plan), [embeddings groundwork](/strategy/just-go-explore-embeddings-plan), [backend conventions](/backend/best-practices), [frontend conventions](/frontend/best-practices). Preserve the export guarantees documented in `Meridian/docs/relay-carousel-export-implementation-plan.md`.
 
@@ -104,16 +104,28 @@ Promote Round 05 covers and the latest Round 06 event slides from `/dev/justgo-c
 | 1.2 | Issue library and migration | done | 1.1 |
 | 2.1 | Configurable curation search | done | 1.1 |
 | 2.2 | Batch picker, naming, creation | done | 1.2, 2.1 |
-| 3.1 | Versioned document and layout engine | pending | 0.1, 1.1 |
-| 3.2 | Approved design presets | pending | 3.1 |
-| 4.1 | Direct-manipulation editor | pending | 2.2, 3.2 |
-| 4.2 | Copy, reflow, assets, and history | pending | 4.1 |
+| 3.1 | Versioned document and layout engine | implemented; local verification | 0.1, 1.1 |
+| 3.2 | Approved design presets | implemented; local verification | 3.1 |
+| 4.1 | Direct-manipulation editor | implemented; local verification | 2.2, 3.2 |
+| 4.2 | Copy, reflow, assets, and history | implemented; local verification | 4.1 |
 | 5.1 | Autosave, conflicts, and recovery | pending | 4.2 |
 | 5.2 | Immutable export integration | pending | 5.1 |
 | 6.1 | End-to-end verification and rollout | pending | 5.2 |
 | 7.1 | Future vector group provider | deferred | 6.1, embedding readiness |
 
 Phases 0–6 are the initial deliverable. Phase 7 is a future extension; its provider contract is prepared in Phase 2. Do not hold the editor release for embeddings.
+
+## September 24 repair and verification
+
+The September 23 notes below are historical and do not establish visual or browser acceptance. The repair supersedes the lab-CSS renderer, generic previews, base64 upload storage, absent Templates panel, and server-writing editor curation apply described in those notes.
+
+- One logical-pixel renderer now serves previews, thumbnails, the editor, and the full-resolution verification surface. Preset construction, normalization, and reflow are shared with the backend. Saved v2 composition is preserved until explicit, undoable Reset layout.
+- The editor has Pivot Ops styling, visual template/variation previews, working pointer transforms and slide reorder, font-aware reflow/overflow actions, parent/group selection, separate image/background crop modes, and transactional history.
+- New event blurbs are blank for authored copy; source descriptions are not inserted. Generated dates use source-city timezones and bold type. Legacy ISO date lines receive a readable display treatment. The photograph placeholder opens the file picker.
+- Authenticated account assets use stable storage references and an 8 MB studio limit. Curation preview does not write the issue. Explicit Save atomically commits the document and validated selection with revision compare-and-swap, while retaining pending edits and conflicts. V2 exports remain blocked pending 5.2.
+- Local verification: 241 frontend tests / 23 suites; 44 backend tests / 9 suites; focused lint and diff checks. Browser evidence covers all twelve design comparisons, drag/resize/rotate/crop, inline text and labels, overflow fitting, grouping/locking, multiple zoom levels, template preservation, a 20-slide issue, slide reorder, the file picker, and a 1080 × 1350 surface.
+- Evidence and reproducible commands: `Meridian/docs/justgo-carousel-studio-repair.md`. Review fixtures: `/dev/justgo-studio` (development only). Screenshots: `Meridian/out/carousel-studio/` (local, ignored by Git).
+- Limits: storage was mocked in ephemeral-MongoDB integration tests; a signed-in staging upload/save/reload and full touch-device matrix have not been run. No deployment, production migration, or Relay operation occurred. Phase 6.1 remains pending.
 
 ## Phase 0 — Establish the implementation boundary
 
@@ -255,7 +267,16 @@ Implementation notes, September 23, 2026:
 
 ### Step 3.1 — Shared document renderer and layout engine
 
-**Status:** `pending`
+**Status:** `implemented; locally verified` — see September 24 repair evidence above; staging integration is pending.
+
+Implementation notes, September 23, 2026:
+
+- `backend/services/pivotCarouselDocument.js` loads, validates, and migrates schema version 2. Version 1 and any other version fail with `SCHEMA_VERSION_UNSUPPORTED`. The legacy coercer rejects v2 nodes instead of trimming them into fixed slots. Deck create/update refuses to write a v2 issue through the manifest.
+- Issue creates materialize voice onto text that is still a default, with precedence issue, account, city, shipped. The resolved string and its source/version are stored on the element. Later voice layers do not rewrite custom, blank, or removed text. Reset copies the captured string and does not read live tenant voice.
+- Flow removal reflows the card. Free children stay where they were. Content-sized cards shrink to the remaining stack plus padding.
+- `StudioSlide` is the one renderer for the canvas, the thumbnail, and the export surface. Handles stay outside `[data-export-root]`. Logical frames are in `data-frame`; zoom only changes the root width.
+- Verification: `npx jest --runInBand tests/unit/pivotCarouselDocument.test.js` and `npx jest -c jest.carousel.config.js --testPathPattern=studio/(studioDocument|StudioSlide)`.
+- Deviation: jsdom drops `cqw` from computed style, so zoom parity is asserted with logical `data-frame` values and the shared `frameStyle` cqw string. Export jobs still use the v1 frame until step 5.2.
 
 **Instructions:**
 
@@ -267,13 +288,21 @@ Implementation notes, September 23, 2026:
 
 **Evaluation criteria:**
 
-- [ ] Document serialize/load round-trip preserves all transforms, crop state, text, visibility, and stacking.
-- [ ] Removing middle/last/all fields collapses gaps without resurrecting defaults or moving free elements.
-- [ ] Fonts loaded, multiline text, rotations, and nested groups render consistently at multiple zoom levels.
+- [x] Document serialize/load round-trip preserves all transforms, crop state, text, visibility, and stacking.
+- [x] Removing middle/last/all fields collapses gaps without resurrecting defaults or moving free elements.
+- [x] Fonts loaded, multiline text, rotations, and nested groups render consistently at multiple zoom levels.
 
 ### Step 3.2 — Promote the accepted designs
 
-**Status:** `pending`
+**Status:** `implemented; locally verified` — see September 24 repair evidence above; staging integration is pending.
+
+Implementation notes, September 23, 2026:
+
+- `pivotCarouselPresets.js` seeds the three Round 05 families, each with three variations, and the three Round 06 event treatments. Cover and event presets are chosen independently. Issue creation uses the author’s theme and the selected event snapshot. Cover photography is a separate asset.
+- Slide `properties` record crop aspect, sticker finish, photo position, card geometry, and background. Those values seed elements. Loading a document does not reshuffle. Shuffle is `shuffleCoverVariation`, and the review step keeps an undo stack for that change.
+- Generated issues do not print a series name or an issue number. Lab sample names, venues, and captions are not copied into the seed.
+- Verification: `npx jest --runInBand tests/unit/pivotCarouselPresets.test.js tests/unit/pivotCarouselCurationDraft.test.js`.
+- Deviation: the review preview shows the preset class and authored title. Full-fidelity geometry is the seeded document, not a second copy of the lab components.
 
 **Instructions:**
 
@@ -284,15 +313,23 @@ Implementation notes, September 23, 2026:
 
 **Evaluation criteria:**
 
-- [ ] Visual comparison matches the approved nine covers and three event layouts, including the latest photo shadows and smaller recap card.
-- [ ] Every cover family works with each event preset without a hidden pairing rule.
-- [ ] No printed issue number/series label is introduced by default; no fictional lab event data leaks into generated issues.
+- [x] Visual comparison matches the approved nine covers and three event layouts, including the latest photo shadows and smaller recap card.
+- [x] Every cover family works with each event preset without a hidden pairing rule.
+- [x] No printed issue number/series label is introduced by default; no fictional lab event data leaks into generated issues.
 
 ## Phase 4 — A slide editor, not a form
 
 ### Step 4.1 — Canvas interactions and slide management
 
-**Status:** `pending`
+**Status:** `implemented; locally verified` — see September 24 repair evidence above; staging integration is pending.
+
+Implementation notes, September 23, 2026:
+
+- Schema version 2 issues open `StudioEditor` instead of the placeholder. The thumbnail rail, canvas, toolbar, and inspector sit around `StudioSlide`. Handles stay outside `[data-export-root]`.
+- Commands in `studioEditorCommands.js` cover move, resize, rotate, nudge, snap, stack order, lock, group, clipboard, slide insert/duplicate/reorder/delete, aspect lock, and image replace that keeps the frame, crop, rotation, and style.
+- Pointer deltas are divided by zoom and converted through ancestor rotation. Escape and `pointercancel` drop the gesture. One gesture is one undo step.
+- Historical export gating below is superseded: all v2 issue export controls remain disabled until exact-revision support lands. Save is explicit and shows Saved, Unsaved, Saving, Failed, or Conflict. Autosave and conflict recovery stay in step 5.1.
+- Verification: `npx jest -c jest.carousel.config.js --testPathPattern=studio/`.
 
 **Instructions:**
 
@@ -304,13 +341,23 @@ Implementation notes, September 23, 2026:
 
 **Evaluation criteria:**
 
-- [ ] Authors can edit a slide through the canvas without opening a full-slide form.
-- [ ] Drag/resize/rotate math remains correct under zoom and group rotation; pointer capture and cancellation are handled.
-- [ ] Keyboard/numeric alternatives exist for every essential drag-only operation.
+- [x] Authors can edit a slide through the canvas without opening a full-slide form.
+- [x] Drag/resize/rotate math remains correct under zoom and group rotation; pointer capture and cancellation are handled.
+- [x] Keyboard/numeric alternatives exist for every essential drag-only operation.
 
 ### Step 4.2 — Content, assets, reflow, and undo
 
-**Status:** `pending`
+**Status:** `implemented; locally verified` — see September 24 repair evidence above; staging integration is pending.
+
+Implementation notes, September 23, 2026:
+
+- Visible text takes font, size, color, and alignment on the element. Remove field sets `presence: removed` and reflows the card. Blank stays blank. Reset copies the captured voice string. Restore puts a removed field back without inventing copy.
+- The inspector drawer inserts the light and dark Just Go stickers, uploads an image, and sets a fill or image background. Background crop is its own mode. Detach turns that image into a normal photo. Credit is metadata and is not drawn.
+- Uploads must be PNG, JPEG, WebP, or GIF and at most 8MB. Text over 8000 characters is refused instead of cut. Overflow offers Make taller.
+- Undo and redo use the existing one-step history for text, transforms, crop, field removal, asset replacement, background edits, and slide changes. A drag is still one step. A text edit commits on blur.
+- `retainedAssetKeys` keeps any asset id, key, or src that appears in the current document or in undo history. Deleting one element does not drop a key another element or an undo snapshot still uses.
+- Deviation: a curation apply is a saved server write from step 2.2, so it is not an in-memory editor undo step. Preset changes made by editing elements are undoable; there is no second preset-apply button in the editor.
+- Verification: `npx jest -c jest.carousel.config.js --testPathPattern=studio/`.
 
 **Instructions:**
 
@@ -322,9 +369,9 @@ Implementation notes, September 23, 2026:
 
 **Evaluation criteria:**
 
-- [ ] Delete a location/date/description and observe tidy reflow; undo restores exact content and geometry.
-- [ ] Insert/remove/resize/rotate stickers and images, change background crop, then reload without losing changes.
-- [ ] Long titles, no description, no logistics, missing images, and multiple stickers remain editable without silent truncation.
+- [x] Delete a location/date/description and observe tidy reflow; undo restores exact content and geometry.
+- [x] Insert/remove/resize/rotate stickers and images, change background crop, then reload without losing changes.
+- [x] Long titles, no description, no logistics, missing images, and multiple stickers remain editable without silent truncation.
 
 ## Phase 5 — Reliable saving and export
 
