@@ -1,0 +1,679 @@
+---
+title: "Relay plan parity refactor"
+description: "One canonical laptop-first plan source, phase-level verification and judging, durable cross-phase context, and single-transition approvals for Relay Mini handoffs."
+---
+
+## Purpose
+
+Make Relay a faithful compute handoff for the same phased workflow used on the laptop:
+
+```text
+one canonical plan
+  → one implementation agent per phase
+  → one prompt per implementation step
+  → one verification bundle per phase
+  → one read-only contract judge per phase
+  → one durable phase capsule
+  → one review transition to the next phase
+```
+
+The desired outcome is comparable implementation quality and completion semantics when a plan runs on Relay Mini or locally. Exact latency and model output will still differ by machine and vendor, but the plan, context, verification, and completion contract must be the same.
+
+<Warning>
+This is a Relay runner/planning refactor. It does not authorize a Mini deployment, a LaunchAgent restart, changes to production compute-job behavior, or execution of notification jobs on Relay.
+</Warning>
+
+## Decisions already made
+
+| Area | Decision |
+| --- | --- |
+| Canonical artifact | The rich laptop MDX is the only authored plan. Relay derives its execution snapshot from it. |
+| Implementation sessions | One implementation agent session per phase; one turn per step. |
+| Verification | Run a phase-level command bundle after all implementation steps, with explicit per-command working directories. |
+| Judge | One read-only, phase-level contract judge. It substitutes for human due diligence and must prevent false-complete/sloppy work. |
+| Context | Persist a bounded, structured phase capsule. The next phase gets the canonical source plus completed-phase capsules. |
+| Gates | Never require consecutive approvals without agent work. Approving a completed phase starts the next phase unless that next phase explicitly has exceptional pre-start review. |
+| Mixed packages | A phase may cover backend and frontend work. Verification commands must declare their own `cwd`; no implicit inherited package is allowed. |
+| Compatibility | Existing Relay Markdown plans remain runnable during migration. New plans use the canonical format. |
+
+## Current problems to eliminate
+
+1. A laptop MDX and a Relay Markdown file duplicate the same intent, and the Relay version loses decisions, file context, task completion rules, and constraints.
+2. Relay executes step-level tests and a fresh judge for every step, rather than verifying a complete phase.
+3. Relay resends the whole execution plan and unbounded previous step output on later turns; the next phase receives only the final-step narrative.
+4. A plan-level `phase-approve` combined with phase `approve-before` creates two stops per phase.
+5. A phase that spans packages can silently verify from an inherited, wrong working directory.
+
+## Non-goals
+
+- Change compute worker contracts, schedules, outbox behavior, or production apply semantics.
+- Run Meridian notification sends on the Mini.
+- Remove old plan support before canonical compilation, migration tooling, and acceptance coverage are complete.
+- Claim model-output determinism across vendors or machines.
+- Add a second implementation-model call solely to write a phase handoff.
+
+## Before starting
+
+1. Work from the Relay checkout: `cd relay`.
+2. Use the Node version required by `relay/package.json`.
+3. Preserve unrelated dirty work in all sibling repositories.
+4. Run focused tests with `npx vitest run <files>`; run the complete Relay suite before a merge candidate.
+5. Do not use `relay-handoff` until a later, explicitly approved deployment/acceptance plan says to stage the resulting execution plan on the Mini.
+
+## File map
+
+| Area | Existing files likely to change |
+| --- | --- |
+| Plan model and parser | `relay/src/parser/schema.ts`, `parser.ts`, `resolve.ts`, `stringify.ts`, `verify.ts`, parser fixtures/tests |
+| Planner/import | `relay/src/planning/import.ts`, `planner.ts`, `reader.ts`, `catalog.ts`, planning tests |
+| Run persistence | `relay/src/runner/types.ts`, `store.ts`, `transcript.ts`, `audit.ts`, `retry.ts` |
+| Execution and gates | `relay/src/runner/run.ts`, `gates.ts`, `verification.ts`, `judge.ts`, `usage-wait.ts` |
+| Context artifacts | `relay/src/pack/brief.ts` (replace/extend), `relay/src/pack/index.ts` |
+| Agent adapters | `relay/src/adapters/factory.ts`, `cursor.ts`, `codex.ts`, `claude.ts` |
+| API/UI state | `relay/src/api/app.ts`, planning/run API tests, `relay/web/`, `relay-mobile/` only where status vocabulary changes |
+| Documentation | `relay/README.md`, `relay/docs/verification-policy.md`, plan authoring docs, this strategy document |
+
+## Data model target
+
+The internal execution snapshot should have a versioned representation equivalent to:
+
+```ts
+type PhaseVerify = {
+  cwd: string;
+  command: string;
+  label?: string;
+};
+
+type PhaseGate = "auto" | "review-after" | "approve-before";
+
+type PhaseCapsule = {
+  version: 1;
+  canonicalPlanSha256: string;
+  phaseNumber: number;
+  phaseTitle: string;
+  completedSteps: Array<{ number: number; instruction: string }>;
+  changes: { commits: string[]; files: string[]; diffStat: unknown };
+  verification: Array<{ cwd: string; command: string; exitCode: number; outputTail: string }>;
+  decisions: string[];
+  deviations: string[];
+  blockers: string[];
+  judge: { verdict: "pass" | "fail"; summary: string; checks: string[] };
+};
+```
+
+Raw transcripts and full logs remain durable audit artifacts, but are references—not unbounded prompt input.
+
+## Task status ledger
+
+| Task | Status | Notes |
+| --- | --- | --- |
+| 1.1 | done | Defined canonical MDX execution annotations and versioned internal snapshot |
+| 1.2 | done | Compile/lint canonical source with source maps and digests |
+| 1.3 | done | Retained legacy Relay Markdown compatibility and migration tooling |
+| 2.1 | done | 2026-09-21 — explicit canonical verification bundles, exact per-command CWD policy, and structured results |
+| 2.2 | done | 2026-09-21 — canonical phases execute one ordered verification bundle and phase judge before commit/gates |
+| 2.3 | done | 2026-09-21 — phase repair artifacts, full-bundle re-verification, and safe phase restore cleanup |
+| 3.1 | done | 2026-09-21 — durable bounded phase capsules, derived audit facts, and sanitized optional agent summaries |
+| 3.2 | done | 2026-09-21 — phase-start context bundles, capsule handoff, and native session-only follow-up turns |
+| 3.3 | done | 2026-09-22 — recovery bundles, size/token bounds, fail-closed digest/state |
+| 4.1 | done | 2026-09-22 — phase contract judge after the verification bundle, structured contract answers, required-surface coverage, policy-backed checks |
+| 4.2 | done | 2026-09-22 — single review-after transitions; adjacent approve-before skipped unless exceptional after auto; consolidated reason required in canonical MDX |
+| 4.3 | done | Keep/reopen the phase implementation session for repairs where possible |
+| 5.1 | done | 2026-09-22 — canonical source/snapshot digest verification plus safe local/Mini staging preflight |
+| 5.2 | done | 2026-09-23 — offline parity fixture covers turns, judges, repair, gates, capsules, and restart recovery; full Relay suite green |
+| 6.1 | done | 2026-09-22 — canonical MDX annotations, reviewed snapshot fixture, explicit mixed-package verification bundles, and no parallel Relay plan |
+| 6.2 | done | 2026-09-22 — canonical authoring/migration/release docs plus draft/run provenance, preflight, phase status, and approval labels |
+
+---
+
+## Phase 1 — Canonical plan compilation and compatibility
+
+### Task 1.1 — Define the canonical authored-plan contract
+
+**Status:** `done`
+
+**Context:** The rich MDX must be both readable by humans and mechanically executable without maintaining a second abbreviated plan. Preserve prose sections such as decisions, non-goals, file context, task instructions, and evaluation criteria.
+
+**File context:**
+
+- `relay/src/parser/schema.ts`
+- `relay/src/parser/parser.ts`
+- `relay/src/parser/resolve.ts`
+- `relay/src/parser/stringify.ts`
+- `relay/src/planning/types.ts`
+- New canonical-plan parser/compiler module and fixtures
+
+**Instructions:**
+
+1. Specify a versioned MDX annotation format for plan defaults, phases, steps, phase verification, and gates. It must coexist with normal Mintlify MDX prose and preserve source locations.
+2. Define a normalized immutable execution snapshot. Include canonical-document digest, format version, source path, resolved defaults, and a source map from execution fields back to MDX sections.
+3. Make phase verification a first-class phase field: an ordered list of `{ cwd, command, label? }`. `cwd` is required for every Node command, even when it matches the phase editing directory.
+4. Keep steps focused on implementation instructions and optional inexpensive evidence checks. Do not silently reclassify old step verifies without recording the compatibility behavior.
+5. Specify gate semantics such that a normal completed-phase review is exactly one checkpoint. Exceptional pre-start approval remains expressible but cannot create a second adjacent checkpoint.
+
+**Evaluation criteria:**
+
+- [x] Unit fixtures parse a rich MDX plan and retain prose/source-map information.
+- [x] Invalid/missing explicit verify CWD, consecutive gates, and unsupported format versions fail with actionable source locations.
+- [x] Type tests prove old Relay Markdown and the new canonical snapshot have distinct but supported entry paths.
+
+**Implementation notes:** Added the hidden-comment `relay-plan`/`relay-phase`/`relay-step` MDX contract, a frozen version-1 `CanonicalExecutionSnapshot`, rich fixture coverage, and authoring documentation under `relay/docs/`. Legacy Relay Markdown remains on its existing parser path.
+
+---
+
+### Task 1.2 — Implement compile, resolve, and lint commands
+
+**Status:** `done`
+
+**Context:** Authors need a local deterministic command that catches loss, bad CWDs, and invalid frozen commands before a plan is handed off.
+
+**File context:**
+
+- `relay/src/cli.ts`
+- `relay/src/cli/run.ts`
+- `relay/src/parser/index.ts`
+- `relay/src/planning/import.ts`
+- `relay/src/runner/verification.ts`
+- New canonical-plan compiler/linter tests
+
+**Instructions:**
+
+1. Add `relay plan compile <canonical.mdx>` that emits the normalized execution snapshot without mutating the source document.
+2. Add `relay plan lint <canonical.mdx> --resolve` that compiles, resolves defaults, validates phases/gates/CWDs, and validates every frozen verification command against the local workspace.
+3. Report source location, phase/step, resolved editing CWD, resolved verify CWD, and command for each failure.
+4. Digest the exact canonical source bytes and normalized snapshot. Store both digests in the compiled output so a Mini can reject a mismatched artifact.
+5. Never shell out to an agent or mutate Git during compile/lint.
+
+**Evaluation criteria:**
+
+- [x] A valid fixture compiles deterministically twice with identical digests.
+- [x] A frontend fixture using Jest’s invalid `--run` flag fails lint before a run starts.
+- [x] A phase verify pointed at the wrong package fails lint with the expected resolved CWD.
+
+**Implementation notes:** Added `relay plan compile <canonical.mdx>` and `relay plan lint <canonical.mdx> --resolve`. Compilation emits exact-source and normalized-snapshot SHA-256 digests. Lint is read-only and reports MDX locations, phase/verification indices, resolved CWDs, commands, and remediations for local policy failures.
+
+---
+
+### Task 1.3 — Preserve legacy plans and add a migration path
+
+**Status:** `done`
+
+**Context:** Existing Relay Markdown plans must continue to work while new canonical plans are adopted deliberately.
+
+**File context:**
+
+- `relay/src/parser/fixtures/`
+- `relay/src/planning/import.ts`
+- `relay/src/runner/store.ts`
+- `relay/src/api/app.ts`
+- Parser/import/store tests
+
+**Instructions:**
+
+1. Keep the current Relay Markdown parser behind an explicit legacy format path.
+2. Store `planFormat`, source digest, snapshot digest, and source-map metadata in every new run record; preserve backward-compatible reads of old records.
+3. Provide a non-destructive conversion command that generates a proposed canonical MDX from a legacy plan and flags prose/context that cannot be inferred.
+4. Do not delete `relay/plans/` or silently replace an existing handoff source in this phase.
+
+**Evaluation criteria:**
+
+- [x] Existing parser fixtures and run-store fixtures still pass unchanged.
+- [x] A converted plan is lintable, while unmappable content is explicitly reported rather than discarded.
+- [x] Run persistence round-trips both formats.
+
+**Implementation notes:** Kept `parsePlanMarkdown` compatible and added explicit `parseLegacyPlanMarkdown`. New draft revisions and runs persist plan format, source digest, snapshot digest, and source-map metadata while old records remain readable. `relay plan migrate <legacy.md>` writes a canonical-MDX proposal to stdout and unmappable legacy verify/gate/prose warnings to stderr without modifying either source.
+
+**Phase 1 completion notes:** _None yet._
+
+---
+
+## Phase 2 — Phase verification transaction
+
+### Task 2.1 — Add explicit phase verification bundles
+
+**Status:** `done`
+
+**Context:** Verification should represent the phase contract, not an arbitrary intermediate state. Mixed frontend/backend phases are allowed when every command declares its package directory.
+
+**File context:**
+
+- `relay/src/parser/schema.ts`
+- `relay/src/parser/parser.ts`
+- `relay/src/parser/verify.ts`
+- `relay/src/runner/verification.ts`
+- `relay/src/runner/types.ts`
+- Parser and verification tests
+
+**Instructions:**
+
+1. Parse, stringify, resolve, and validate ordered phase verification bundles.
+2. Make `cwd` required and workspace-relative for each verification command. Resolve package/runtime policy from that CWD, not from the phase editing CWD.
+3. Keep the current target-existence, test-filter, script mismatch, and Node runtime protections for every command in the bundle.
+4. Define legacy step-verify handling: retain it for legacy runs, but prohibit it in new canonical plans unless explicitly marked as a cheap nonterminal check.
+5. Return a structured result for every command, including output tail and resolved runtime.
+
+**Evaluation criteria:**
+
+- [x] One phase can verify backend Jest and frontend Jest/CRA commands from their respective package directories.
+- [x] Any failing command makes the phase incomplete and identifies its source location.
+- [x] Legacy step-verify fixtures retain their current behavior.
+
+**Implementation notes:** Canonical `relay-phase.verify` commands retain their ordered, explicit CWD contract through lint and the reusable runner bundle. Canonical verification resolves exactly from each declared command directory (never the editing CWD or a nearest-package fallback), applies existing target/script/filter/runtime policy per command, and returns a bounded output tail plus resolved Node runtime for each command. Legacy step verification continues on its existing resolution path; runner scheduling of this bundle at phase completion remains Task 2.2.
+
+---
+
+### Task 2.2 — Make phase completion the verification boundary
+
+**Status:** `done`
+
+**Context:** A phase has one implementation agent and may contain several implementation steps. Relay must not claim completion, open a review gate, or commit the phase before its entire verification bundle passes.
+
+**File context:**
+
+- `relay/src/runner/run.ts`
+- `relay/src/runner/audit.ts`
+- `relay/src/runner/types.ts`
+- `relay/src/runner/transcript.ts`
+- `relay/src/runner/run.test.ts`
+- `relay/src/runner/integration.test.ts`
+
+**Instructions:**
+
+1. Execute implementation steps sequentially; retain nonzero adapter exits as immediate failures.
+2. After the last step, execute all phase verification commands exactly once, in order.
+3. Capture a phase baseline before the first step. Supply the judge a diff from that baseline before committing, so the review is not blind after `git commit`.
+4. Commit only after phase verification and the phase judge pass. Preserve the current explicit branch/alignment safety behavior.
+5. Persist phase-level verification results and resume safely if the process stops between verification commands.
+
+**Evaluation criteria:**
+
+- [x] A three-step phase starts three implementation turns, one verification bundle, and no review gate before the final step.
+- [x] A failing last verification prevents phase commit and completion.
+- [x] The judge input includes the complete phase delta even though the eventual successful phase is committed.
+
+**Implementation notes:** Canonical MDX sources now compile into the runner's execution record while preserving canonical provenance. The runner captures a durable phase Git baseline before its first turn, persists each phase-verification command result as it completes, resumes an interrupted bundle from its successful prefix, and executes the judge against the complete baseline-to-working-tree phase delta before committing. Legacy Markdown stays on its existing step-verification path; phase-level repair semantics remain Task 2.3.
+
+---
+
+### Task 2.3 — Preserve phase repair and retry semantics
+
+**Status:** `done`
+
+**Context:** A failed phase test or judge must repair the phase without treating its individual steps as separately complete or changing the frozen verification contract.
+
+**File context:**
+
+- `relay/src/runner/retry.ts`
+- `relay/src/runner/run.ts`
+- `relay/src/runner/verification.ts`
+- `relay/src/runner/types.ts`
+- Retry/runner tests
+
+**Instructions:**
+
+1. Replace step-repair briefs with a phase-repair brief that includes the phase contract, all failed verification results, and judge findings.
+2. Resume the implementation session with a repair instruction when it is still available. Otherwise create a fresh recovery session from the bounded recovery bundle.
+3. Re-run the full phase verification bundle and phase judge after a repair; do not permit selective passing of only the previously failed command unless the canonical plan itself defines independent verification groups.
+4. Preserve existing safe baseline/last-completed-phase retry behavior and never hard-reset unrelated user work.
+
+**Evaluation criteria:**
+
+- [x] A phase verify failure generates a repair artifact and re-runs the full bundle after repair.
+- [x] A failed judge produces the same repair path.
+- [x] Existing destructive-retry safeguards remain covered by tests.
+
+**Implementation notes:** Canonical phase failures now write a bounded phase-repair brief with the immutable command contract, every persisted command result, judge findings, and all phase instructions. Automatic repair retains an available phase session; manual/recovered repair explicitly starts fresh. Before a repair, the phase verification record is cleared so Relay reruns every command and the judge. Safe restore-from-phase also discards only replayable baseline/verification metadata for the restarted phase and later phases; its existing branch and destructive-reset safeguards are unchanged.
+
+**Phase 2 completion notes:** _None yet._
+
+---
+
+## Phase 3 — Durable, bounded phase context
+
+### Task 3.1 — Persist phase capsules
+
+**Status:** `done`
+
+**Context:** The next phase needs more than the last assistant message, but raw transcripts must not grow every future prompt without bound.
+
+**File context:**
+
+- `relay/src/pack/brief.ts`
+- `relay/src/pack/index.ts`
+- `relay/src/runner/audit.ts`
+- `relay/src/runner/types.ts`
+- `relay/src/runner/store.ts`
+- New capsule module/tests
+
+**Instructions:**
+
+1. Introduce the versioned `PhaseCapsule` artifact described above and save it atomically in the run directory after a phase passes verification and judgment.
+2. Derive changed files, commit identifiers, diff statistics, command results, plan digests, and phase/step identity from Relay state rather than trusting model text.
+3. Permit the implementation agent’s final response to contribute decisions, deviations, and blockers through a strictly bounded structured section; absent/invalid optional content must not block otherwise valid work.
+4. Preserve full adapter transcripts, event streams, logs, diffs, and verify output as durable audit files referenced by the capsule.
+5. Do not include secrets, absolute private paths, or unlimited output in capsules.
+
+**Evaluation criteria:**
+
+- [x] A completed phase writes a deterministic capsule with all required derived fields.
+- [x] A capsule never exceeds the defined size limit when adapter output/logs are large.
+- [x] Capsule tests prove sensitive agent environment values are excluded.
+
+**Implementation notes:** Added an atomically written, version-1 `phase-N-capsule.json` capped at 24 KiB, plus a compact pointer in run state. Capsules derive plan digests, phase/step identity, Git commits/files/diff stats, and verification results from Relay state; adapter text may contribute only a bounded `relay-phase-summary` JSON block. Sensitive values and private absolute paths are removed at the persistence boundary. Full patches, raw verification output, logs, and transcripts remain separate run artifacts referenced by relative capsule paths.
+
+---
+
+### Task 3.2 — Redesign live-session prompt assembly
+
+**Status:** `done`
+
+**Context:** Shared plan context should be durable without repeatedly paying for the full document and prior raw output on every step.
+
+**File context:**
+
+- `relay/src/runner/run.ts`
+- `relay/src/adapters/cursor.ts`
+- `relay/src/adapters/codex.ts`
+- `relay/src/adapters/claude.ts`
+- `relay/src/adapters/factory.ts`
+- Adapter/runner integration tests
+
+**Instructions:**
+
+1. On the first turn of a phase, provide the canonical source, resolved phase contract, and all earlier phase capsules.
+2. On later live turns, send the current step instruction and only newly produced bounded state. Do not append the full plan or all earlier raw step output when the vendor session already carries that context.
+3. Keep one implementation conversation per phase for Cursor, Codex, and Claude. Persist vendor thread/session identifiers where supported.
+4. Do not count the phase judge as the implementation agent or reuse its context for implementation.
+5. Retain raw output only as an audit/recovery input, not normal prompt input.
+
+**Evaluation criteria:**
+
+- [x] Instrumented adapter tests show one implementation session per healthy phase and one implementation prompt per step.
+- [x] Later steps do not receive duplicate full-plan content or unbounded previous outputs.
+- [x] Codex and Claude resume the stored phase thread/session on later steps.
+
+**Implementation notes:** The first turn writes and receives a phase-session contract bundle plus `plan.md` and every prior bounded capsule. Healthy later turns receive no plan, phase brief, or earlier adapter transcript—only the active instruction carried by the native phase conversation and any newly requested steering artifact. Cursor retains one SDK conversation per phase; Codex thread IDs and Claude session IDs persist under the run directory and resume on later turns. Claude now also honors explicit fresh-session requests for repair/recovery.
+
+---
+
+### Task 3.3 — Define restart recovery bundles and bounds
+
+**Status:** `done`
+
+**Context:** A restart cannot assume an in-memory Cursor session survives. Recovery must still preserve the phase contract and prior decisions without recreating uncontrolled prompt growth.
+
+**File context:**
+
+- `relay/src/runner/run.ts`
+- `relay/src/runner/retry.ts`
+- `relay/src/runner/store.ts`
+- `relay/src/runner/usage-wait.ts`
+- `relay/src/pack/`
+- Recovery tests
+
+**Instructions:**
+
+1. Build a recovery bundle containing canonical-plan identity, current phase contract, previous capsules, completed current-phase steps, bounded relevant transcript excerpts, pending repair/steering details, and working-tree/commit identity.
+2. Use the recovery bundle only when a native phase session cannot resume; record that a fresh recovery agent was required.
+3. Define explicit byte/token-oriented limits and deterministic truncation rules for every promptable artifact.
+4. Fail closed on missing/mismatched canonical digest, missing phase capsule, or inconsistent repository state rather than silently continuing with stale context.
+
+**Evaluation criteria:**
+
+- [x] A simulated Relay restart can finish a phase from its recovery bundle.
+- [x] Recovery never injects a full historical log into a prompt.
+- [x] Mismatched plan digest or phase state produces a clear, non-mutating failure.
+
+**Implementation notes:** Restart recovery writes a bounded `phase-N-recovery.md` (16 KiB / 4096-token cap) only when Codex/Claude cannot resume a persisted vendor session. The bundle carries canonical digests, the current phase contract, completed-step tails, prior capsule summaries, repository identity, truncated transcript/steering excerpts, and never `log.txt`. Cursor and missing sessions start a recorded fresh agent. A mismatched canonical digest, missing/changed capsule, or off-branch worktree fails as `recovery-context-invalid` without git reset/commit. Usage-wait resume uses the same native-session check. Checkpoint restore clears stale recovery cursors.
+
+**Phase 3 completion notes:** Phase 3 is complete: capsules persist after a passing phase, live later turns stay on the native session, and a process restart recovers from a bounded bundle or fails closed.
+
+---
+
+## Phase 4 — Contract judging and single-transition gates
+
+### Task 4.1 — Replace the step judge with a phase contract judge
+
+**Status:** `done`
+
+**Context:** The judge is an automated form of human due diligence. It should decide whether the completed phase fulfilled its declared contract, not repeatedly critique partial implementation.
+
+**File context:**
+
+- `relay/src/runner/judge.ts`
+- `relay/src/runner/run.ts`
+- `relay/src/runner/types.ts`
+- `relay/src/adapters/factory.ts`
+- `relay/src/runner/judge.test.ts`
+- `relay/docs/verification-policy.md`
+
+**Instructions:**
+
+1. Invoke one fresh, read-only judge only after the phase verification bundle passes.
+2. Give it the resolved phase contract, completed step instructions, canonical constraints relevant to the phase, phase baseline diff/changed files, verification results, and proposed phase capsule.
+3. Require structured output that answers: declared outcomes complete; expected surfaces/files present; scope boundaries respected; verification evidence sufficient; blockers/deviations disclosed.
+4. Re-execute any judge-supplied shell checks under the same policy before accepting a pass.
+5. Fail if the judge writes to the worktree. A judge verdict failure routes to phase repair, not a false completion.
+
+**Evaluation criteria:**
+
+- [x] A multi-step phase invokes exactly one judge.
+- [x] A judge that overlooks a named required surface is rejected by fixture coverage.
+- [x] Judge mutation, invalid structured output, and failed judge checks fail safely.
+
+**Implementation notes:** Canonical phases now invoke one fresh, read-only contract judge after the verification bundle passes and before commit. The critic receives the resolved phase contract, step instructions, relevant MDX constraints, baseline diff, verification results, and a proposed capsule. Pass requires structured contract answers plus covering checks for named files, symbols, and routes; Relay re-runs those checks under verification policy. Mutation, invalid JSON/contract output, uncovered surfaces, and failed checks fail closed into phase repair. Legacy Markdown keeps its existing per-step judge.
+
+---
+
+### Task 4.2 — Replace double approvals with transition gates
+
+**Status:** `done`
+
+**Context:** Approval should mean something concrete: review a completed phase and then permit the next work. Relay must not ask twice with no agent work in between.
+
+**File context:**
+
+- `relay/src/runner/gates.ts`
+- `relay/src/runner/run.ts`
+- `relay/src/runner/types.ts`
+- `relay/src/parser/schema.ts`
+- `relay/src/parser/resolve.ts`
+- Gate/parser/runner tests
+
+**Instructions:**
+
+1. Replace plan-level `phase-approve` plus per-phase `approve-before` composition with normalized transition semantics.
+2. Default a normal reviewable phase to `review-after`: phase verification and judge complete, Relay parks once, and approval starts the next phase directly.
+3. Support exceptional `approve-before` only as an explicit risk boundary. Validate that it cannot be adjacent to a preceding post-phase review without an explicit consolidated reason/transition.
+4. Migrate kickoff approval overrides and all run recovery paths without changing historical run records.
+5. Update user-facing state labels so the UI explains exactly whether it is awaiting review of completed work or authorization to begin exceptional work.
+
+**Evaluation criteria:**
+
+- [x] A seven-phase normal plan exposes seven—not fourteen—review transitions.
+- [x] Approving Phase N begins Phase N+1 without a second immediate park.
+- [x] Exceptional pre-start gates still work and have explicit test coverage.
+
+**Implementation notes:** Plan-level `phase-approve` is now only the default `review-after` for omitted phase gates. Explicit `auto` and `approve-before` are not stacked with that default. Approving a completed phase starts the next phase and skips an adjacent `approve-before`. Canonical MDX still forbids that adjacency unless `transition: consolidated` plus a reason is present; runtime remains one checkpoint. Kickoff approval overrides use the same skip. UI copy distinguishes reviewing completed work from authorizing exceptional work. Historical run records are unchanged.
+
+---
+
+### Task 4.3 — Keep the phase agent available for repair when possible
+
+**Status:** `done`
+
+**Context:** A judge rejection should be a continuation of the same phase’s work, not a context-free new implementation effort whenever the vendor permits it.
+
+**File context:**
+
+- `relay/src/adapters/factory.ts`
+- `relay/src/adapters/cursor.ts`
+- `relay/src/adapters/codex.ts`
+- `relay/src/adapters/claude.ts`
+- `relay/src/runner/run.ts`
+- Adapter/retry tests
+
+**Instructions:**
+
+1. Do not close a healthy implementation phase session before phase verification and judgment have resolved.
+2. Send phase-repair findings to the existing implementation conversation where the adapter supports it.
+3. For an unavailable/expired session, use the recovery bundle and record the fresh-session fallback in the run/capsule.
+4. Ensure cancellation, usage pauses, failure handling, and resources are released correctly at a terminal phase transition.
+
+**Evaluation criteria:**
+
+- [x] A judge rejection continues in the existing Cursor/Codex/Claude phase session in adapter fixtures.
+- [x] Restart/usage-pause fallback uses a recovery session and preserves the phase contract.
+- [x] No adapter session leaks after success, failure, stop, or cancellation.
+
+**Implementation notes:** Cursor no longer disposes the SDK conversation on the last implementation turn. `closePhase` runs after a successful phase (before park/advance), on durable failure, stop, and usage pause. Automatic judge/verify repair omits `freshSession`; Codex/Claude manual repair resumes `phase-N.session.json` when present. Capsules record `session.freshAgent` when recovery or an expired session forced a new conversation.
+
+**Phase 4 completion notes:** _None yet._
+
+---
+
+## Phase 5 — Handoff preflight and parity acceptance
+
+### Task 5.1 — Add local and Mini handoff preflight
+
+**Status:** `done`
+
+**Context:** A remote run must prove it is using the intended canonical plan and has the required checkout, package directories, runtimes, and frozen test commands before consuming agent capacity.
+
+**File context:**
+
+- `relay/src/planning/import.ts`
+- `relay/src/api/app.ts`
+- `relay/src/runner/verification.ts`
+- `relay/src/workspace/`
+- API/planning/verification integration tests
+
+**Instructions:**
+
+1. Make canonical plan staging submit the source and compiled snapshot together; Mini recomputes and compares source/snapshot digests before creating a draft.
+2. Add a non-mutating preflight result that reports workspace/repository identity, branch/start point, declared edit directories, verification package manifests, compatible runtime availability, and frozen-command validation.
+3. Keep preflight separate from run acceptance and execution. A successful handoff only stages a reviewable draft.
+4. Never expose bearer values, vendor credentials, private configuration, or raw environment values in a preflight result.
+
+**Evaluation criteria:**
+
+- [x] Digest mismatch rejects a draft before it can be accepted.
+- [x] Missing frontend package/runtime and invalid frozen command are visible as actionable draft preflight failures.
+- [x] Successful preflight does not start a run or mutate a checkout.
+
+**Implementation notes:** Canonical `relay submit` now lints locally and submits the MDX source with its compiled snapshot. The import API recompiles the source and rejects digest mismatches before creating a draft. Canonical draft revisions persist a redacted, read-only preflight covering repository identity/start points, editing directories, package manifests, runtime availability, and frozen-command policy validation; failed preflights remain reviewable but cannot be accepted or started.
+
+---
+
+### Task 5.2 — Build parity fixtures and acceptance measurements
+
+**Status:** `done`
+
+**Context:** “Rivals laptop execution” needs a repeatable contract test, not an anecdotal comparison of two model outputs.
+
+**File context:**
+
+- `relay/src/runner/integration.test.ts`
+- `relay/src/acceptance/`
+- `relay/src/api/planning.integration.test.ts`
+- Adapter fixtures/tests
+- New parity harness and fixture plans
+
+**Instructions:**
+
+1. Create a multi-phase fixture containing backend/frontend verification, a cross-phase decision, a failing phase verify, a failing judge, a repair, a review transition, and a restart recovery.
+2. Instrument fake adapters to assert exact implementation-turn count, one judge per phase, no duplicate full-plan prompt on later live turns, and expected capsule inputs for the next phase.
+3. Define measured outputs: compile digest parity, phase/step state sequence, verify commands/CWDs, judge count/verdicts, gate count, capsule schema/digest, and recovery behavior.
+4. Add an optional real-vendor/manual Mini acceptance script that is explicitly non-default and does not require credentials in source or tests.
+
+**Evaluation criteria:**
+
+- [x] Automated parity fixture verifies one implementation turn per step and one judge per phase.
+- [x] It detects consecutive approval gates and wrong-package verification.
+- [x] Complete Relay suite passes with the new fixture enabled.
+
+**Implementation notes:** `relay/src/acceptance/parity.test.ts` runs the offline contract with fake adapters: implementation turns, one judge per phase, mixed-package verification CWDs, a failed verify, a failed judge, repair, two review gates, three capsules, and restart recovery. `manual-mini-parity.sh` can lint and compile locally; `--stage` is separate and does not accept or start a run. On 2026-09-23, `npx vitest run` passed 1145 tests and `tsc --noEmit` passed. Live Cursor, Codex, and Claude resume remains a manual check.
+
+**Phase 5 completion notes:** Offline parity coverage and the full Relay suite are green. A Mini draft was not staged.
+
+---
+
+## Phase 6 — Reference migration and documentation
+
+### Task 6.1 — Migrate the Meridian notification-platform pair as a reference fixture
+
+**Status:** `done`
+
+**Context:** The two existing equivalent plans expose the exact lossy-translation problem. Migrate them only after the compiler and runner support canonical plans.
+
+**File context:**
+
+- `Meridian-Mintlify/strategy/meridian-job-notification-platform-plan.mdx`
+- `relay/plans/meridian-job-notification-platform.md`
+- New compiled fixture/snapshot location under `relay/src/parser/fixtures/` or planning fixtures
+
+**Instructions:**
+
+1. Add canonical execution annotations to the MDX without deleting its human handoff content.
+2. Move frontend verification to phase bundles with valid commands and explicit `Meridian/frontend` CWD; retain backend checks under `Meridian/backend`.
+3. Split only execution boundaries that require independent agents or incompatible workspace setup. A mixed codebase phase may remain mixed when its phase contract and verify CWDs are explicit.
+4. Generate the Relay execution snapshot from the MDX and compare it against a reviewed fixture. Do not keep a manually maintained equivalent Relay plan once migration is accepted.
+5. Preserve the explicit boundary: this particular plan concerns laptop/Heroku Meridian notification execution, not Mini notification sending.
+
+**Evaluation criteria:**
+
+- [x] The canonical MDX compiles with no loss warnings.
+- [x] The generated fixture contains every task constraint, decision, and phase verification bundle expected by review.
+- [x] No invalid Jest `--run` command remains in the canonical plan or generated snapshot.
+
+**Implementation notes:** Added the version-1 `relay-plan`, `relay-phase`, and `relay-step` annotations directly to the Mintlify handoff without removing its human context. Phase verification uses explicit `Meridian/backend` and `Meridian/frontend` CWDs, including mixed phases; frontend checks use `react-scripts test --watchAll=false --testPathPattern=…`, not the invalid Jest `--run` form. The reviewed fixture and focused canonical-plan test pin the derived execution contract and digests, retain the key decision/boundary prose, and lint every bundle. There is no parallel `relay/plans/meridian-job-notification-platform.md`. The plan continues to forbid Relay/Mini notification sending.
+
+---
+
+### Task 6.2 — Update authoring, UI, and release documentation
+
+**Status:** `done`
+
+**Context:** Authors and reviewers need to understand the new contract; UI must distinguish implementation, verification, judging, review, recovery, and preflight states.
+
+**File context:**
+
+- `relay/README.md`
+- `relay/docs/verification-policy.md`
+- `relay/docs/` plan/handoff authoring guides
+- `relay/web/`
+- `relay-mobile/`
+- Relevant API/UI tests
+
+**Instructions:**
+
+1. Document canonical authoring annotations, explicit verification CWDs, phase capsules, judge scope, recovery behavior, and the single-transition gate rule.
+2. Document legacy-plan support and a clear migration deadline/criteria without deleting supported artifacts prematurely.
+3. Update run/draft UI labels to show plan format/digest, phase verification progress, judge verdict, capsule availability, and the exact meaning of any approval control.
+4. Add release notes including the plan-format compatibility boundary and the fact that deployment remains separately authorized.
+
+**Evaluation criteria:**
+
+- [x] Docs contain an end-to-end authored canonical plan example with a mixed backend/frontend phase.
+- [x] UI/API tests cover review-after, exceptional approve-before, phase judge failure, and preflight failure labels.
+- [x] A new author can compile/lint a plan locally without reading source code.
+
+**Implementation notes:** Added mixed-package canonical MDX authoring guidance, phase-judge/capsule/recovery and single-transition approval explanations, a compatibility/migration boundary, and release notes that deployment remains separately authorized. Draft review shows canonical/legacy format, source and snapshot digests, phase verification bundles, and blocking handoff preflight failures. Run detail separates verification progress, phase-judge verdict, and bounded capsule availability. Approval copy distinguishes review-after from exceptional approve-before. Release notes also record the legacy gate, relative verify cwd, and legacy-owner account lookup behavior.
+
+**Phase 6 completion notes:** Authoring docs, release notes, and web labels match the canonical contract. Deployment is still a separate operator action.
+
+---
+
+## Definition of done
+
+- [x] One rich MDX source produces Relay’s immutable execution snapshot; no manual equivalent execution plan is maintained.
+- [x] A healthy phase uses one implementation agent/session, one turn per step, one verification bundle, and one read-only contract judge.
+- [x] Each verification command has a declared package CWD and is preflighted before staging/execution.
+- [x] The next phase receives the canonical plan plus bounded capsules, not only the prior final response or an unbounded transcript.
+- [x] Normal phase review creates one transition checkpoint; no back-to-back approval prompts occur without agent work.
+- [x] Repair continues the existing phase session where possible and otherwise uses a recorded bounded recovery bundle.
+- [ ] Mini staging validates source/snapshot digests and preflight state without starting a run. The local API test covers digest rejection and non-execution. A Mini draft has not been staged.
+- [x] Legacy plans remain runnable until the documented migration criteria are met.
+- [x] The parity fixture proves the intended turn count, judge count, context behavior, verification CWDs, gate count, and restart recovery behavior.
+
+Local acceptance on 2026-09-23: `npx vitest run` passed 1145 tests and `tsc --noEmit` passed. That run did not stage a Mini draft, accept a run, or send notifications. Live vendor session resume is still a manual check.
