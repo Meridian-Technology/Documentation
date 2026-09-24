@@ -1,0 +1,402 @@
+---
+title: "Just Go — Carousel studio implementation plan"
+description: "Laptop implementation plan for an issue library, curation-first creation, the approved Just Go designs, and a freely editable slide canvas."
+---
+
+## How to use this plan
+
+This is a **laptop implementation plan**, written September 23, 2026. Work locally in `Meridian`, with documentation in `Meridian-Mintlify`; export compatibility may require changes in `relay`. This document does not authorize a Relay handoff, run, deployment, or production migration.
+
+Execute phases in order and steps in order within each phase. Every step has implementation instructions and evaluation criteria. Update its status and the ledger in the same implementation PR, recording verification and any deviations. Steps 0.1, 1.1, 1.2, and 2.1 are done. Later steps are pending. The existing design lab is the approved visual reference, not a completed production integration.
+
+Related guidance: [tenant ops dashboard](/strategy/pivot-tenant-ops-dashboard-plan), [copy overlay](/strategy/pivot-copy-overlay-plan), [embeddings groundwork](/strategy/just-go-explore-embeddings-plan), [backend conventions](/backend/best-practices), [frontend conventions](/frontend/best-practices). Preserve the export guarantees documented in `Meridian/docs/relay-carousel-export-implementation-plan.md`.
+
+## Product outcome
+
+A carousel is a named, durable issue belonging to an editorial account. Authors can create many issues, revisit old ones, duplicate an issue, and work across accounts without overwriting a shared tenant slideshow.
+
+The primary creation flow is:
+
+1. Open the issue library and select an editorial account.
+2. Choose city picks or a global recap and curate the entire event selection in a configurable search workspace.
+3. Review and order the selected events, then continue.
+4. Prompt for the issue name **after curation**.
+5. Create the issue and open the slide editor with populated, editable slides.
+6. Edit, save, and export a specific revision; return to the library later.
+
+The editor should feel like Google Slides: slide thumbnails on the left, a large direct-manipulation canvas in the center, a compact toolbar above, and a contextual inspector for the selected object. Selecting an object should be the primary way to edit it. A large form containing every slide field is not the main interface.
+
+Two editorial formats share the same visual vocabulary:
+
+- **City picks:** an upcoming, themed collection within a city, with an independently chosen hero photograph. A catchy cover title expresses the theme, rather than mechanically listing event names.
+- **Sorry you missed it:** a global collection of past events, using recap language and explicit source-city provenance. The format is metadata; it does not force a printed series name onto every slide.
+
+## Current implementation findings
+
+| Area | Existing behavior | Consequence for this plan |
+| --- | --- | --- |
+| Storage | `backend/schemas/pivotCarouselDeck.js` stores decks in the global DB and has a non-unique tenant/date index | Multiple documents already exist; do not describe this as removing a database singleton constraint |
+| Entry page | `PivotCarouselPage.jsx` lists decks and opens the requested ID or the most recently touched deck | Replace implicit opening with a real library; an invalid explicit deck ID must not silently open another issue |
+| Event selection | `PivotCarouselEventPicker.jsx` fills individual slots; catalog service searches one tenant, published events, keyword/week/date, offset pagination | Add a separate batch-curation workflow and stronger search contract |
+| Content | Event details are snapshots; voice is resolved through slide/deck/city/default layers | Preserve provenance, but materialize default text for independent editing and stable exports |
+| Layout | Slide manifests coerce slot values; cover/back are structurally fixed; rendering is template driven | Add a versioned editable document, not more fixed-form options |
+| Export | Compute jobs carry deck ID/revision; current revision derives from `updatedAt`; claim checks the current deck; render context reads voice | Pin immutable content, resolved text, and assets so subsequent edits cannot alter a queued export |
+| Design lab | Approved covers and event layouts live only in the temporary lab | Promote their design rules to production presets without copying fictional sample content |
+
+Primary code seams are under `frontend/src/pages/PlatformAdmin/PivotTenantDashboard/carousel/`, the `pivotCarousel*` backend services and schemas, `backend/constants/zineSlideTypes.js`, and `relay/src/jobs/carousel.ts`.
+
+## Decisions and contracts
+
+### Account, issue, and source scope
+
+An **editorial account** is an internal publishing identity such as a city social account or global Just Go magazine. It is not a new login, tenant database, or OAuth integration. Initially platform admins operate these accounts through existing authorization.
+
+Each account has an ID, display name, optional handle, default owner tenant, permitted source tenants, voice defaults, and default format. Each issue retains an owner tenant for compatibility with current authorization/export routing, plus an account ID and stable issue ID. Source events may come from multiple explicitly authorized tenants; ownership and source city are separate concepts. A global account must have an explicitly configured owner tenant rather than an invented `global` database.
+
+An event reference is `(sourceTenantKey, eventId)` with an immutable editorial snapshot and capture timestamp. Never assume ObjectIds alone identify events across city databases. Cross-city selection must not change catalog publication state or consumer Drop membership.
+
+### Document model
+
+Use an additive `schemaVersion: 2` document with stable slide and element IDs. Keep a version-1 renderer available for untouched legacy issues. Store validated data rather than executable CSS/HTML.
+
+| Record | Required content |
+| --- | --- |
+| Account | Identity, owner scope, allowed sources, defaults |
+| Curation draft | Account, format, query/filter specification, selected references, ordered snapshots, optional theme, creation provenance, draft revision |
+| Issue | Name, account, owner tenant, format, lifecycle state, curation provenance, current revision, creator/editor timestamps |
+| Revision | Immutable resolved document, schema/preset versions, asset references, source snapshots, voice provenance |
+| Slide | Stable ID, dimensions, background, ordered elements, preset provenance |
+| Element | Stable ID, kind, local position/size, rotation, stacking, visibility, lock state, optional parent/group, content and style |
+| Asset | Stable ID/storage key, dimensions, source/credit, ownership, retention references |
+
+Use a logical 1080 × 1350 coordinate space for the initial 4:5 slides. Element positions and dimensions remain independent of editor zoom. Element kinds include text, image, card/group, shape, and sticker. Images keep frame bounds separate from crop focal point/scale. Backgrounds are replaceable, pannable/croppable image layers or solid fills; an author may detach an image background into a movable ordinary image.
+
+### Voice and layout rules
+
+- Resolve shipped, city, account, and issue voice defaults when creating content, with precedence documented and tested. Existing behavior is the baseline; account defaults sit between city and issue defaults.
+- Store the resulting text on the element. Every visible text item is editable, including dates, places, labels, cover text, and calls to action.
+- Track default provenance for an explicit reset action. Later voice changes never silently rewrite existing issues.
+- Distinguish default, custom, intentionally blank, and removed fields. Deletion must not trigger fallback text to reappear.
+- Cards begin as **auto-layout groups**: deleting a field removes its gap, and content-sized cards shrink while maintaining padding. Fixed-size cards redistribute only according to an explicit alignment rule.
+- Dragging/resizing a card changes its outer geometry while its children can continue to reflow. Moving an individual child explicitly detaches that child into free placement; explain this in the inspector and make it undoable.
+- Free-positioned elements stay where the author placed them. Offer an explicit, undoable “Reset layout” rather than silently rearranging a slide.
+- Long text remains stored in full. Show overflow and offer resize, reflow, or explicit font fitting; do not silently truncate copy to fit an old manifest limit.
+
+### Approved design baseline
+
+Promote Round 05 covers and the latest Round 06 event slides from `/dev/justgo-cover-lab`:
+
+- Three cover families, each with three variations: Loose letters, Open invitation, and Kept somewhere.
+- Three event presets usable with **any** cover: Photo note, On the bill, and In the room. Do not encode one-to-one cover/event pairing.
+- Photo note starts with a square photo; On the bill starts with a portrait photo. Both have the approved cream sticker rim, rounded cut edge, subtle sheen, rotation, and layered shadows.
+- In the room preserves full-bleed photography and the smaller content-fitted detail card.
+- Use the supplied light/dark Just Go die-cut PNGs as editable elements. No enclosing circle. Support insert, duplicate, delete, move, resize, and rotate.
+- Preserve saturated photography, orange/cream/ink coherence, Les Flos display lettering, restrained grain, closely grouped titles, and clean corners. Keep full-bleed compositions full bleed.
+- Series names and issue numbers are absent by default. The internal issue name does not automatically become printed cover text.
+- Borders, shadows, grain, and photo treatments are editable styles. Templates are starting points, not restrictions.
+
+## Phase map and task status ledger
+
+| Step | Deliverable | Status | Depends on |
+| --- | --- | --- | --- |
+| 0.1 | Contracts and interaction prototype | done | — |
+| 1.1 | Account and issue persistence | done | 0.1 |
+| 1.2 | Issue library and migration | done | 1.1 |
+| 2.1 | Configurable curation search | done | 1.1 |
+| 2.2 | Batch picker, naming, creation | pending | 1.2, 2.1 |
+| 3.1 | Versioned document and layout engine | pending | 0.1, 1.1 |
+| 3.2 | Approved design presets | pending | 3.1 |
+| 4.1 | Direct-manipulation editor | pending | 2.2, 3.2 |
+| 4.2 | Copy, reflow, assets, and history | pending | 4.1 |
+| 5.1 | Autosave, conflicts, and recovery | pending | 4.2 |
+| 5.2 | Immutable export integration | pending | 5.1 |
+| 6.1 | End-to-end verification and rollout | pending | 5.2 |
+| 7.1 | Future vector group provider | deferred | 6.1, embedding readiness |
+
+Phases 0–6 are the initial deliverable. Phase 7 is a future extension; its provider contract is prepared in Phase 2. Do not hold the editor release for embeddings.
+
+## Phase 0 — Establish the implementation boundary
+
+### Step 0.1 — Contracts and interaction prototype
+
+**Status:** `done`
+
+Implementation notes, September 23, 2026:
+
+- Routes, limits, and the account/issue/curation/document contracts are in [Carousel studio contracts](/strategy/just-go-carousel-studio-contracts). No schema or production route was changed.
+- The spike is `frontend/.../carousel/studio/`, mounted at `/dev/justgo-carousel-studio` in development. It renders the Round 06 Photo note with `StudioSlide` and keeps handles outside the export root.
+- Chosen interaction model: DOM plus pointer capture, no transform library. Font overflow uses the rendered node. One undo transaction per gesture or text session. Details are in the contracts note.
+- Verification: `npx jest -c jest.carousel.config.js --testPathPattern=studio/studioDocument` covers frame-versus-crop, parent move versus child detach, blank text, undo boundaries, and revision conflict. Browser check of `/dev/justgo-carousel-studio` confirmed selection, inline text, drag, resize, crop, and rotation on the shared renderer at editor zoom and on the 1080 × 1350 export surface.
+- Deviation: inline text commits on blur via `contentEditable`. The logistics block is one text element, not separate date and place nodes. Performance budgets are proposed in the contracts note and not measured on a full deck.
+
+**Instructions:**
+
+1. Trace current CRUD, authorization, voice resolution, image uploads, export claims, render routes, and job-to-editor links. Record exact routes and current limits before changing them.
+2. Specify the account/issue/curation/document contracts above, including revision concurrency, element validation bounds, and account-to-source authorization.
+3. Prototype selection, inline text, dragging, resizing, crop mode, and rotation on one real approved slide. Prefer a shared DOM/SVG renderer with separate editing handles so preview and existing browser-based export share geometry; evaluate a transform library only against this prototype.
+4. Record the chosen interaction implementation, dependencies, font measurement strategy, nested group transforms, and undo transaction boundaries. This is a bounded technical spike, not permission to rebuild the design direction.
+
+**Evaluation criteria:**
+
+- [x] Prototype preserves the approved slide appearance at editor zoom and 1080 × 1350.
+- [x] Document distinguishes frame resize from image crop, and parent movement from child reflow.
+- [x] Ownership, authorization, migration, and export version strategy are written before schema work.
+
+## Phase 1 — A durable issue library
+
+### Step 1.1 — Account and issue persistence
+
+**Status:** `done`
+
+Implementation notes, September 23, 2026:
+
+- `pivot_carousel_accounts` holds the editorial account. Issues are additive fields on `pivot_carousel_decks`: `accountId`, `name`, `format`, `status`, `schemaVersion`, `revision`, `document`, `curation`, and `sources`. Legacy `tenantKey`, `title`, and slides stay.
+- Routes under `/admin/pivot/carousel-accounts` create an account, list and open issues, rename, update, duplicate, archive, and restore. Account reads include the 20-slide cap before creation.
+- Writes require the revision that was read and return 409 `REVISION_CONFLICT`. Source tenants must be on the account and must be Pivot tenants. The issue owner is the account owner.
+- Duplicate copies the issue, assigns new slide and element ids, and keeps asset ids and storage keys.
+- Verification: `npx jest --runInBand tests/unit/pivotCarouselIssue.test.js` (3 tests).
+
+**Instructions:**
+
+1. Extend the global carousel data model and register models through existing model services. Add account organization, issue format/status, explicit schema version, and monotonic revision without removing legacy fields.
+2. Support paginated account-scoped listing, creation, open-by-ID, rename, duplicate, archive, and restore. Duplicate into an independent document with new slide/element IDs while safely sharing immutable asset references.
+3. Require account/owner authorization on every operation; verify allowed source tenants independently. Validate revision on writes and return a conflict instead of last-write-wins.
+4. Add indexes for account/status/update order and owner scope. Define bounded document size, slide count, and element limits; initially preserve the existing 20-slide export cap and surface it before creation.
+
+**Evaluation criteria:**
+
+- [x] Two issues in one account and issues in two accounts save independently.
+- [x] Unauthorized account/source combinations fail on the server.
+- [x] Duplication, archive/restore, stale writes, and invalid documents have meaningful tests.
+
+### Step 1.2 — Library and legacy migration
+
+**Status:** `done`
+
+Implementation notes, September 23, 2026:
+
+- The carousel page stays on the library unless `deckId` is in the URL. A missing id shows an error and does not open another issue. `?deckId=` still opens that deck for export deep links.
+- The library switches accounts, searches, and filters by format and status. Cards show a cover thumbnail, name, and last-edited time. New issue creates an account for the city when none exists.
+- `POST /admin/pivot/carousel-accounts/migrate` is idempotent. Dry-run is the default. It assigns unowned decks to one `city-default:<tenantKey>` account and does not change `_id`, slides, or `updatedAt`. Rollback is `POST /admin/pivot/carousel-accounts/migrate/rollback` with the report’s `rollback` list, which unsets `accountId` only when it still matches. Default accounts are left in place.
+- “Create editable copy” writes a schemaVersion 2 issue and leaves the original on schemaVersion 1. Unknown slide types are kept as unsupported text notes and listed in the response.
+
+Verification: `npx jest --runInBand tests/unit/pivotCarouselMigration.test.js` and `npx jest -c jest.carousel.config.js --testPathPattern=carouselLibrary.test`.
+
+**Instructions:**
+
+1. Make the carousel dashboard entry an issue library with account switcher, search, format/status filters, cover thumbnails, names, last-edited timestamps, and New issue.
+2. Open issues by stable URL identity. Preserve tenant/deck/export deep links; missing or unauthorized IDs show an error and library navigation, never another deck.
+3. Write an idempotent migration with dry-run reporting that assigns existing decks to default city accounts, preserving IDs, snapshots, layout, timestamps, and existing export references. Do not automatically visually convert them.
+4. Offer explicit “Create editable copy” for legacy decks; retain original v1 rendering and export access. Report any unsupported conversion elements rather than silently dropping them.
+
+**Evaluation criteria:**
+
+- [x] Library navigation never overwrites or implicitly opens the latest issue.
+- [x] Migration rerun creates no duplicate accounts/issues and has a documented rollback mapping.
+- [x] Legacy links and exported artifact access remain functional.
+
+## Phase 2 — Curate first, then name the issue
+
+### Step 2.1 — Configurable search and provider seam
+
+**Status:** `done`
+
+Implementation notes, September 23, 2026:
+
+- Admin search is `POST /admin/pivot/carousel-accounts/:accountId/curation/search`. It reuses catalog eligibility (published, not deleted, pivot custom fields) and `serializeForSlot`. Explore and Drop are unchanged.
+- The query spec accepts keyword, include/exclude terms, source tenants, timezone-aware dates, upcoming/past, batch week, tags/categories (any/all, both against `customFields.pivot.tags`), host, venue, image presence, and previously-used-in-account. Price is not a reliable field; only `price=unknown` is accepted. Unknown keys and malformed dates are rejected.
+- Default publication is published. `publication=inspect-unreleased` is explicit, labelled on the candidate, and does not publish. Past listings keep `sourceUrl` / `externalLink` and `happenedConfirmed: false`.
+- Sort is date, date-asc, relevance (keyword required), or ingested. Pagination is a tie-broken cursor. Global search queries only account sources with concurrency 3 and returns per-source `ok`/`failed` plus `continuation.complete`. Partial results are never marked complete.
+- Provider seam: `catalog` v1 now; `vector` returns 501 `PROVIDER_UNAVAILABLE` for Phase 7. Saved searches live on `pivot_carousel_saved_searches`. `GET .../curation/query-spec` is the reset contract; responses include filter chips.
+- Verification: `npx jest --runInBand tests/unit/pivotCarouselCurationQuery.test.js` and `npx jest -c jest.carousel.config.js --testPathPattern=carouselCurationQuery.test`.
+
+**Instructions:**
+
+1. Add an admin curation query service, reusing catalog eligibility and serialization where appropriate. Keep consumer Explore/Drop behavior unchanged.
+2. Support keyword, include/exclude terms, source city/tenant, explicit date range and timezone, upcoming/past mode, batch week, tags/categories with any/all semantics, host, venue, image presence, and previously-used-in-account filters. Add price/free and other facets only when backed by reliable source fields; represent unknown values explicitly.
+3. Default to published, non-deleted events. Any staged/draft inspection must be explicit, authorized, visibly labelled, and revalidated before export; search selection must not publish an event. A past listing alone is not proof it actually happened: retain source links and allow recap review notes.
+4. Add sort options (date, relevance when supported, recent ingestion), stable pagination with a tie-breaker, saved searches, filter chips, and reset. Reject malformed dates and unsupported filters instead of silently ignoring them.
+5. For global search, query only allowed source tenants with bounded concurrency. Return per-source failure/completeness and deterministic merged pagination; do not present partial results as complete.
+6. Define a versioned candidate-provider interface returning event references, snapshots, provenance, optional group ID/theme/reason/score, and query continuation. Implement catalog search now; reserve vector-generated group proposals for Phase 7.
+
+**Evaluation criteria:**
+
+- [x] Filters compose predictably, including any/all tags, date boundaries, unknown values, and exclusion.
+- [x] Stable pagination has no duplicates within a result snapshot; failures are visible and retryable.
+- [x] Global references retain city identity; cross-tenant access tests pass.
+
+### Step 2.2 — Batch picker and post-curation naming
+
+**Status:** `pending`
+
+**Instructions:**
+
+1. Build a search workspace with configurable filters, image-led results, event detail preview, and a persistent selected-events tray. Selection survives query changes and pagination; support bulk-select-visible, remove, reorder, duplicate detection, and selection count.
+2. Persist the curation draft without creating an issue yet. Let authors review the whole batch, set an optional theme, and see source/date warnings and the generated slide-count estimate.
+3. Continue opens the issue-name prompt only after selection review. Preserve selection on back/cancel/reload. Then create the issue atomically using an idempotency key; repeat clicks must not create extra issues.
+4. Snapshot selected data server-side, revalidate availability, and report changes before proceeding. Generate a cover plus editable event slides from approved presets; do not force a back slide. Allow independent cover/preset choices without interrupting the main flow.
+5. In the editor, provide “Edit selection” to revisit the batch. Show an explicit diff of added/removed/reordered events; preserve edited slides for retained events. Removing an event does not silently destroy custom slides referencing it.
+
+**Evaluation criteria:**
+
+- [ ] Search → select → review → name → editor works for a city collection and a multi-city recap.
+- [ ] Reload, back, failed creation, duplicate submission, unavailable events, and slide-cap overflow preserve work.
+- [ ] Revising curation does not regenerate or overwrite retained slide edits.
+
+## Phase 3 — Editable documents and approved presets
+
+### Step 3.1 — Shared document renderer and layout engine
+
+**Status:** `pending`
+
+**Instructions:**
+
+1. Implement validated v2 nodes, group-local transforms, asset references, and preset/version provenance. Keep document commands independent of React view state.
+2. Build one deterministic renderer for canvas, thumbnails, preview, and export. Editor selection boxes/handles are a separate overlay excluded from output.
+3. Implement auto-layout card children, padding/gap rules, field removal, explicit blank text, content-sized versus fixed-sized containers, and free-placement detachment.
+4. Resolve and materialize voice defaults at creation/reset. Capture their source/version; avoid reading live tenant voice during v2 rendering.
+5. Add schema migrations and fail clearly for unsupported versions. Do not coerce v2 through legacy fixed-slot trimming.
+
+**Evaluation criteria:**
+
+- [ ] Document serialize/load round-trip preserves all transforms, crop state, text, visibility, and stacking.
+- [ ] Removing middle/last/all fields collapses gaps without resurrecting defaults or moving free elements.
+- [ ] Fonts loaded, multiline text, rotations, and nested groups render consistently at multiple zoom levels.
+
+### Step 3.2 — Promote the accepted designs
+
+**Status:** `pending`
+
+**Instructions:**
+
+1. Convert all nine Round 05 cover compositions and three latest Round 06 event treatments into data-driven presets. Reuse typography, shapes, grain, and supplied sticker assets from the lab.
+2. Keep cover and event preset selectors independent. Offer mixed-deck previews and variation shuffle as an explicit undoable action; never reshuffle on load or export.
+3. Expose frame crop/aspect, sticker finish, photo position, card geometry, and background as document properties. Template choice seeds elements, not permanent constraints.
+4. Keep credits/provenance on assets. Replace fictional lab content with selected event snapshots and authored issue copy. Cover photography can be uploaded or selected independently from event imagery.
+
+**Evaluation criteria:**
+
+- [ ] Visual comparison matches the approved nine covers and three event layouts, including the latest photo shadows and smaller recap card.
+- [ ] Every cover family works with each event preset without a hidden pairing rule.
+- [ ] No printed issue number/series label is introduced by default; no fictional lab event data leaks into generated issues.
+
+## Phase 4 — A slide editor, not a form
+
+### Step 4.1 — Canvas interactions and slide management
+
+**Status:** `pending`
+
+**Instructions:**
+
+1. Ship the thumbnail rail, center canvas, toolbar, contextual inspector, zoom/fit controls, and clear saved state. Keep decorative brand styling on the slides; prioritize clarity in editor chrome.
+2. Support click selection, inline text editing, drag, resize handles, rotation handle, numeric position/size/rotation, keyboard nudging, snapping/guides, and bring-forward/send-back actions.
+3. Provide multi-selection, group/ungroup, lock/unlock, duplicate, delete, and clipboard copy/paste within the editor. Keyboard shortcuts must not intercept normal text editing or browser shortcuts unnecessarily.
+4. Allow slide insert, duplicate, reorder, and delete, including cover/back. Make empty-document behavior explicit and export unavailable until a renderable slide exists.
+5. Support unrestricted frame aspect-ratio changes plus lock-aspect and common ratio shortcuts. Double-click an image enters a distinct crop/pan mode; replacing an image can preserve its frame and treatment.
+
+**Evaluation criteria:**
+
+- [ ] Authors can edit a slide through the canvas without opening a full-slide form.
+- [ ] Drag/resize/rotate math remains correct under zoom and group rotation; pointer capture and cancellation are handled.
+- [ ] Keyboard/numeric alternatives exist for every essential drag-only operation.
+
+### Step 4.2 — Content, assets, reflow, and undo
+
+**Status:** `pending`
+
+**Instructions:**
+
+1. Make all visible text directly editable, with font/size/color/alignment controls. Expose remove-field and restore/reset actions without confusing deliberate absence with missing data.
+2. Add an asset/sticker drawer: supplied light/dark Just Go stickers, account assets, upload/replace image, and background controls. Any number of stickers may be added or removed and individually transformed.
+3. Let cards and photos resize, re-aspect, rotate, and move independently. Preserve auto-layout within a card until a child is explicitly detached. Show overflow with an actionable remedy.
+4. Add undo/redo across content, transforms, crop, field removal, asset replacement, preset application, curation diffs, and slide operations. Treat one drag/resize gesture as one undo step and group typing sensibly.
+5. Retain assets referenced by current documents, undo history, or saved revisions; avoid deleting shared assets when a single element is removed. Validate uploads and preserve source credits without forcing credits onto the artwork.
+
+**Evaluation criteria:**
+
+- [ ] Delete a location/date/description and observe tidy reflow; undo restores exact content and geometry.
+- [ ] Insert/remove/resize/rotate stickers and images, change background crop, then reload without losing changes.
+- [ ] Long titles, no description, no logistics, missing images, and multiple stickers remain editable without silent truncation.
+
+## Phase 5 — Reliable saving and export
+
+### Step 5.1 — Autosave and recovery
+
+**Status:** `pending`
+
+**Instructions:**
+
+1. Debounce document saves with revision preconditions, serialize writes, and show Saving / Saved / Offline / Conflict / Failed states. Never allow an older response to overwrite a newer local edit.
+2. Persist a local recovery draft keyed by user/account/issue/schema; offer recovery when it is newer than the server. Do not treat local recovery as a successful server save.
+3. On concurrent editing conflicts, preserve both versions and offer reload, compare, or save as a new issue. Real-time collaborative editing is outside this release.
+4. Add named revision checkpoints and restore-as-new-revision. Keep immutable revision history separate from the current editable head and define retention before cleanup.
+
+**Evaluation criteria:**
+
+- [ ] Slow/out-of-order responses, network loss, refresh during save, and two-tab conflicts do not lose work.
+- [ ] Undo after autosave behaves consistently; export requires a confirmed saved revision.
+- [ ] Account switching and sign-out cannot recover another account/user’s draft into the wrong issue.
+
+### Step 5.2 — Exact-revision exports
+
+**Status:** `pending`
+
+**Instructions:**
+
+1. Adapt existing carousel compute jobs to reference an immutable saved v2 revision, resolved voice text, versioned renderer/presets, and stable assets. An edit while a job waits must not make that export stale or change its output.
+2. Keep existing tenant/deck/attempt scoping and artifact verification. Validate account ownership at request time and resolve the authorized owner tenant for existing worker contracts. Introduce contract versions/capability gating if worker payloads change.
+3. Reuse the shared renderer; wait for fonts and images, surface missing assets, and export at 1080 × 1350 with no editor controls. External image changes must not mutate historical revisions; ingest or pin approved assets through the existing storage path.
+4. Preserve PNG/ZIP downloads, progress, retries, cancellation, expiration messaging, and job history. Link every export back to its exact account, issue, and revision.
+5. Keep v1 export working during rollout. Verify discovery/refresh compute jobs remain unaffected.
+
+**Evaluation criteria:**
+
+- [ ] Queue export, edit issue and tenant voice, then complete export: output matches the queued revision.
+- [ ] Rotations, crop, sticker shadows, grain, custom text, and reflow match browser previews at full resolution.
+- [ ] Authorization, missing assets/fonts, cancellation/retry, worker incompatibility, and artifact download regressions are covered.
+
+## Phase 6 — Verification and staged adoption
+
+### Step 6.1 — Release matrix and rollback
+
+**Status:** `pending`
+
+**Instructions:**
+
+1. Run the complete journey with two accounts and multiple issues: city search and global recap → selection → naming → independent edits → save/reopen → export/download → duplicate/archive/restore.
+2. Add focused unit tests for document commands/layout/revisions and integration tests for account authorization, search pagination, migration, issue creation idempotency, and export snapshots. Use browser interaction tests for canvas behavior; compare approved design fixtures visually.
+3. Validate a maximum-size supported deck, large result sets, long copy, missing assets, and rapid gestures. Set measured interaction/autosave performance budgets in the Phase 0 implementation notes and report results.
+4. Feature-flag the new studio. Roll out first to a pilot account; keep original decks and the v1 renderer readable. Inspect errors and save/export success before expanding.
+5. Document rollback: disable new creation/editor entry, preserve all v2 data and assets, keep compatible exports/read access, and never route v2 documents into the v1 coercer. Production migration/deployment is a separate operator action.
+
+**Evaluation criteria:**
+
+- [ ] No unresolved data-loss, wrong-account, source-scope, or export-parity defects.
+- [ ] Approved design matrix, keyboard operations, and autosave/conflict recovery pass.
+- [ ] Pilot produces downloadable output from both editorial formats with mixed cover/event treatments.
+
+## Phase 7 — Future vector-assisted curation
+
+### Step 7.1 — Embedded batch group proposals
+
+**Status:** `deferred`
+
+**Instructions:**
+
+1. Connect the Phase 2 provider interface to versioned embedded event batches after the existing embedding data plane is ready. Reuse its provenance and model-version conventions; do not couple carousel creation to vector availability.
+2. Generate candidate groups from authorized events with theme labels, member references, explanation/similarity metadata, embedding/batch versions, and generation time. Apply deterministic eligibility/date/city filters before and after retrieval.
+3. Present groups as editable proposals in the same curation workspace. Support accepting a whole group, excluding members, combining groups, reordering, and selecting manually.
+4. Capture the accepted membership as snapshots and record proposal provenance. New embedding runs must not mutate accepted selections or existing issues.
+5. Evaluate coherence, duplicate rates, coverage, freshness, and curator acceptance on representative city and global batches. Provide catalog-only fallback for missing/stale vectors or provider failures.
+
+**Evaluation criteria:**
+
+- [ ] Manual curation works unchanged when the vector provider is unavailable.
+- [ ] Curators control final membership; authorized source boundaries and snapshot immutability hold.
+- [ ] Group-quality evaluation is recorded before broad enablement.
+
+## Explicit scope boundaries
+
+Initial delivery includes the issue library, account organization, curation-before-editor flow, all approved designs, direct editing, field removal/reflow, image/card/background transformations, editable stickers, autosave/recovery, and exact-revision exports.
+
+Real-time multiplayer, comments/approval workflows, scheduled social posting, OAuth-connected social accounts, arbitrary animation/video, a full Google Slides feature clone, and live vector grouping are not required for this release. Account identity is organizational; no automated external publication is implied.

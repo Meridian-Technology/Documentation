@@ -1,0 +1,156 @@
+---
+title: "Just Go — Carousel studio contracts"
+description: "Current carousel routes and limits, and the account, issue, curation, and document contracts for the studio."
+---
+
+Recorded September 23, 2026, before any schema change. This is the Phase 0 contract for [the studio plan](/strategy/just-go-carousel-studio-plan). The interaction spike lives at `/dev/justgo-carousel-studio` in the frontend dev server and does not write decks.
+
+## Current routes and limits
+
+Every admin route below requires `verifyToken` and `requirePlatformAdmin`, then `isPivotTenant`. A non-Pivot tenant returns 403 `NOT_PIVOT_TENANT`. The export-token read and the worker routes are the exceptions.
+
+| Method | Path | Behavior |
+| --- | --- | --- |
+| GET | `/admin/pivot/tenants/:tenantKey/carousels` | Lists decks for one tenant, newest `updatedAt` first, without slides |
+| POST | `/admin/pivot/tenants/:tenantKey/carousels` | Creates a deck. Empty body seeds cover + back |
+| GET | `/admin/pivot/tenants/:tenantKey/carousels/:deckId` | One deck, city voice, and the slide manifest |
+| PATCH | `/admin/pivot/tenants/:tenantKey/carousels/:deckId` | Last write wins. No revision precondition |
+| DELETE | `/admin/pivot/tenants/:tenantKey/carousels/:deckId` | Hard delete |
+| POST | `/admin/pivot/tenants/:tenantKey/carousels/:deckId/export-token` | JWT, 10 minutes, one deck |
+| GET | `/admin/pivot/carousel-export` | Token query auth. 409 `DECK_REVISION_MISMATCH` if `updatedAt` moved |
+| GET | `/admin/pivot/tenants/:tenantKey/carousel-catalog` | Published events in that tenant database. Slot picker only; the issue library uses the account curation search |
+| GET | `/admin/pivot/carousel-accounts/:accountId/curation/query-spec` | Reset query, allowed sources, and search limits |
+| POST | `/admin/pivot/carousel-accounts/:accountId/curation/search` | Account-scoped catalog search. Body is the filter spec |
+| GET, POST | `/admin/pivot/carousel-accounts/:accountId/curation/saved-searches` | List or save a named query |
+| DELETE | `/admin/pivot/carousel-accounts/:accountId/curation/saved-searches/:searchId` | Remove a saved query |
+| POST | `/admin/pivot/tenants/:tenantKey/carousels/:deckId/slides/:slideId/image` | Multipart `image`. No file clears the override |
+| GET | `/admin/pivot/carousel-voice/catalog` | Voice keys derived from the slide manifest |
+| GET | `/admin/pivot/tenants/:tenantKey/carousel-voice` | Shipped, city, deck, and effective layers |
+| PATCH | `/admin/pivot/tenants/:tenantKey/carousel-voice` | City layer, or deck layer when `scope=deck` |
+
+Compute jobs, all platform-admin unless noted:
+
+| Method | Path |
+| --- | --- |
+| GET, POST | `/admin/pivot/compute-jobs` |
+| GET | `/admin/pivot/compute-jobs/:externalJobId` |
+| POST | `/admin/pivot/compute-jobs/:externalJobId/cancel` and `/retry` |
+| GET | `/admin/pivot/compute-jobs/:externalJobId/artifacts/:artifactId` |
+| GET | `/worker/pivot/compute/v1/jobs/:externalJobId/context` |
+| POST | `/worker/pivot/compute/v1/jobs/:externalJobId/artifacts/init` and `/finalize` |
+
+The editor opens `/platform-admin/pivot/:tenantKey?page=<carousel>&deckId=<id>`. Jobs link back with `carouselEditorHref`. The browser export frame is `/carousel-export/:deckId/:index` and reads `GET /admin/pivot/carousel-export`. There is no account id.
+
+Current limits, unchanged by this spike:
+
+| Limit | Value |
+| --- | --- |
+| Slides per deck | 20, including the forced cover and back |
+| Title | 80 characters |
+| Issue number / city / dateline / week / scanned | 8 / 40 / 32 / 40 / 6 |
+| Voice string | 500 characters, unknown keys rejected |
+| Catalog page | default 24, max 60, `skip` offset, `start_time` descending |
+| Catalog filters | `batchWeek`, `from`, `to`, `q`. Published, not deleted, pivot custom fields only |
+| Curation search page | default 24, max 60, cursor with sort/`sourceTenantKey`/`eventId` tie-break |
+| Curation filters | keyword, include/exclude, source tenants, timezone dates, upcoming/past, batch week, tags/categories any/all, host, venue, image, previously used. Price is `unknown` only. Unknown keys rejected |
+| Curation publication | `published` default. `inspect-unreleased` is explicit and labelled. Search never publishes |
+| Curation provider | `catalog` v1. `vector` is reserved and returns 501 |
+| Curation concurrency | 3 source tenants. Partial source failures set `continuation.complete` false |
+| Saved searches | 50 per account, unique name |
+| Slide image upload | JPEG, PNG, GIF, WebP, 5 MB, prefix `pivot-carousel/<tenantKey>` |
+| Export pixels | 1080 × 1350 |
+| Export artifacts | 21 files, 64 MiB each, 256 MiB total, PNG and ZIP only, 20 warnings |
+| Export token and upload grant | 10 minutes |
+| Artifact retention | 14 days unless `PIVOT_CAROUSEL_EXPORT_RETENTION_MS` is set |
+| Job list | default 50, max 100 |
+| Revision | `updatedAt` ISO timestamp. Claim checks the live deck |
+
+Voice precedence today is deck override, then city `pivot_carousel_voice`, then the manifest shipped string. Account defaults do not exist. Text fields are trimmed to manifest `max` on write. The page list opens the requested deck or, if that id is missing, the newest deck.
+
+## Account, issue, curation, document
+
+### Account
+
+An editorial account is an organizational record in the global database. It is not a login, a tenant database, or a social OAuth connection.
+
+| Field | Rule |
+| --- | --- |
+| `id` | Stable. Never derived from a tenant key |
+| `displayName`, `handle` | Handle optional |
+| `ownerTenantKey` | Required, including for a global magazine. Must be an existing Pivot tenant. Never the string `global` |
+| `sourceTenantKeys` | Explicit list. Owner may also be a source. Empty is invalid |
+| `voice` | Sparse defaults. Precedence at creation: shipped, city, account, issue |
+| `defaultFormat` | `city-picks` or `sorry-you-missed-it` |
+
+Authorization: platform admin, and the account’s owner tenant must pass the current Pivot-tenant gate. Every read and write names `accountId`. A source event is accepted only when its tenant is in `sourceTenantKeys`. Ownership and source city stay separate. Cross-city selection does not publish, unpublish, or change Drop membership.
+
+### Issue
+
+| Field | Rule |
+| --- | --- |
+| `id` | Stable URL identity. Legacy deck ids are kept by migration |
+| `accountId` | Required |
+| `ownerTenantKey` | Copied from the account at creation, so current export routing still has a tenant |
+| `name` | Internal. It does not print on the cover |
+| `format` | `city-picks` or `sorry-you-missed-it` |
+| `status` | `active` or `archived` |
+| `schemaVersion` | `1` legacy manifest, or `2` editable document |
+| `revision` | Integer, starts at 1, increments on every accepted write |
+| `curation` | Provenance: draft id, query, ordered `(sourceTenantKey, eventId)` refs, capture time |
+
+Writes send the revision they read. `checkWriteRevision` returns 409 `REVISION_CONFLICT` when they differ. The stored document is left as-is. Clients reload, compare, or save a new issue. There is no last-write-wins merge.
+
+Indexes to add in Phase 1: `{ accountId: 1, status: 1, updatedAt: -1 }` and `{ ownerTenantKey: 1, updatedAt: -1 }`. The current `{ tenantKey: 1, updatedAt: -1 }` index is not unique and stays for legacy rows.
+
+Bounds: 20 slides, matching today’s export cap, surfaced before creation. 64 elements on a slide. Frame edge 8–4320 logical pixels. Crop scale 1–8, focal point 0–1. Text stored up to 8000 characters and never silently trimmed to a manifest `max`.
+
+### Curation draft
+
+A draft exists before an issue. It holds `accountId`, format, the filter specification, ordered event refs, snapshots, an optional theme, and its own revision. Creation of the issue is one idempotent write. The draft is not a deck and does not export.
+
+An event ref is `(sourceTenantKey, eventId)` plus an immutable snapshot and `capturedAt`. ObjectIds are not unique across city databases.
+
+### Document v2
+
+Slides use a logical 1080 × 1350 space. Positions do not change when the editor zooms. The renderer turns logical pixels into container-query units (`1cqw = 10.8px`) so the editor and the 1080-wide export surface share geometry.
+
+| Node | Required content |
+| --- | --- |
+| Slide | Stable id, size, background fill or image, ordered elements, preset id and round |
+| Element | Stable id, kind (`text`, `image`, `card`, `sticker`, `shape`), frame, rotation, stacking, visibility, lock, layout `flow` or `free` |
+| Text | Full string and presence: `default`, `custom`, `blank`, or `removed` |
+| Image | Frame separate from crop `{ focalX, focalY, scale }` |
+| Card | `sizing` `fixed` or `content`, padding, gap, children |
+| Asset | Id, storage key, dimensions, credit, owning account. Credits are metadata, not forced onto the art |
+
+`blank` and `removed` do not fall back to voice. A later voice edit does not rewrite an existing issue. Reset is an explicit command that copies the creation-time resolved string and records its source.
+
+Flow children stack from the top. `pin: 'end'` stays on the bottom of a fixed card. Content-sized cards shrink to the stack plus padding. Free children are not moved by reflow. Moving a card changes only the card frame, then reflows flow children. Moving a flow child sets `layout: 'free'` and reflows the rest. That detach is one undo step.
+
+Schema v1 decks keep the current manifest renderer and export. v2 documents are rejected by the v1 coercer rather than trimmed into slots. Unsupported `schemaVersion` values fail the read.
+
+### Migration
+
+An idempotent dry-run assigns each existing deck to a default city account for its `tenantKey`, preserving `_id`, snapshots, slides, voice, and timestamps. It does not convert pixels. Rollback is the account-id map: unsetting `accountId` returns a row to today’s tenant lookup. Reruns must not create a second account or a second issue for the same deck id.
+
+Legacy URLs `?deckId=` keep working for v1. A missing or unauthorized id shows an error and the library. It does not open a different deck.
+
+“Create editable copy” is the only v1 → v2 path. The copy gets new slide and element ids and shares immutable asset keys. The original remains v1.
+
+### Export version
+
+A queued export pins an immutable revision record: schema version, preset versions, resolved text, crop, transforms, and asset keys. The worker context stops reading the live deck and live city voice for v2. v1 jobs keep the `updatedAt` claim until those decks are copied. Editing the issue or the city voice after queue does not change a pinned revision. Contract version stays `1` until the worker payload changes; a v2 payload gets a new contract version and capability gate. PNG/ZIP limits stay 20 slides and the current byte caps.
+
+## Interaction spike
+
+The prototype renders the Round 06 Photo note (lanterns fixture) through one DOM renderer, `StudioSlide`. Handles live in a sibling overlay and are absent from `[data-export-root]`. Editor zoom is the element width. The export pane mounts the same component at a width that still reports 1080 × 1350 logical pixels.
+
+No transform library. Pointer capture on the stage, with deltas divided by zoom, is enough for this slide. `moveable` and `interactjs` were not added; they would own hit testing that the overlay already separates from the exported DOM.
+
+Font overflow is `scrollHeight - clientHeight` on the rendered text node after the browser has loaded Les Flos Sans, Instrument Sans, and Space Mono. A canvas `measureText` path was rejected because it does not share line breaks with the export DOM.
+
+Nested groups: a card’s children store card-local frames. The card’s rotation is the parent transform; child rotation is added inside it. Reflow writes local `x`/`y` for flow children only. The prototype card is not itself rotated; the photo and sticker are slide-level elements with their own rotation.
+
+Undo transactions: pointer-down to pointer-up for move, frame resize, crop, and rotate, and one transaction per inline text session (focus through blur). A click under 3 logical pixels does not commit. Remove-field is its own transaction. Undo restores the document from before that transaction, including layout mode and crop.
+
+Proposed budgets for Phase 6, not yet measured on a full deck: pointer move under 16ms on one slide, autosave debounce 800ms, and no older save response applied after a newer local edit.
