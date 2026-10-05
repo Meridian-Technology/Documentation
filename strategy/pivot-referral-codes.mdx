@@ -5,6 +5,10 @@ description: "Global invite codes that gate the Pivot mobile edition—schema, p
 
 ## Purpose
 
+<Warning>
+**Superseded for person-to-person invites (2026-10).** Users now share personal links (`justgo.lol/invite/{code}`); see [Just Go — friend invites](/strategy/just-go-friend-invites). Cohort codes remain for campaign attribution and are never a gate.
+</Warning>
+
 Pivot referral codes are the **only gate** into the Pivot edition of Meridian Mobile. Campus users who never enter a valid code keep the normal campus experience.
 
 Each code maps to exactly one **Pivot city tenant** (`tenantKey`) and optionally carries a **cohort** label for analytics and pilot segmentation. Codes live in the **global/platform Mongo database**, not in per-city tenant DBs.

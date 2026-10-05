@@ -1,0 +1,63 @@
+---
+title: "Just Go — friend invites"
+description: "Audit of the user-to-user invite path and the personal invite links that replace sharing cohort codes"
+---
+
+## Why this changed
+
+Person-to-person invites still ran on the pilot's [referral codes](/strategy/pivot-referral-codes). Those were built as **the gate** into the Pivot edition. Entry has since opened up: anyone can pick a city. But the share button still assumed the user held a code. That assumption broke growth between users at every step.
+
+Visual before/after: `strategy/mockups/just-go-friend-invites.html` (open it in a browser).
+
+## Audit (as of 2026-10-05)
+
+| # | Finding | Where | Convention it breaks |
+| --- | --- | --- | --- |
+| 1 | Sharing only works if you joined with an admin cohort code. People who joined through the city picker (the default path) see "invite links need a referral code" and a disabled button. | `usePivotInviteShare` (`canShare = hasPivotInviteCode(pivotMeta.code)`), Profile and Friends screens | Every signed-in user gets a share link. |
+| 2 | Every pilot user shares the **same** cohort code. Codes default to 50–100 redemptions and can expire. Once a code maxes out, every link anyone shared breaks. | `PivotReferralCode.maxRedemptions/expiresAt` | Invite links never expire and have no cap. |
+| 3 | A dead code is a dead end. The web landing shows "that code didn't work" with no download button. The app shows an error toast, even though entry no longer needs a code. | `InviteLanding.jsx`, `usePivotInviteDeepLinkBoot` | A bad link still lands on a normal download page. |
+| 4 | Accepting an invite never connects the two people. The invitee starts with no friends, and "people you may know" only works for cohort-code users. | `redeemReferralCode`, `getPivotCohortSuggestions` | Joining from a friend's link makes you friends (Partiful, BeReal, Locket). |
+| 5 | Credit only counts when a code is redeemed. The `ref` param is a raw tenant user id in the URL: it leaks a database id and can be forged. | `PivotReferralRedemption.referredByGlobalUserId`, `?ref=` | The link itself is the opaque attribution token. |
+| 6 | The landing page never says who invited you. It centers a code box and tells people to tap "have an invite code?", a button the Just Go app doesn't have. | `InviteLanding.jsx` | "Maya invited you" with a photo. Social proof drives conversion. |
+| 7 | Invite and crew links use `meridian.study`, the old brand, so link previews show Meridian. Crew web links (`/pivot/crew/join`) had no web page at all for people without the app. | `pivotInviteDeepLink.ts`, `pivotCrewService.buildCrewInviteLinks`, frontend routes | Share links use the product's own domain and always resolve. |
+| 8 | When an existing user taps a friend's link, they only see "already in just go". | `resolveInviteDeepLinkAction` (`pivot_navigate_week`) | Offer to add the inviter as a friend. |
+| 9 | The inviter never hears that their invite worked. | — | "Sam joined from your invite" closes the loop. |
+
+## Corrected system
+
+### Personal invite links
+
+Every user gets one link per city: `https://justgo.lol/invite/{code}`. The code is 8 characters from an unambiguous alphabet (no 0/o/1/i/l). The link never expires, has no cap, and never gates entry.
+
+| Collection (global DB) | Purpose |
+| --- | --- |
+| `pivot_user_invites` (`PivotUserInvite`) | `{code, globalUserId, tenantKey, tenantUserId, inviterName, inviterPicture, acceptedCount}`. Unique on `code` and on `(globalUserId, tenantKey)`. The name and photo are a first-name-only snapshot, refreshed whenever the owner loads their link, so the public preview never reads a tenant DB. |
+| `pivot_user_invite_acceptances` (`PivotUserInviteAcceptance`) | `{code, tenantKey, inviterGlobalUserId, inviteeGlobalUserId, friended}`. Unique on `(invitee, code)`. Counts as "referred" in the growth overview. |
+
+| Route | Auth | Behavior |
+| --- | --- | --- |
+| `GET /pivot/invites/me` | signed in | Creates the link on first call. Returns `{code, webLink, deepLink, cityDisplayName, acceptedCount}`. |
+| `GET /pivot/invites/:code/preview` | public, 20/min/IP | `{valid:false}` for unknown codes (no error). Otherwise `{valid, inviter:{name, picture}, city}`. `city` is null if the city has closed. |
+| `POST /pivot/invites/:code/accept` | signed in | Makes inviter and invitee friends (accepts a pending request if one exists; skips if either side blocked the other), records the acceptance, bumps `acceptedCount`, and sends the inviter a `pivot_invite_accepted` push that opens `PivotFriends`. Idempotent. Returns `reason: 'self'` for your own link, or `reason: 'city_mismatch'` with the inviter's city. |
+
+Friendships are per city, so accept only connects people in the same city.
+
+### Flow
+
+1. **Share.** Profile and Friends always show "invite a friend" and "copy invite link". The message is in the sharer's voice: "come find plans with me on just go in {city}". Profile shows "N friends joined from your link".
+2. **Open, no app.** The web `/invite/:code` page shows the inviter's photo, "Maya invited you to just go in boston", a store button, and "open in just go" (`justgo://invite/{code}`). Unknown links get a generic download card. Legacy `?code=` links and `/pivot/crew/join` use the same page.
+3. **Open, app installed, signed out.** `usePivotInviteDeepLinkBoot` previews the link and switches to the inviter's city, which lands on sign-in in that city. The invite is saved as pending (`pivot_pending_invite`).
+4. **After sign-in.** `PivotInviteAcceptSync` accepts the pending invite and shows a toast: "you and Maya are friends". A network failure keeps it pending; a 404 drops it.
+5. **Open, signed in, same city.** A confirm sheet asks "add Maya as a friend?". In another city, a toast says "Maya is on just go in boston".
+
+### Legacy cohort codes
+
+`PivotReferralCode` stays for campaigns (posters, partners). `invite?code=` links still parse and still redeem for attribution. On Just Go, an expired or maxed code now drops silently into open entry. The app no longer builds or shares cohort-code links.
+
+## Not done yet
+
+- **Deferred deep linking.** If the invitee installs from the store, the invite is lost unless they come back and tap "open in just go". Next step: Play Install Referrer on Android (pass `referrer=invite%3D{code}` on the Play URL), and either a Branch-style service or an iOS paste-board handoff. Each needs native work.
+- **Invite-specific link preview.** justgo.lol already serves the Just Go brand card. A per-invite `og:title` ("Maya invited you…") would mean SSR in the `app.get('*')` handler.
+- **Rotate or revoke your link.** A link posted publicly lets anyone add you. Unfriend and block cover abuse today. A "reset link" action (new code, same row) is the conventional addition.
+- **Crew links without a city.** A brand-new user who opens a crew link still has to pick a city. The crew token should carry or resolve its city the same way personal invites do.
+- **Universal-link priority.** The AASA lists `com.meridian.mobile` before `app.justgo`, so a phone with both apps installed opens shared links in Meridian Go.
