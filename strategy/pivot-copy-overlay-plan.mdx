@@ -1,0 +1,824 @@
+---
+title: "Just Go — copy overlay plan"
+description: "Phased plan for server-editable consumer voice with bundled fallback, platform + tenant packs, and a fleet Voice editor"
+---
+
+## How to use this document
+
+Work phases **in order**. Steps inside a phase may parallelize only when a step says so.
+
+This is the living contract for remote Just Go copy. Do not implement from chat memory if this file disagrees — update the plan in the same change.
+
+### Agent completion (required)
+
+When you finish, block, or materially deviate from a step, **edit this file in the same PR**. Do not leave the plan stale.
+
+For the step you touched:
+
+1. In the [Task status ledger](#task-status-ledger), set Status to `in_progress`, `done`, `blocked`, or `skipped`.
+2. Under the step heading, set **`Status:`** to the same value.
+3. Check every completed **Evaluation** item (`- [ ]` → `- [x]`).
+4. Append an **Implementation notes** entry using the template below. Newest note last. Do not rewrite earlier notes — add a correction note instead.
+
+If work is partial, leave Status `in_progress` or `blocked` and say what remains. Never mark `done` with unchecked evaluation items.
+
+### Implementation notes template
+
+Paste this under the step’s **Implementation notes** list:
+
+```md
+- **when:** YYYY-MM-DD
+  **agent:** (model / session)
+  **pr:** (optional URL or branch)
+  **files:**
+    - path — what changed
+  **behavior:** one or two sentences of what now works
+  **deviation:** none | what you changed from the step and why
+  **leftover:** none | what the next agent must still do
+  **verify:** commands you ran (tests, curl) and the result
+```
+
+### Do not
+
+- Block first paint or edition boot on a copy network call.
+- Put the full copy tree on `GET /pivot/config`.
+- Rewrite ~150 call sites to `t('dotted.key')`. Keep `PIVOT_COPY` as the public API.
+- Remote-load `admin`, `demo`, `dev`, `network`, or `mobile.updateGate*` keys.
+- Store the catalog as a blob on `tenant_configs` the way crew/mobile knobs are stored.
+- Insert a city-dashboard menu item **before** Catalog (`page=4`). Append Voice as `page=5`.
+- Put the editor on Platform Admin Tenants / Pivot Lab / Weekly drop, or inside tenant metadata.
+- Invent A/B assignment, draft/publish, or per-key `minAppVersion` in v1.
+
+---
+
+## What we are building
+
+Server-editable **consumer voice** with a local fallback. The binary always has enough language to render. A later sparse pack may replace strings. Platform pack is product-wide (All cities). Tenant pack is a city overlay.
+
+```text
+bundled pivotCopy.ts
+  → disk cache (tenant + schemaVersion)
+  → GET /pivot/config { copy: { revision, schemaVersion } }   // pointer only
+  → GET /pivot/copy                                          // sparse entries
+  → apply overlay, persist, bump generation
+```
+
+Public `GET /pivot/copy` returns the **already merged** sparse diff (platform ∪ tenant). The phone does one overlay apply. Failures keep the current tree.
+
+---
+
+## Locked decisions
+
+| # | Decision | Choice |
+| --- | --- | --- |
+| 1 | First paint | Always bundled (or disk-hydrated) copy. Network is optional. |
+| 2 | Public API | Keep `PIVOT_COPY` object + interpolator functions. Overlay replaces the template inside the leaf. |
+| 3 | Interpolators | Named placeholders + ICU plural/select **only** where the current function branches on 1 vs N. Formatters like `.toLowerCase()` stay in code. |
+| 4 | Remote surfaces | Consumer voice only. See [Allowlist](#allowlist). |
+| 5 | Storage | Dedicated global collection (`PivotCopyPack`), not `tenant_configs`. |
+| 6 | Scopes | `scope=platform` (All cities) and `scope=tenant` + `tenantKey`. |
+| 7 | Editor home | Shared `PivotVoicePage`. Fleet `/platform-admin/pivot?page=1` = platform. City `/platform-admin/pivot/:tenantKey?page=5` = overlay. |
+| 8 | City switcher | Remap Voice by **label**, not raw `?page=`. Fleet Voice is page 1; city Voice is page 5. Other city pages have no fleet equivalent — drop to Overview. |
+| 9 | Auth | Platform admins only. Same permission as crew config. |
+| 10 | Publish model | Live PATCH + confirm modal. No draft/publish in v1. |
+| 11 | Tokens | `brand.name`, `brand.cta`, `group.singular`, `group.plural` are first-class. Changing `group.singular` must ripple through tokenized strings. |
+
+---
+
+## Allowlist
+
+| Section | Remote? | Phase that wraps it |
+| --- | --- | --- |
+| `brand`, `ticker`, `welcome`, `entry`, `referral`, `auth`, onboarding slices | Yes | 0.3 |
+| `week`, `explore`, `recap`, `plans`, `friends`, `invite`, `inviteDeepLink`, `eventDetail`, `cardStack`, `swipeTutorial`, `calendar`, `feedback`, `profile` (consumer), `social` | Yes | 0.5 |
+| `crew` consumer keys (not admin-only nested ops) | Yes | 0.6 |
+| `admin`, `demo`, `dev` | Never | — |
+| `network`, `mobile.updateGate*` | Never | Gate message already lives on `pivotMobileConfig` |
+| Push (`pivotCrewPushCopy.js`) | Later | Phase 6 |
+| Web landing (`justGoLandingCopy.js`) | Later | Phase 6 |
+
+`interestBleedSubtitleEnabled` in `pivotCopy.ts` is config, not copy. Do not put it in the overlay catalog.
+
+---
+
+## Current code anchors
+
+| Area | Path |
+| --- | --- |
+| Bundled copy | `Meridian-Mobile/src/pivot/copy/pivotCopy.ts` |
+| Copy barrel | `Meridian-Mobile/src/pivot/copy/index.ts` |
+| Crew copy tests | `Meridian-Mobile/src/pivot/copy/__tests__/pivotCrewCopy.test.ts` |
+| Edition boot / tenant meta | `Meridian-Mobile/src/contexts/AppEditionContext.tsx` |
+| Config fetch (async + fallback) | `Meridian-Mobile/src/pivot/hooks/usePivotCrewConfig.ts`, `usePivotForceUpdateGate.ts` |
+| `GET /pivot/config` | `Meridian/backend/services/pivotConfigService.js`, `routes/pivotRoutes.js` |
+| Sparse tenant knobs analog | `pivotCrewConfig` / `pivotMobileConfig` on `schemas/tenantConfig.js` |
+| Fleet shell | `Meridian/frontend/src/pages/PlatformAdmin/PivotTenantDashboard/PivotFleetDashboard.jsx` — route `/platform-admin/pivot`, menu is Overview only |
+| City shell | `PivotTenantDashboard.jsx` — pages 0–4; Catalog is 4 (do not insert) |
+| City switcher | `PivotTenantDropdown.jsx` — preserves `?page=` city→city and All cities→city; All cities navigation currently **drops** query |
+| Platform Admin Just Go nav | `PlatformAdmin.jsx` `extraNavItems` → `/platform-admin/pivot` |
+| Global model registry | `Meridian/backend/services/getGlobalModelService.js` |
+
+---
+
+## Task status ledger
+
+| Task | Status | Notes |
+| --- | --- | --- |
+| 0.1 | pending | Allowlist + catalog types |
+| 0.2 | pending | `s()` / `t()` + ICU |
+| 0.3 | pending | Wrap first-wave leaves (brand → onboarding) |
+| 0.4 | pending | Token table |
+| 0.5 | pending | Wrap remaining consumer sections |
+| 0.6 | pending | Wrap crew consumer keys |
+| 1.1 | pending | Overlay store + generation |
+| 1.2 | pending | Disk hydrate on edition boot |
+| 1.3 | pending | Re-render pivot tree on apply |
+| 1.4 | pending | Dev inject overlay (proof) |
+| 2.1 | pending | `PivotCopyPack` schema + registry |
+| 2.2 | pending | Merge + validate service |
+| 2.3 | pending | `GET /pivot/copy` |
+| 2.4 | pending | `copy` pointer on `GET /pivot/config` |
+| 3.1 | pending | Mobile fetch + revision compare |
+| 3.2 | pending | Apply, persist, fallback analytics |
+| 4.1 | pending | Admin catalog + PATCH/reset routes |
+| 4.2 | pending | `PivotVoicePage` (platform) |
+| 4.3 | pending | Fleet menu page=1 |
+| 5.1 | pending | Tenant packs in merge |
+| 5.2 | pending | City Voice page=5 |
+| 5.3 | pending | Switcher Voice remap |
+| 6.1 | pending | optional — push keys |
+| 6.2 | pending | optional — landing catalog |
+
+---
+
+## Phase 0 — Catalog and resolver (no server)
+
+Prove that leaves can resolve through a lookup without changing user-facing strings. No network.
+
+### Task 0.1 — Allowlist and catalog types
+
+**Status:** `pending`
+
+**Context:** `pivotCopy.ts` is a nested object of strings, interpolators, and one leaked boolean. The catalog is the binary’s schema. The server may only override keys the running binary understands.
+
+**Instructions:**
+
+1. Add `Meridian-Mobile/src/pivot/copy/pivotCopyCatalog.ts` (name may vary — note the actual path).
+2. Export:
+   - `PIVOT_COPY_SCHEMA_VERSION` (start at `1`)
+   - `PIVOT_COPY_REMOTE_SECTIONS` allowlist
+   - Types for a catalog key: dotted path, `kind: 'string' | 'template'`, param names, sample args
+   - `isRemoteCopyKey(path: string): boolean`
+3. Do not generate the full key list by hand in this step if a walker is easier in 0.3. The allowlist and types are the contract.
+4. Keep `admin` / `demo` / `dev` / `network` / `mobile.updateGate*` out of the allowlist.
+
+**Evaluation:**
+
+- [ ] Schema version constant exists and is exported from the copy barrel or catalog module
+- [ ] Allowlist matches the table in this plan
+- [ ] Unknown / denied keys return false from `isRemoteCopyKey`
+- [ ] Unit tests cover allow / deny
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 0.2 — Resolver: `s()`, `t()`, ICU
+
+**Status:** `pending`
+
+**Context:** Static leaves and interpolators need one lookup that returns the bundled fallback when no overlay exists.
+
+**Instructions:**
+
+1. Add a resolver module (suggested: `pivotCopyResolve.ts`).
+2. `s(path, fallback: string): string` — overlay string or fallback.
+3. `t(path, params, fallbackFn): string` — if an overlay template exists, format it; else `fallbackFn(params)`.
+4. ICU MessageFormat for plural/select only. Simple `{city}` / `{group.singular}` interpolation is enough for non-branching keys.
+5. Invalid templates must fall back to `fallbackFn` / bundled string. Never throw into UI.
+6. Do not take a network dependency.
+
+**Evaluation:**
+
+- [ ] `s()` returns fallback with empty overlay
+- [ ] `t()` formats a simple placeholder
+- [ ] ICU plural `one` / `other` matches current `count === 1` branches for a fixture key
+- [ ] Broken template returns fallback, no throw
+- [ ] Tests do not import React Native
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 0.3 — Wrap first-wave leaves
+
+**Status:** `pending`
+
+**Context:** Prove the public API is unchanged. Call sites keep `PIVOT_COPY.ticker.week`.
+
+**Instructions:**
+
+1. Convert these sections to `s()` / `t()` **without changing shipped wording**: `brand`, `placeholders`, `ticker`, `welcome`, `entry`, `referral`, `auth`, `onboarding`, `interestsOnboarding`, `calendarOnboarding`, `themeOnboarding`, `ageOnboarding`.
+2. Interpolators stay functions. Example:
+
+   ```ts
+   joinCity: (city: string) =>
+     t('auth.joinCity', { city }, ({ city }) => `go in ${city}`),
+   ```
+
+3. Existing `pivotCrewCopy.test.ts` and any first-wave assertions must still pass with the same expected strings.
+4. Leave later sections as raw strings/functions.
+
+**Evaluation:**
+
+- [ ] User-facing strings for first-wave keys are byte-for-byte the same as before this task (diff the defaults)
+- [ ] `PIVOT_COPY` type still works for existing imports
+- [ ] Existing copy tests pass
+- [ ] No call-site file outside `src/pivot/copy/` required this change
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 0.4 — Token table
+
+**Status:** `pending`
+
+**Context:** `PIVOT_GROUP_TERM` already interpolates `circle` / `circles` through crew copy. Tokens must be overlayable later without editing 80 sentences.
+
+**Instructions:**
+
+1. Introduce tokens: `brand.name`, `brand.cta`, `group.singular`, `group.plural`.
+2. `PIVOT_GROUP_TERM` and `pivotMark()` read tokens through the resolver (bundled defaults = current values).
+3. First-wave strings that hardcode `just go` or `circle` should use tokens **only where they already conceptually depend on those knobs**. Do not rewrite marketing sentences that happen to contain “just go” unless they should track the wordmark.
+4. Overlaying `group.singular` in tests must change a tokenized string.
+
+**Evaluation:**
+
+- [ ] Default tokens match current `just go` / `go` / `circle` / `circles`
+- [ ] `pivotMark()` still returns `just go` with empty overlay
+- [ ] Test: overlay `group.singular` → tokenized leaf updates
+- [ ] Test: overlay does not rewrite unrelated sentences that merely mention “just go”
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 0.5 — Wrap remaining consumer sections
+
+**Status:** `pending`
+
+**Context:** Expand the resolver to the rest of the allowlist except `crew`.
+
+**Instructions:**
+
+1. Wrap: `week`, `explore`, `recap`, `plans`, `friends`, `invite`, `inviteDeepLink`, `eventDetail`, `cardStack`, `swipeTutorial`, `calendar`, `feedback`, `profile` (consumer keys), `social`, `editInterests`.
+2. Convert 1-vs-N interpolators to ICU in the **fallback function and** a default template so an overlay can express the same grammar.
+3. Leave `admin`, `demo`, `dev`, `network`, `mobile` update-gate strings as raw bundled values.
+
+**Evaluation:**
+
+- [ ] Existing tests that read these keys still pass
+- [ ] At least one plural key (`friends.count` or `social.interested`) has an ICU test
+- [ ] Denied sections are still plain objects (no `s()`/`t()`)
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 0.6 — Wrap crew consumer keys
+
+**Status:** `pending`
+
+**Context:** Crew copy is the largest interpolator cluster and the main token consumer.
+
+**Instructions:**
+
+1. Wrap consumer `crew` keys with `s()` / `t()` and tokens.
+2. Keep call-site signatures (`swapCtaNamed(eventName)`, etc.).
+3. Lowercasing of event / crew names stays in the function wrapper, not the template.
+4. Expand `pivotCrewCopy.test.ts` rather than deleting voice assertions.
+
+**Evaluation:**
+
+- [ ] `pivotCrewCopy.test.ts` passes
+- [ ] Token overlay on `group.singular` updates `crew.createTitle` (or equivalent)
+- [ ] Named-swap helpers still lowercase the event name
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+## Phase 1 — Overlay store and disk (still no production server)
+
+The phone can apply a pack and survive a restart. Production still ships empty overlay.
+
+### Task 1.1 — Module-level overlay store
+
+**Status:** `pending`
+
+**Context:** Leaves read at call time. A generation counter lets React re-render.
+
+**Instructions:**
+
+1. Add an overlay store: current entries map, tokens map, revision, schemaVersion, `applyPack`, `clearPack`, `getGeneration`, `subscribe`.
+2. Resolver reads this store. `applyPack` ignores keys that fail `isRemoteCopyKey` and ignores packs with a **newer** `schemaVersion` than the binary (or a version the walker does not understand). Prefer: ignore unknown keys; if `schemaVersion > PIVOT_COPY_SCHEMA_VERSION`, still apply known keys and drop the rest.
+3. Thread-safe enough for RN: apply is synchronous after JSON parse.
+
+**Evaluation:**
+
+- [ ] Apply + `s()` returns overlay
+- [ ] `clearPack` restores bundled
+- [ ] Denied keys in a pack are ignored
+- [ ] Subscribe fires once per apply
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 1.2 — Disk hydrate on edition boot
+
+**Status:** `pending`
+
+**Context:** `AppEditionContext` already loads pivot meta before content. Hydrate here so first content screen can already have yesterday’s pack.
+
+**Instructions:**
+
+1. Persist pack JSON in AsyncStorage keyed by `tenantKey` + `schemaVersion` (plus a platform-only key if no tenant yet — city picker).
+2. Hydrate during `loadEditionOnBoot` / `setPivotEdition`. Do not block the JS thread on network.
+3. Corrupt JSON → ignore, stay bundled, do not crash.
+4. Changing city must load that city’s cache (or platform-only if none), not leak NYC strings into Brooklyn.
+
+**Evaluation:**
+
+- [ ] Cold start with a cached pack applies before pivot navigator content (or document the exact boot tick if not possible)
+- [ ] Corrupt cache falls back to bundled
+- [ ] Tenant switch does not leak the previous city’s overlay
+- [ ] Tests mock AsyncStorage
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 1.3 — Re-render on apply
+
+**Status:** `pending`
+
+**Context:** ~150 files import `PIVOT_COPY` directly. They pick up new strings only if they re-render after apply.
+
+**Instructions:**
+
+1. Add a small generation context on `PivotRoot` (or edition root that wraps pivot + city picker if copy is needed pre-pivot).
+2. `applyPack` increments generation; the tree re-renders.
+3. Do not snapshot `PIVOT_COPY` strings at module init in new code.
+4. Non-React services that already read `PIVOT_COPY` inside functions are fine.
+
+**Evaluation:**
+
+- [ ] A test or documented harness shows a mounted string updates after `applyPack`
+- [ ] No splash / spinner added for copy
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 1.4 — Dev inject overlay
+
+**Status:** `pending`
+
+**Context:** Prove the client protocol before the API exists.
+
+**Instructions:**
+
+1. `__DEV__`-only way to apply a pack (debug menu, or a test helper — pick one and note it).
+2. Inject `ticker.week` (or `brand.name`) and confirm UI swap + disk persist + relaunch hydrate.
+3. Remove or gate anything that could ship a hidden production backdoor.
+
+**Evaluation:**
+
+- [ ] Documented how a developer injects a pack
+- [ ] Production builds have no public inject surface
+- [ ] Note in this step records the exact verify steps you used
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+## Phase 2 — Backend platform pack and consumer GET
+
+### Task 2.1 — Schema and global model
+
+**Status:** `pending`
+
+**Context:** Platform voice is not a fake tenant. Use a dedicated global collection.
+
+**Instructions:**
+
+1. Add `Meridian/backend/schemas/pivotCopyPack.js`.
+2. Fields: `scope` (`platform` | `tenant`), `tenantKey` (null for platform), `schemaVersion`, `revision` (monotonic int), `tokens` (sparse object), `entries` (Map or mixed object of dottedKey → template string), `updatedBy`, timestamps.
+3. Unique index: platform row is unique; tenant row unique per `tenantKey`.
+4. Register on `getGlobalModelService`.
+5. Do **not** add a `pivotCopy` blob to `tenantEntrySchema`.
+
+**Evaluation:**
+
+- [ ] Model registered; unique indexes documented
+- [ ] Empty platform pack can be created
+- [ ] `tenant_configs` schema unchanged for copy
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 2.2 — Merge and validate service
+
+**Status:** `pending`
+
+**Context:** Consumer GET returns one sparse overlay. Editor GET returns layers.
+
+**Instructions:**
+
+1. Add `pivotCopyService.js` (name may vary).
+2. `getMergedCopyPack({ tenantKey, schemaVersion })` → `{ revision, schemaVersion, tokens, entries }` where entries are only keys that differ from bundled defaults **or** simply the union of stored overlays (simpler; prefer union of stored keys, client still falls back). Prefer **stored union** so the server does not need a JS clone of every default string.
+3. Validate PATCH: key allowlisted, string length cap (suggest 500; 240 for tokens), ICU parse for template kinds if you have a catalog on the server — or accept strings and let the client fall back on bad ICU.
+4. Bump `revision` on every successful write.
+5. Composite revision string for the consumer pointer is fine, e.g. `p{platformRev}:t{tenantRev}` — document the format.
+
+**Evaluation:**
+
+- [ ] Platform-only merge works with no tenant row
+- [ ] Tenant overlay wins over platform on the same key
+- [ ] Denied keys rejected on write
+- [ ] Unit tests without HTTP
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 2.3 — `GET /pivot/copy`
+
+**Status:** `pending`
+
+**Context:** Consumer endpoint, tenant from existing pivot auth / `x-tenant`, same gate as `/pivot/config`.
+
+**Instructions:**
+
+1. `GET /pivot/copy` on `pivotRoutes.js`.
+2. Query: `schemaVersion` (required or default to latest the server knows).
+3. Honor `If-None-Match` / `ETag` from revision. 304 when unchanged.
+4. Body is sparse. Empty overlay is a valid 200.
+5. Never require this call for other pivot routes.
+
+**Evaluation:**
+
+- [ ] Route outcome tests: 200 sparse, 304, 400/401/403 as appropriate for a non-pivot tenant (match `/pivot/config` behavior)
+- [ ] Response has no full catalog dump
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 2.4 — Copy pointer on `GET /pivot/config`
+
+**Status:** `pending`
+
+**Context:** Config is already fetched asynchronously. A tiny pointer avoids downloading copy every session.
+
+**Instructions:**
+
+1. Add `copy: { revision, schemaVersion }` to `getPivotConfig` payload.
+2. Update `PivotConfigData` in `Meridian-Mobile/src/services/api/pivotQueries.ts`.
+3. Old binaries ignore the field.
+
+**Evaluation:**
+
+- [ ] Config tests/outcomes include `copy`
+- [ ] Mobile type updated
+- [ ] Config payload size stays small (no `entries`)
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+## Phase 3 — Mobile fetch protocol
+
+### Task 3.1 — Fetch and revision compare
+
+**Status:** `pending`
+
+**Context:** Reuse the existing config fetch. Only hit `/pivot/copy` on mismatch or missing cache.
+
+**Instructions:**
+
+1. Add `fetchPivotCopy` in `pivotQueries.ts`.
+2. After `fetchPivotConfig`, if `copy.revision` !== disk revision (or cache missing), GET `/pivot/copy` with `If-None-Match` when you have an ETag.
+3. Do this in one place (suggested: a `usePivotCopyPack` hook used from Pivot root / edition), not in every screen.
+4. Config failure must **not** clear a good disk pack.
+
+**Evaluation:**
+
+- [ ] Matching revision → no copy GET (test or mocked hook)
+- [ ] Mismatch → GET + apply
+- [ ] Config 500 → keep disk/bundled
+- [ ] No UI blocker
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 3.2 — Apply, persist, fallback analytics
+
+**Status:** `pending`
+
+**Context:** Crew config already logs fallback reasons. Copy should too.
+
+**Instructions:**
+
+1. Successful GET → `applyPack` → persist disk.
+2. Copy GET failure → keep current tree; log a reason (`fetch_failed` | `bad_payload` | `schema`).
+3. Mirror the crew-config fallback analytics style (`trackPivotCrewConfigFallback`) — new event name, note it here.
+
+**Evaluation:**
+
+- [ ] Failure does not blank strings
+- [ ] Analytics event name documented in notes
+- [ ] Persist happens only after a validated pack
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+## Phase 4 — Fleet Voice editor (platform pack)
+
+### Task 4.1 — Admin catalog and write routes
+
+**Status:** `pending`
+
+**Context:** Editor needs shipped defaults + current platform values. Do not send 650 inputs as a single form POST.
+
+**Instructions:**
+
+1. Platform-admin routes under `/admin/pivot/copy` (or `/admin/platform/copy`) — match existing pivot admin auth.
+2. `GET` catalog: allowlisted keys, kind, param names, shipped default (from a **server-side catalog snapshot** you generate or maintain — see leftover if you choose a checked-in JSON generated from `pivotCopy.ts`).
+3. `GET` platform pack layers: `{ shipped, platform, effective }` per key or as maps.
+4. `PATCH` one key or a small batch; `DELETE` / reset one key to inherit shipped.
+5. Confirm-modal is a frontend concern; backend is live writes.
+
+**How to get shipped defaults on the server:** prefer a generated `pivotCopyDefaults.json` (dotted keys → template) produced by a small script from the mobile catalog, checked in, and bumped with `schemaVersion`. Note the script path in this step’s notes. Do not require the server to import TypeScript from Meridian-Mobile.
+
+**Evaluation:**
+
+- [ ] Non-platform-admin is 403
+- [ ] PATCH unknown key 400
+- [ ] Reset removes the stored key
+- [ ] Revision increments
+- [ ] Route outcome tests
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 4.2 — `PivotVoicePage` (platform)
+
+**Status:** `pending`
+
+**Context:** `PivotCrewConfigPanel` is the wrong UX (20 knobs). This is a search-first catalog.
+
+**Instructions:**
+
+1. Add `PivotVoicePage.jsx` (+ tests/scss as needed) under `PivotTenantDashboard/`.
+2. Props: `scope: 'platform' | 'tenant'`, `tenantKey?`.
+3. Layout: catalog tree + search; key inspector (shipped / platform / tenant / effective); ICU playground with sample args; reset-to-parent.
+4. Filters: overridden, interpolator, token-using.
+5. Save one key at a time with a confirm modal (match crew config save tone).
+6. All cities (`scope=platform`) hides the tenant column or shows it as “inherit only”.
+
+**Evaluation:**
+
+- [ ] Search finds a key by path and by shipped string
+- [ ] Platform save + reload shows the override
+- [ ] Reset restores shipped
+- [ ] Component tests for remap-free happy path
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 4.3 — Wire fleet menu page=1
+
+**Status:** `pending`
+
+**Context:** `PivotFleetDashboard` currently has only Overview. Fleet page=1 is free.
+
+**Instructions:**
+
+1. Append Voice to `PivotFleetDashboard` menu as index 1. Do not reorder Overview.
+2. Render `<PivotVoicePage scope="platform" />`.
+3. Update `PivotFleetDashboard.test.jsx`.
+4. Do not add Voice to `PlatformAdmin.jsx` menu items.
+
+**Evaluation:**
+
+- [ ] `/platform-admin/pivot?page=1` shows Voice
+- [ ] `/platform-admin/pivot` still Overview
+- [ ] Fleet test covers the new menu label
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+## Phase 5 — Tenant packs and city Voice
+
+### Task 5.1 — Tenant packs in merge
+
+**Status:** `pending`
+
+**Context:** Consumer GET already designed for merge. Persist tenant rows.
+
+**Instructions:**
+
+1. Admin GET/PATCH/reset for `scope=tenant` + `tenantKey`.
+2. Consumer merge: tenant key wins over platform key.
+3. Reset tenant key → inherit platform (then shipped).
+4. NYC write must not appear in Brooklyn GET.
+
+**Evaluation:**
+
+- [ ] Isolation test nyc vs brooklyn
+- [ ] Reset inherit chain documented in notes
+- [ ] Consumer GET reflects tenant win
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 5.2 — City Voice page=5
+
+**Status:** `pending`
+
+**Context:** City Catalog is page=4. **Do not insert.** Append Voice.
+
+**Instructions:**
+
+1. Append Voice to `PivotTenantDashboard` menu as index 5.
+2. `<PivotVoicePage scope="tenant" tenantKey={tenantKey} />`.
+3. Show all four columns: shipped, platform, tenant, effective.
+4. Update dashboard tests that assume menu length.
+
+**Evaluation:**
+
+- [ ] Existing `?page=4` Catalog bookmarks still work
+- [ ] `?page=5` is Voice for a city
+- [ ] Tenant dashboard tests updated
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 5.3 — Switcher Voice remap
+
+**Status:** `pending`
+
+**Context:** `PivotTenantDropdown` preserves `?page=` when going All cities → city. Fleet Voice (`page=1`) would open Curation. All cities navigation currently drops the query.
+
+**Instructions:**
+
+1. When the destination shell is fleet vs city, remap:
+   - Fleet Voice (page 1) ↔ city Voice (page 5)
+   - Overview (page 0) ↔ Overview (page 0)
+   - Any other city page → fleet Overview (drop `page` or set 0)
+   - Fleet Voice → city Voice (set page=5), not Curation
+2. City → city: keep preserving page (menus match).
+3. Cover this in `PivotTenantDropdown.test.jsx`.
+
+**Evaluation:**
+
+- [ ] All cities Voice → NYC lands on Voice (`page=5`)
+- [ ] NYC Voice → All cities lands on Voice (`page=1`)
+- [ ] NYC Curation → All cities lands on Overview
+- [ ] NYC Catalog → Brooklyn Catalog still `page=4`
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+## Phase 6 — Optional shared surfaces
+
+Do not start until Phases 0–5 work in staging. Either step may be `skipped`.
+
+### Task 6.1 — Push bodies (optional)
+
+**Status:** `pending`
+
+**Context:** `Meridian/backend/utilities/pivotCrewPushCopy.js` is a separate copy surface.
+
+**Instructions:** If you take this: resolve push bodies from the same pack keys; keep current strings as bundled fallback. Note which keys you mapped.
+
+**Evaluation:**
+
+- [ ] Push send path still works with empty pack
+- [ ] Key map listed in notes
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+### Task 6.2 — Web landing catalog (optional)
+
+**Status:** `pending`
+
+**Context:** `justGoLandingCopy.js` duplicates voice.
+
+**Instructions:** If you take this: landing reads platform pack with bundled fallback. Do not block landing HTML on the pack.
+
+**Evaluation:**
+
+- [ ] Landing renders with API down
+- [ ] Key map listed in notes
+
+**Implementation notes:**
+
+<!-- agents append below -->
+
+---
+
+## Suggested file map (create in the phase that needs them)
+
+Agents should update this table if names change.
+
+| Path | Phase | Role |
+| --- | --- | --- |
+| `Meridian-Mobile/src/pivot/copy/pivotCopyCatalog.ts` | 0 | Allowlist, schema version, key kinds |
+| `Meridian-Mobile/src/pivot/copy/pivotCopyResolve.ts` | 0 | `s()` / `t()` / ICU |
+| `Meridian-Mobile/src/pivot/copy/pivotCopyOverlayStore.ts` | 1 | Apply / subscribe / generation |
+| `Meridian-Mobile/src/pivot/copy/pivotCopyStorage.ts` | 1 | AsyncStorage |
+| `Meridian-Mobile/src/pivot/hooks/usePivotCopyPack.ts` | 3 | Config pointer + fetch |
+| `Meridian/backend/schemas/pivotCopyPack.js` | 2 | Global collection |
+| `Meridian/backend/services/pivotCopyService.js` | 2 | Merge / validate |
+| `Meridian/backend/utilities/pivotCopyDefaults.json` | 4 | Generated shipped snapshot |
+| `Meridian/frontend/.../PivotVoicePage.jsx` | 4 | Editor |
+
+---
+
+## Open forks (do not block v1)
+
+| Topic | Default | Change only with a plan note |
+| --- | --- | --- |
+| Draft vs live | Live PATCH | If you add drafts, new phase — do not sneak it into 4.1 |
+| City ops mobile CMS | No | Web Voice only |
+| A/B | No | Needs assignment infra |
+| Per-key minAppVersion | No | `schemaVersion` + ignore unknown keys |
+
+---
+
+## Implementation log (cross-cutting)
+
+Use this for notes that do not belong to one step (renames, schema version bumps, incidents).
+
+<!-- agents append below -->

@@ -13,6 +13,18 @@ Meridian depends on **closed-source modules** — private repos that are cloned 
 
 The Meridian CLI solves this by treating Meridian + its modules as a single workflow. It keeps all repos on the same branch, enforces the correct merge order (modules → main before syncing), and updates the lockfile so builds stay deterministic.
 
+## Unattended use (Relay)
+
+Relay may run `start` or `switch` without a terminal by passing `--yes --any-branch`. `--yes` disables collision prompts and exits with an error if a remote branch already exists; add `--resume` to `start` to check out that remote branch instead. `--any-branch` permits Relay-style names such as `relay/my-run/2026-08-21`, while still rejecting names that are not git-safe.
+
+```bash
+meridian start relay/my-run/2026-08-21 --yes --any-branch
+meridian start relay/my-run/2026-08-21 --yes --any-branch --resume
+meridian switch relay/my-run/2026-08-21 --yes --any-branch
+```
+
+Without `--any-branch`, the existing `MER-<number>-<slug>` validation remains unchanged.
+
 <Info>
 **Don't manually checkout across repos** unless you know what you're doing. The CLI prevents the mistakes that caused past downtime from mismatched subrepo commits.
 </Info>

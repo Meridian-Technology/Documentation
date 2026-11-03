@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>just go — friend invites, before / after</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --cream: #faf6ef;
+    --cream-deep: #efe7da;
+    --ink: #1a1714;
+    --ink-muted: rgba(26, 23, 20, 0.62);
+    --accent: #ff4f1f;
+    --pop: #ffd23f;
+    --ticker: #4ab5ff;
+    --sage: #5fd068;
+    --burst: #ff2a2a;
+    --night: #15120f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 32px 64px;
+    background: #e9e2d6;
+    color: var(--ink);
+    font: 13px/1.5 'Space Mono', ui-monospace, Menlo, monospace;
+  }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .lede { margin: 0 0 32px; color: var(--ink-muted); max-width: 62rem; }
+  h2 {
+    display: inline-block;
+    margin: 0 0 16px;
+    padding: 4px 10px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    border: 2px solid var(--ink);
+  }
+  h2.before { background: var(--cream-deep); }
+  h2.after { background: var(--pop); }
+  .row {
+    display: flex;
+    gap: 28px;
+    overflow-x: auto;
+    padding: 4px 4px 28px;
+    margin-bottom: 24px;
+  }
+  .step { flex: none; width: 260px; }
+  .step-label {
+    margin: 0 0 10px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: lowercase;
+  }
+  .step-label b {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; margin-right: 6px;
+    background: var(--ink); color: var(--cream); border-radius: 50%;
+    font-size: 11px;
+  }
+  .note { margin: 10px 0 0; font-size: 11px; color: var(--ink-muted); }
+  .note.bad { color: #b3261e; }
+
+  /* Phone frame */
+  .phone {
+    position: relative;
+    width: 260px;
+    height: 520px;
+    border-radius: 36px;
+    border: 8px solid var(--night);
+    background: var(--cream);
+    overflow: hidden;
+    box-shadow: 0 18px 40px rgba(26, 23, 20, 0.22);
+  }
+  .phone.photo {
+    background:
+      linear-gradient(rgba(16,12,10,.45), rgba(16,12,10,.55)),
+      radial-gradient(circle at 30% 20%, #6b8f5e, transparent 60%),
+      radial-gradient(circle at 70% 80%, #2f4a3a, transparent 55%),
+      #3d5a45;
+  }
+  .phone.web { background: var(--cream); border-color: #3a3530; }
+  .status { height: 30px; display: flex; justify-content: space-between; padding: 8px 18px 0; font-size: 10px; font-weight: 700; }
+  .photo .status { color: var(--cream); }
+  .screen { padding: 8px 14px; }
+  .header { display: flex; align-items: center; gap: 8px; margin: 2px 0 12px; font-weight: 700; font-size: 15px; }
+  .photo .header { color: var(--cream); }
+  .back { font-size: 16px; }
+
+  /* Conventional register: squircle cream cards */
+  .card {
+    background: var(--cream);
+    border-radius: 22px;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .card h3 { margin: 0 0 6px; font-size: 14px; }
+  .muted { color: var(--ink-muted); font-size: 11px; margin: 0 0 10px; }
+  .btn {
+    display: block; width: 100%; text-align: center;
+    padding: 10px; margin-top: 8px;
+    border-radius: 16px; border: 0;
+    font: 700 12px 'Space Mono', monospace;
+  }
+  .btn.accent { background: var(--accent); color: var(--cream); }
+  .btn.cream { background: var(--cream-deep); color: var(--ink); }
+  .btn.disabled { opacity: 0.35; }
+  .row-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--cream-deep); }
+  .dot { width: 30px; height: 30px; border-radius: 50%; background: var(--ticker); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; color: var(--ink); flex: none; }
+  .dot.pop { background: var(--pop); }
+  .dot.sage { background: var(--sage); }
+
+  /* Share sheet */
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: #f2f2f6; border-radius: 18px 18px 0 0;
+    padding: 12px 12px 18px;
+    font-family: -apple-system, system-ui, sans-serif;
+  }
+  .bubble {
+    background: #0b84ff; color: white; border-radius: 16px;
+    padding: 8px 11px; font-size: 12px; margin-left: 30px;
+  }
+  .link-card {
+    margin: 6px 0 0 30px; border-radius: 14px; overflow: hidden;
+    background: white; border: 1px solid #ddd;
+  }
+  .link-card .og {
+    height: 92px; background: #1e1a16; color: var(--cream);
+    display: flex; align-items: center; justify-content: center;
+    font: 700 22px 'Space Mono', monospace; letter-spacing: -0.04em;
+  }
+  .link-card .meta { padding: 6px 9px; font-size: 10px; color: #555; }
+  .link-card .meta b { display: block; color: #111; font-size: 11px; }
+  .apps { display: flex; gap: 10px; margin-top: 12px; }
+  .apps span { width: 40px; height: 40px; border-radius: 10px; background: #ccc; }
+  .apps span:nth-child(1) { background: #34c759; }
+  .apps span:nth-child(2) { background: #25d366; }
+  .apps span:nth-child(3) { background: linear-gradient(45deg,#f58529,#dd2a7b,#8134af); }
+
+  /* Web landing: loud register */
+  .urlbar { margin: 6px 10px 0; padding: 6px 10px; background: #e6e1d8; border-radius: 10px; font-size: 10px; text-align: center; }
+  .wordmark {
+    display: block; width: 150px; margin: 14px auto 8px; white-space: nowrap; padding: 8px 10px;
+    background: var(--ink); color: var(--cream);
+    font: 700 24px/1 'Space Mono', monospace; text-align: center;
+    transform: rotate(-2deg); box-shadow: 4px 4px 0 var(--accent);
+  }
+  .tagline { text-align: center; font-size: 10px; margin: 0 0 12px; }
+  .loud {
+    margin: 0 12px; padding: 12px;
+    border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink);
+    background: var(--cream); transform: rotate(-0.35deg);
+  }
+  .loud .eyebrow { margin: 0; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  .loud h4 { margin: 4px 0 8px; font-size: 15px; line-height: 1.25; letter-spacing: -0.02em; }
+  .loud p { margin: 0 0 8px; font-size: 10px; color: var(--ink-muted); }
+  .city { background: var(--pop); border: 2px solid var(--ink); padding: 0 3px; }
+  .polaroid {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; background: var(--pop);
+    border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--accent);
+    transform: rotate(-4deg); font-weight: 700; font-size: 18px;
+  }
+  .inviter { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .store { display: inline-block; margin: 2px 0 8px; padding: 6px 10px; background: black; color: white; border-radius: 8px; font: 600 10px -apple-system, system-ui, sans-serif; }
+  .cta { display: block; padding: 8px; text-align: center; background: var(--accent); color: var(--cream); border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); font-weight: 700; font-size: 11px; }
+  .err { text-align: center; }
+  .x { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; background: var(--burst); color: white; border: 3px solid var(--ink); transform: rotate(-8deg); font-weight: 700; margin-bottom: 6px; }
+  .codebox { background: var(--ticker); border: 3px solid var(--ink); padding: 6px 8px; font-weight: 700; letter-spacing: .08em; margin-bottom: 8px; }
+
+  /* Toast + push */
+  .toast {
+    position: absolute; left: 12px; right: 12px; top: 40px;
+    background: var(--cream); border-left: 5px solid var(--sage);
+    border-radius: 14px; padding: 9px 11px;
+    box-shadow: 0 8px 20px rgba(0,0,0,.28);
+  }
+  .toast b { display: block; font-size: 12px; }
+  .toast span { font-size: 10px; color: var(--ink-muted); }
+  .push {
+    position: absolute; left: 10px; right: 10px; top: 40px;
+    background: rgba(250,246,239,.92); border-radius: 18px; padding: 10px 12px;
+    font-family: -apple-system, system-ui, sans-serif; font-size: 11px;
+    box-shadow: 0 8px 20px rgba(0,0,0,.25);
+  }
+  .push small { display: block; color: #666; font-size: 9px; text-transform: uppercase; margin-bottom: 2px; }
+  .deck {
+    position: absolute; left: 22px; right: 22px; top: 130px; bottom: 90px;
+    border-radius: 24px; background: var(--cream);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    padding: 16px;
+  }
+  .deck .poster { height: 150px; border-radius: 16px; background: linear-gradient(135deg, var(--accent), var(--pop)); margin-bottom: 10px; }
+  .chip { display: inline-block; padding: 2px 6px; margin-right: 4px; font-size: 9px; border: 1.5px solid var(--ink); border-radius: 6px; }
+
+  .system {
+    max-width: 62rem; background: var(--cream); border: 2px solid var(--ink);
+    padding: 18px 20px; margin-top: 8px;
+  }
+  .system h3 { margin: 0 0 10px; }
+  .system pre { margin: 0; font: 11px/1.6 'Space Mono', monospace; white-space: pre; overflow-x: auto; }
+</style>
+</head>
+<body>
+  <h1>just go — friend invites</h1>
+  <p class="lede">
+    Sharing used to need an admin cohort code. Codes capped at 50–100 uses, expired, and never connected
+    the two people. The corrected path gives every user a personal link that never dies, says who invited
+    you, picks the city for you, and makes you friends when you join. App screens stay in the conventional
+    register; the web landing page uses the loud cut-paper register.
+  </p>
+
+  <h2 class="before">before — what ships today</h2>
+  <div class="row">
+    <div class="step">
+      <p class="step-label"><b>1</b>profile, joined via city picker</p>
+      <div class="phone photo">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="screen">
+          <div class="header"><span class="back">‹</span>profile</div>
+          <div class="card">
+            <h3>invite a friend</h3>
+            <p class="muted">invite links need a referral code. share from profile once you have one</p>
+          </div>
+        </div>
+      </div>
+      <p class="note bad">No share button unless you entered with an admin cohort code. City-picker users (the default path) can't invite at all.</p>
+    </div>
+
+    <div class="step">
+      <p class="step-label"><b>2</b>friends screen, empty</p>
+      <div class="phone photo">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="screen">
+          <div class="header"><span class="back">‹</span>friends</div>
+          <div class="card">
+            <h3>no friends yet</h3>
+            <p class="muted">search or invite someone to connect in your city</p>
+            <div class="btn accent">find friends</div>
+            <div class="btn cream disabled">invite someone</div>
+            <p class="muted" style="margin-top:8px">invite links need a referral code…</p>
+          </div>
+        </div>
+      </div>
+      <p class="note bad">Invite button disabled. Friend search only finds people who are already here.</p>
+    </div>
+
+    <div class="step">
+      <p class="step-label"><b>3</b>friend taps a shared link</p>
+      <div class="phone web">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="urlbar">meridian.study/invite?code=NYC-PILOT-A&amp;ref=64a0…</div>
+        <div class="wordmark">just go</div>
+        <div class="loud err">
+          <div class="x">✕</div>
+          <h4>that code didn't work</h4>
+          <p>double-check the code or ask for a fresh invite. codes can expire or hit their limit.</p>
+          <p>code tried: <b>NYC-PILOT-A</b></p>
+        </div>
+      </div>
+      <p class="note bad">After 50 sign-ups the shared cohort code maxes out and every link breaks: no download button, no way forward. Links also use the old meridian.study domain and put a raw user id in the URL.</p>
+    </div>
+
+    <div class="step">
+      <p class="step-label"><b>4</b>valid code: still a code wall</p>
+      <div class="phone web">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="urlbar">meridian.study/invite?code=…</div>
+        <div class="wordmark">just go</div>
+        <div class="loud">
+          <p class="eyebrow">you're invited</p>
+          <h4>join just go in <span class="city">nyc</span></h4>
+          <div class="codebox">NYC-PILOT-A</div>
+          <p>…tap <b>have an invite code?</b> and paste it</p>
+        </div>
+      </div>
+      <p class="note bad">Doesn't say who invited you. Tells people to tap a "have an invite code?" button the Just Go app doesn't have. After joining, inviter and invitee aren't friends.</p>
+    </div>
+  </div>
+
+  <h2 class="after">after — personal invite links</h2>
+  <div class="row">
+    <div class="step">
+      <p class="step-label"><b>1</b>anyone can invite</p>
+      <div class="phone photo">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="screen">
+          <div class="header"><span class="back">‹</span>profile</div>
+          <div class="card">
+            <h3>invite a friend</h3>
+            <p class="muted">3 friends joined from your link</p>
+            <div class="btn accent">invite a friend</div>
+            <div class="btn cream">copy invite link</div>
+          </div>
+        </div>
+      </div>
+      <p class="note">Always on. The link is personal, stable per city, and never caps out. The count shows the inviter their invites working.</p>
+    </div>
+
+    <div class="step">
+      <p class="step-label"><b>2</b>share sheet, in the sharer's voice</p>
+      <div class="phone photo">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="sheet">
+          <div class="bubble">come find plans with me on just go in boston<br /><br />justgo.lol/invite/k7m2qx9a</div>
+          <div class="link-card">
+            <div class="og">just go</div>
+            <div class="meta"><b>just go — don't overthink, just go!</b>justgo.lol</div>
+          </div>
+          <div class="apps"><span></span><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <p class="note">justgo.lol gets the Just Go preview card. The link is a short random code, not a database id.</p>
+    </div>
+
+    <div class="step">
+      <p class="step-label"><b>3</b>friend without the app</p>
+      <div class="phone web">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="urlbar">justgo.lol/invite/k7m2qx9a</div>
+        <div class="wordmark">just go</div>
+        <div class="loud">
+          <div class="inviter"><span class="polaroid">M</span><p class="eyebrow">you're invited</p></div>
+          <h4>Maya invited you to just go in <span class="city">boston</span></h4>
+          <p>join and you're friends with Maya from the start.</p>
+          <span class="store"> Download on the App Store</span>
+          <div class="cta">open in just go</div>
+        </div>
+      </div>
+      <p class="note">Shows who invited you. An unknown, dead, or maxed legacy code drops to a plain "get just go" card. Never a dead end.</p>
+    </div>
+
+    <div class="step">
+      <p class="step-label"><b>4</b>open → city already picked</p>
+      <div class="phone photo">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="screen" style="padding-top:150px">
+          <div class="card">
+            <h3>just go in boston</h3>
+            <p class="muted">create an account to start swiping what's nearby</p>
+            <div class="btn accent"> continue with apple</div>
+            <div class="btn cream">continue with google</div>
+          </div>
+        </div>
+      </div>
+      <p class="note">The link opens straight into the inviter's city on the sign-in screen, skipping the city picker. The invite waits until sign-in.</p>
+    </div>
+
+    <div class="step">
+      <p class="step-label"><b>5</b>signed in → already friends</p>
+      <div class="phone photo">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="toast"><b>you and Maya are friends</b><span>you'll see what they pick this week</span></div>
+        <div class="deck">
+          <div class="poster"></div>
+          <b>night market on the pier</b>
+          <p class="muted" style="margin:4px 0"><span class="chip">fri 7p</span><span class="chip">free</span></p>
+          <p class="muted"><span class="dot pop" style="width:18px;height:18px;font-size:9px">M</span> Maya's in</p>
+        </div>
+      </div>
+      <p class="note">The friendship exists before onboarding ends, so friend features work in week one.</p>
+    </div>
+
+    <div class="step">
+      <p class="step-label"><b>6</b>the inviter hears about it</p>
+      <div class="phone photo">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="push"><small>just go · now</small><b>New friend</b><br />Sam accepted your invite. You're friends now.</div>
+        <div class="screen" style="padding-top:110px">
+          <div class="header">friends</div>
+          <div class="card">
+            <div class="row-item"><span class="dot sage">S</span>Sam</div>
+            <div class="row-item"><span class="dot">J</span>Jo</div>
+            <div class="row-item" style="border:0"><span class="dot pop">R</span>Rae</div>
+          </div>
+        </div>
+      </div>
+      <p class="note">The push opens the Friends screen. This reward closes the growth loop.</p>
+    </div>
+
+    <div class="step">
+      <p class="step-label"><b>7</b>already on just go</p>
+      <div class="phone photo">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="screen" style="padding-top:150px">
+          <div class="card" style="text-align:center;font-family:-apple-system,system-ui,sans-serif">
+            <h3>add Maya as a friend?</h3>
+            <p class="muted">Maya sent you their just go invite</p>
+            <div style="display:flex;border-top:1px solid var(--cream-deep);margin-top:8px">
+              <div style="flex:1;padding:8px">not now</div>
+              <div style="flex:1;padding:8px;font-weight:700;border-left:1px solid var(--cream-deep)">add</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="note">Existing users confirm before connecting. If Maya is in another city, a toast says "Maya is on just go in boston" instead.</p>
+    </div>
+  </div>
+
+  <div class="system">
+    <h3>system</h3>
+<pre>
+ inviter (signed in, any city)                  invitee
+ ─────────────────────────────                  ───────
+ GET  /pivot/invites/me ──► PivotUserInvite     taps justgo.lol/invite/{code}
+      (lazily created;       {code, globalUserId,     │
+       one per user+city)     tenantKey, tenantUserId, ├─ app installed ─► usePivotInviteDeepLinkBoot
+                              inviterName/Picture,     │                    GET /pivot/invites/{code}/preview  (public)
+                              acceptedCount}           │                    signed out: set inviter's city, store pending
+ share sheet: justgo.lol/invite/{code}                 │                    signed in, same city: confirm sheet
+                                                       │                    signed in, other city: info toast
+                                                       └─ no app ───────► web /invite/:code  (who + city + store + "open in just go")
+
+ after sign-in ─► PivotInviteAcceptSync ─► POST /pivot/invites/{code}/accept
+                    • Friendship(inviter ⇄ invitee, accepted)   (skips if blocked, self, or another city)
+                    • PivotUserInviteAcceptance {code, inviter, invitee, friended}   (idempotent per invitee+code)
+                    • acceptedCount += 1
+                    • push to inviter: pivot_invite_accepted → PivotFriends
+                    • growth dashboard counts the invitee as "referred"
+
+ Admin cohort codes (PivotReferralCode) stay as campaign attribution. They are never a gate, and an
+ expired or maxed code now drops silently into normal open entry.
+</pre>
+  </div>
+</body>
+</html>
